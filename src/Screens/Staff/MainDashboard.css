@@ -1,3 +1,4 @@
+/* modal styles moved to AppointmentsModal.css */
 .dashboard {
   display: grid;
   grid-template-columns: 64px 1fr;

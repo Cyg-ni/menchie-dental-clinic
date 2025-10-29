@@ -1,5 +1,9 @@
 import React, { useState, useRef, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import "./MainDashboard.css";
+import AppointmentsModal from "./AppointmentsModal.jsx";
+import MoreAppointmentsModal from "./MoreAppointmentsModal.jsx";
+import AddingPatientModal from "./AddingPatientModal.jsx";
 
 const Placeholder = ({ className }) => (
   <div className={`ph ${className || ""}`}>
@@ -72,6 +76,11 @@ const Icon = ({ name }) => {
 const MainDashboard = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
+  const [showAppointmentsModal, setShowAppointmentsModal] = useState(false);
+  const [showMoreAppointments, setShowMoreAppointments] = useState(false);
+  const [showAddingPatient, setShowAddingPatient] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     const onDocClick = (e) => {
@@ -99,8 +108,20 @@ const MainDashboard = () => {
           </button>
         </div>
         <nav className="sidebar-nav">
-          <button className="nav-item active" aria-label="Dashboard"><Icon name="dashboard" /></button>
-          <button className="nav-item" aria-label="Appointments"><Icon name="appointments" /></button>
+          <button
+            className={`nav-item ${location.pathname.startsWith("/dashboard") ? "active" : ""}`}
+            aria-label="Dashboard"
+            onClick={() => navigate("/dashboard")}
+          >
+            <Icon name="dashboard" />
+          </button>
+          <button
+            className={`nav-item ${location.pathname.startsWith("/schedule") ? "active" : ""}`}
+            aria-label="Schedule"
+            onClick={() => navigate("/schedule")}
+          >
+            <Icon name="appointments" />
+          </button>
           <button className="nav-item" aria-label="Patients"><Icon name="patients" /></button>
           <button className="nav-item" aria-label="Settings"><Icon name="settings" /></button>
         </nav>
@@ -151,7 +172,7 @@ const MainDashboard = () => {
               </div>
               <div className="hero-card">
                 <Placeholder />
-                <button className="link">Manage Patient Settings</button>
+                <button className="link" onClick={() => setShowAddingPatient(true)}>Manage Patient Settings</button>
               </div>
             </div>
           </div>
@@ -160,7 +181,7 @@ const MainDashboard = () => {
             <div className="card-title">Approval Request</div>
             <div className="big-num">15</div>
             <div className="muted">Request waiting to Approve</div>
-            <button className="btn ghost">More</button>
+            <button className="btn ghost" onClick={() => setShowAppointmentsModal(true)}>More</button>
             <div className="muted">Upcoming Appointments</div>
             <div className="big-num">5</div>
             <button className="btn ghost">More</button>
@@ -197,7 +218,7 @@ const MainDashboard = () => {
               </div>
             </div>
             <div className="card-footer-right">
-              <button className="btn ghost">More</button>
+              <button className="btn ghost" onClick={() => setShowMoreAppointments(true)}>More</button>
             </div>
           </div>
 
@@ -228,6 +249,15 @@ const MainDashboard = () => {
             </div>
           </div>
         </section>
+        {showAppointmentsModal && (
+          <AppointmentsModal onClose={() => setShowAppointmentsModal(false)} />
+        )}
+        {showMoreAppointments && (
+          <MoreAppointmentsModal onClose={() => setShowMoreAppointments(false)} />
+        )}
+        {showAddingPatient && (
+          <AddingPatientModal onClose={() => setShowAddingPatient(false)} />
+        )}
       </main>
     </div>
   );
