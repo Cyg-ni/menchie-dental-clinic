@@ -1,0 +1,300 @@
+.appointment-booking {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0;
+}
+
+.booking-container {
+  background: white;
+  border-radius: 20px;
+  padding: 48px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+}
+
+.booking-header {
+  text-align: center;
+  margin-bottom: 48px;
+}
+
+.booking-header h2 {
+  font-size: 36px;
+  margin-bottom: 16px;
+  color: #333;
+}
+
+.booking-header p {
+  color: #666;
+  font-size: 18px;
+}
+
+/* Form Styles */
+.booking-form {
+  margin-bottom: 48px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.form-group {
+  margin-bottom: 24px;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #333;
+}
+
+.form-input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 2px solid #dee2e6;
+  border-radius: 8px;
+  font-size: 16px;
+  transition: border-color 0.3s ease;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+/* Urgency Options */
+.urgency-options {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.urgency-option {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.urgency-option input[type="radio"] {
+  display: none;
+}
+
+.urgency-label {
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 2px solid #dee2e6;
+  transition: all 0.3s ease;
+  font-weight: 500;
+}
+
+.urgency-option input[type="radio"]:checked + .urgency-label.routine {
+  background: #28a745;
+  color: white;
+  border-color: #28a745;
+}
+
+.urgency-option input[type="radio"]:checked + .urgency-label.urgent {
+  background: #ffc107;
+  color: #333;
+  border-color: #ffc107;
+}
+
+.urgency-option input[type="radio"]:checked + .urgency-label.emergency {
+  background: #dc3545;
+  color: white;
+  border-color: #dc3545;
+}
+
+.submit-btn {
+  width: 100%;
+  padding: 16px;
+  font-size: 18px;
+  margin-top: 16px;
+}
+
+/* Booking Info */
+.booking-info {
+  background: #f8f9fa;
+  border-radius: 16px;
+  padding: 32px;
+}
+
+.booking-info h3 {
+  font-size: 24px;
+  margin-bottom: 24px;
+  color: #333;
+  text-align: center;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 24px;
+}
+
+.info-card {
+  background: white;
+  padding: 24px;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.info-card h4 {
+  font-size: 18px;
+  margin-bottom: 12px;
+  color: #333;
+}
+
+.info-card p {
+  color: #666;
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+/* Confirmation Styles */
+.confirmation-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 60vh;
+}
+
+.confirmation-card {
+  background: white;
+  border-radius: 20px;
+  padding: 48px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  text-align: center;
+  max-width: 600px;
+  width: 100%;
+}
+
+.success-icon {
+  font-size: 64px;
+  margin-bottom: 24px;
+}
+
+.confirmation-card h2 {
+  font-size: 32px;
+  color: #28a745;
+  margin-bottom: 32px;
+}
+
+.appointment-details {
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 32px;
+  text-align: left;
+}
+
+.appointment-details h3 {
+  font-size: 20px;
+  margin-bottom: 16px;
+  color: #333;
+  text-align: center;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.detail-row:last-child {
+  border-bottom: none;
+}
+
+.detail-row span:first-child {
+  font-weight: 600;
+  color: #333;
+}
+
+.detail-row span:last-child {
+  color: #666;
+}
+
+.priority.routine {
+  color: #28a745;
+  font-weight: 600;
+}
+
+.priority.urgent {
+  color: #ffc107;
+  font-weight: 600;
+}
+
+.priority.emergency {
+  color: #dc3545;
+  font-weight: 600;
+}
+
+.confirmation-actions {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  margin-bottom: 32px;
+}
+
+.next-steps {
+  background: #e8f2ff;
+  border-radius: 12px;
+  padding: 24px;
+  text-align: left;
+}
+
+.next-steps h4 {
+  font-size: 18px;
+  margin-bottom: 16px;
+  color: #333;
+  text-align: center;
+}
+
+.next-steps ul {
+  list-style: none;
+  padding: 0;
+}
+
+.next-steps li {
+  padding: 8px 0;
+  color: #666;
+  position: relative;
+  padding-left: 24px;
+}
+
+.next-steps li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  color: #28a745;
+  font-weight: bold;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .booking-container,
+  .confirmation-card {
+    padding: 24px;
+  }
+  
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+  
+  .urgency-options {
+    flex-direction: column;
+  }
+  
+  .confirmation-actions {
+    flex-direction: column;
+  }
+  
+  .info-grid {
+    grid-template-columns: 1fr;
+  }
+}
