@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # React + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
@@ -24,3 +25,7 @@ Used Chef.ai to assist in making the website structure
 ## Status
 
 Still fixing the interactions between buttons (Gab)
+=======
+# menchie-dental-clinic
+capstone deluxe
+>>>>>>> parent of 6173e74 (actual scaffolding)
