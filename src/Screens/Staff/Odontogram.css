@@ -1,0 +1,68 @@
+.odontogram-grid {
+  margin: 0 auto;
+  background: transparent;
+  max-width: 100%;
+}
+.odontogram-row {
+  display: flex;
+  flex-direction: row;
+  gap: 3px;
+  justify-content: flex-start;
+  margin-bottom: 0px;
+}
+.odontogram-tooth {
+  background: none;
+  border: none;
+  outline: none;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  position: static;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.tooth-square {
+  width: 20px;
+  height: 20px;
+  border: 1.3px solid #8a8a8a;
+  border-radius: 4px;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: #263455;
+  font-weight: 500;
+  transition: border 0.15s, background 0.14s;
+}
+.odontogram-tooth.selected .tooth-square {
+  border: 1.4px solid #2196f3;
+  background: #e3f1ff;
+  color: #1969bc;
+  font-weight: 700;
+}
+/* Treatment record highlight */
+.odontogram-tooth.shaded .tooth-square {
+  background: #e6ffd8;
+  border-color: #6dc157;
+}
+.odontogram-tooth.shaded.done .tooth-square {
+  background: #d2f5e4;
+  border-color: #2bb97d;
+}
+.odontogram-tooth.shaded.ongoing .tooth-square {
+  background: #ffe7d6;
+  border-color: #f49046;
+}
+.odontogram-tooth:hover .tooth-square {
+  background: #f0f8ff;
+  border-color: #46a3f2;
+}
+.tooth-label {
+  font-size: 10px;
+  color: #27399e;
+  margin-top: 0px;
+  text-align: center;
+  min-width: 20px;
+}

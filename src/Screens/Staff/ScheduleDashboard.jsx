@@ -169,7 +169,11 @@ const ScheduleDashboard = () => {
           >
             <Icon name="appointments" />
           </button>
-          <button className="nav-item" aria-label="Patients">
+          <button
+            className={`nav-item ${(location.pathname.startsWith("/patient-list")) ? "active" : ""}`}
+            aria-label="Patients"
+            onClick={() => navigate("/patient-list")}
+          >
             <Icon name="patients" />
           </button>
           <button className="nav-item" aria-label="Settings">
