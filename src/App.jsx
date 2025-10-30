@@ -1,11 +1,11 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import Home from "./Screens/Home";
+import Services from "./Screens/services"; // import Services component
 
 function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<Home />} />
+        <Route path="/" element={<Services />} /> {/* display Services instead of Home */}
       </Routes>
     </Router>
   );
