@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
+import { useNavigate } from 'react-router-dom';
 import "./MainDashboard.css";
+import ScheduleDashboard from "./ScheduleDashboard";
 
 const Placeholder = ({ className }) => (
   <div className={`ph ${className || ""}`}>
@@ -72,6 +74,7 @@ const Icon = ({ name }) => {
 const MainDashboard = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const onDocClick = (e) => {
@@ -93,16 +96,38 @@ const MainDashboard = () => {
             onClick={(e) => {
               e.stopPropagation();
               setMenuOpen((o) => !o);
-            }}
-          >
+            }}>
             ≡
           </button>
         </div>
         <nav className="sidebar-nav">
-          <button className="nav-item active" aria-label="Dashboard"><Icon name="dashboard" /></button>
-          <button className="nav-item" aria-label="Appointments"><Icon name="appointments" /></button>
-          <button className="nav-item" aria-label="Patients"><Icon name="patients" /></button>
-          <button className="nav-item" aria-label="Settings"><Icon name="settings" /></button>
+          <button 
+            className="nav-item active" 
+            aria-label="Dashboard"
+            onClick={() => {
+              alert('Successfully Clicked, Navigate through Dashboard');
+              navigate("/scheduledashboard");
+              }}>
+            <Icon name="dashboard" /></button>
+
+          <button 
+            className="nav-item" 
+            aria-label="Appointments"
+            onClick={() => alert('Successfully Clicked, Navigate through Appointments')}>
+            <Icon name="appointments" /></button>
+
+          <button 
+            className="nav-item" 
+            aria-label="Patients"
+            onClick={() => alert('Successfully Clicked, Navigate through Patients')}>
+            <Icon name="patients" /></button>
+
+          <button 
+            className="nav-item" 
+            aria-label="Settings"
+            onClick={() => alert('Successfully Clicked, Navigate through Settings')}>
+            
+            <Icon name="settings" /></button>
         </nav>
       </aside>
 
