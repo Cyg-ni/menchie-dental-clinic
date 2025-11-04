@@ -1,8 +1,10 @@
+@import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@100..900&display=swap');
+
 .patient-list-container {
   padding: 32px 24px;
   background: #fcfcfc;
   min-height: 100vh;
-  font-family: 'Segoe UI', Arial, sans-serif;
+  font-family: "Exo 2", sans-serif;
 }
 
 .patient-header {
@@ -32,6 +34,8 @@
   outline: none;
   box-sizing: border-box;
   transition: border 0.2s;
+  color: #333333;
+  font-family: "Exo 2", sans-serif;
 }
 .search-input:focus {
   border: 1.5px solid #a3b4cc;

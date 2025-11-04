@@ -74,7 +74,7 @@ const Icon = ({ name }) => {
 };
 
 const MainDashboard = () => {
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(true);
   const menuRef = useRef(null);
   const [showAppointmentsModal, setShowAppointmentsModal] = useState(false);
   const [showMoreAppointments, setShowMoreAppointments] = useState(false);
@@ -85,7 +85,7 @@ const MainDashboard = () => {
   useEffect(() => {
     const onDocClick = (e) => {
       if (!menuRef.current) return;
-      if (!menuRef.current.contains(e.target)) setMenuOpen(false);
+      if (!menuRef.current.contains(e.target)) setMenuOpen(true);
     };
     document.addEventListener("click", onDocClick);
     return () => document.removeEventListener("click", onDocClick);

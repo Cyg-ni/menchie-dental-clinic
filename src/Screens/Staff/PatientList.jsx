@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import "./Layout.css";
 import "./PatientList.css";
-import "./MainDashboard.css";
 import "./AddingPatientModal.css";
 
 // Sidebar icon (copied from ScheduleDashboard)
@@ -251,7 +251,7 @@ export default function PatientList() {
   const [profilePatient, setProfilePatient] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
   // Sidebar state
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -307,17 +307,32 @@ export default function PatientList() {
   // Layout starts here (dashboard shell)
   return (
     <div className="dashboard">
+      <header className="topbar  ref={menuRef}">
+        <button
+          className="icon-btn menu-toggle"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          onClick={(e) => {
+            e.stopPropagation();
+            setMenuOpen(o => !o);
+          }}
+        >
+          ≡
+        </button>
+          <div className="brand-left">
+            <div className="brand-logo" />
+            <div className="brand-name">Menchie's Dental Clinic</div>
+          </div>
+          <div className="user">
+            <div className="avatar" />
+            <div className="user-meta">
+              <div className="user-name">Juana Cruz</div>
+              <div className="user-role">Chief Dentist</div>
+            </div>
+          </div>
+        </header>
+        
       <aside className={`sidebar ${menuOpen ? "open" : ""}`}>
-        <div className="sidebar-header">
-          <button
-            className="icon-btn"
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-            onClick={() => setMenuOpen(v => !v)}
-          >
-            ≡
-          </button>
-        </div>
         <nav className="sidebar-nav">
           <button
             className={`nav-item ${location.pathname.startsWith("/dashboard") ? "active" : ""}`}
@@ -345,19 +360,6 @@ export default function PatientList() {
         </nav>
       </aside>
       <main className="main">
-        <header className="topbar">
-          <div className="brand-left">
-            <div className="brand-logo" />
-            <div className="brand-name">Menchie's Dental Clinic</div>
-          </div>
-          <div className="user">
-            <div className="avatar" />
-            <div className="user-meta">
-              <div className="user-name">Juana Cruz</div>
-              <div className="user-role">Chief Dentist</div>
-            </div>
-          </div>
-        </header>
         <div className="patient-list-container">
           <header className="patient-header">
             <h1>Patient List</h1>

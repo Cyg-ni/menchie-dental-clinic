@@ -102,14 +102,14 @@ const IconTile = ({ color, label, kind }) => (
 const ScheduleDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(true);
   const [showReports, setShowReports] = useState(false);
   const menuRef = useRef(null);
 
   useEffect(() => {
     const closeMenu = (e) => {
       if (!menuRef.current) return;
-      if (!menuRef.current.contains(e.target)) setMenuOpen(false);
+      if (!menuRef.current.contains(e.target)) setMenuOpen(true);
     };
     document.addEventListener("click", closeMenu);
     return () => document.removeEventListener("click", closeMenu);
@@ -225,6 +225,7 @@ const ScheduleDashboard = () => {
           </button>
         </nav>
       </aside>
+
       <main className="main">
         <section className="schedule-grid">
           <div className="row-top">
