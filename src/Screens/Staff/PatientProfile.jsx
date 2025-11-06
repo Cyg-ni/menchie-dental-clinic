@@ -1,9 +1,51 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import Odontogram from "./Odontogram.jsx";
-import "./MainDashboard.css";
+import "./Layout.css";
 import "./AddingPatientModal.css";
 import "./Odontogram.css";
+
+const Icon = ({ name }) => {
+  switch (name) {
+    case "dashboard":
+      return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#444" strokeWidth="2">
+          <path d="M3 12h7V3H3v9zm11 9h7v-6h-7v6zM3 21h7v-6H3v6zm11-9h7V3h-7v9z"/>
+        </svg>
+      );
+
+    case "appointments":
+      return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#444" strokeWidth="2">
+          <rect x="3" y="4" width="18" height="18" rx="2"/>
+          <line x1="16" y1="2" x2="16" y2="6"/>
+          <line x1="8" y1="2" x2="8" y2="6"/>
+          <line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+      );
+
+    case "patients":
+      return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#444" strokeWidth="2">
+          <circle cx="9" cy="7" r="4"/>
+          <path d="M17 11a4 4 0 1 0-4-4"/>
+          <path d="M3 21a6 6 0 0 1 12 0"/>
+          <path d="M15 21a6 6 0 0 1 6-6"/>
+        </svg>
+      );
+
+    case "settings":
+      return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#444" strokeWidth="2">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09c0 .68.39 1.29 1 1.51.59.23 1.27.1 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06c-.43.55-.56 1.23-.33 1.82.22.61.83 1 1.51 1H21a2 2 0 1 1 0 4h-.09c-.68 0-1.29.39-1.51 1z"/>
+        </svg>
+      );
+
+    default:
+      return null;
+  }
+};
 
 const TABS = [
   { key: "info", label: "Patient Information" },
@@ -44,7 +86,10 @@ function savePatients(arr) {
 export default function PatientProfile() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const menuRef = useRef(null);
   const [tab, setTab] = useState("medical");
+  const location = useLocation();
+  const [menuOpen, setMenuOpen] = useState(true);
   const [patients, setPatients] = useState(loadPatients());
   useEffect(() => { savePatients(patients); }, [patients]);
 
@@ -64,6 +109,8 @@ export default function PatientProfile() {
     done: false
   });
   const [submitMsg, setSubmitMsg] = useState("");
+
+  
 
   useEffect(() => {
     setTreatTeeth([]);
@@ -131,19 +178,17 @@ export default function PatientProfile() {
 
   return (
     <div className="dashboard">
-      <aside className="sidebar">
-        <div className="sidebar-header">
-          <button className="icon-btn" onClick={() => navigate(-1)}>≡</button>
-        </div>
-        <nav className="sidebar-nav">
-          <button className="nav-item" aria-label="Dashboard" onClick={() => navigate("/dashboard")}>🏠</button>
-          <button className="nav-item" aria-label="Schedule" onClick={() => navigate("/schedule")}>📅</button>
-          <button className="nav-item active" aria-label="Patients" onClick={() => navigate("/patient-list")}>👥</button>
-          <button className="nav-item" aria-label="Settings">⚙️</button>
-        </nav>
-      </aside>
-      <main className="main">
-        <header className="topbar">
+      <header className="topbar">
+      <button 
+          className="icon-btn" 
+          onClick={(e) => {
+          e.stopPropagation();
+          setMenuOpen(o => !o);
+        }}
+      >
+        ≡
+      </button>
+      
           <div className="brand-left">
             <div className="brand-logo" />
             <div className="brand-name">Menchie's Dental Clinic</div>
@@ -156,6 +201,37 @@ export default function PatientProfile() {
             </div>
           </div>
         </header>
+
+        <aside className={`sidebar ${menuOpen ? "open" : ""}`}>
+        <nav className="sidebar-nav">
+          <button
+            className={`nav-item ${location.pathname.startsWith("/dashboard") ? "active" : ""}`}
+            aria-label="Dashboard"
+            onClick={() => navigate("/dashboard")}
+          >
+            <Icon name="dashboard" />
+          </button>
+          <button
+            className={`nav-item ${location.pathname.startsWith("/schedule") ? "active" : ""}`}
+            aria-label="Schedule"
+            onClick={() => navigate("/schedule")}
+          >
+            <Icon name="appointments" />
+          </button>
+          <button
+            className={`nav-item ${location.pathname.startsWith("/patient-list") ? "active" : ""}`}
+            aria-label="Patients"
+            onClick={() => navigate("/patient-list")}
+          >
+            <Icon name="patients" />
+          </button>
+          <button className="nav-item" aria-label="Settings">
+            <Icon name="settings" />
+          </button>
+        </nav>
+      </aside>
+
+      <main className="main">
         <div style={{ padding: 28, maxWidth: 1300, margin: 'auto' }}>
         <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
           <button onClick={() => navigate("/patient-list")} className="btn-secondary" style={{ marginRight: 36 }}>⟵ Back to List</button>
