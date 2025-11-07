@@ -12,10 +12,7 @@
   "dependencies": {
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-<<<<<<< HEAD
-=======
     "react-router": "^7.9.5",
->>>>>>> 91bcf2652972863c1be99eaa5ea17e054103a645
     "react-router-dom": "^7.9.4"
   },
   "devDependencies": {

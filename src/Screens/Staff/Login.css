@@ -1,12 +1,9 @@
-<<<<<<< HEAD
-=======
 @import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@100..900&display=swap');
 
 .exo2 {
   font-family: "Exo 2", sans-serif;
 }
 
->>>>>>> 91bcf2652972863c1be99eaa5ea17e054103a645
 body, html {
   margin: 0;
   padding: 0;
@@ -14,10 +11,7 @@ body, html {
   height: 100%;
   font-family: Helvetica, Arial, sans-serif;
   background-color: #ffffff;
-<<<<<<< HEAD
-=======
   font-family: "Exo 2", sans-serif;
->>>>>>> 91bcf2652972863c1be99eaa5ea17e054103a645
 }
 
 .login-container {
@@ -27,14 +21,11 @@ body, html {
   min-height: 100vh;
   padding: 20px;
   box-sizing: border-box;
-<<<<<<< HEAD
-=======
   background-color: rgb(194, 194, 194);
   background-blend-mode: overlay;
   background-image: url('./Images/dental-bg.png');
   background-size: cover;
   background-position: center;
->>>>>>> 91bcf2652972863c1be99eaa5ea17e054103a645
 }
 
 .login-card {
@@ -43,12 +34,9 @@ body, html {
   display: flex;
   flex-direction: column;
   align-items: center;
-<<<<<<< HEAD
-=======
   padding: 25px;
   background-color: #ffffff;
   border-radius: 25px;
->>>>>>> 91bcf2652972863c1be99eaa5ea17e054103a645
 }
 
 .header {
@@ -57,10 +45,7 @@ body, html {
   align-items: center;
   text-align: center;
   margin-bottom: 32px;
-<<<<<<< HEAD
-=======
   
->>>>>>> 91bcf2652972863c1be99eaa5ea17e054103a645
 }
 
 .logo {
@@ -96,12 +81,9 @@ body, html {
   border: 1px solid #dcdcdc;
   font-size: 14px;
   box-sizing: border-box;
-<<<<<<< HEAD
-=======
   font-family: "Exo 2", sans-serif;
   background-color: #ffffff;
   color: #333333;
->>>>>>> 91bcf2652972863c1be99eaa5ea17e054103a645
 }
 
 .input-error {
@@ -112,11 +94,7 @@ body, html {
 .login-button {
   width: 100%;
   padding: 12px;
-<<<<<<< HEAD
-  background-color: #4a4a4a;
-=======
   background-color: #567c8d;
->>>>>>> 91bcf2652972863c1be99eaa5ea17e054103a645
   color: #ffffff;
   border: none;
   border-radius: 4px;

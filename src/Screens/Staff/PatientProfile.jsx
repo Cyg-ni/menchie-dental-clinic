@@ -1,12 +1,3 @@
-<<<<<<< HEAD
-import React, { useEffect, useState } from "react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
-import Odontogram from "./Odontogram.jsx";
-import "./MainDashboard.css";
-import "./AddingPatientModal.css";
-import "./Odontogram.css";
-
-=======
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import Odontogram from "./Odontogram.jsx";
@@ -56,7 +47,6 @@ const Icon = ({ name }) => {
   }
 };
 
->>>>>>> 91bcf2652972863c1be99eaa5ea17e054103a645
 const TABS = [
   { key: "info", label: "Patient Information" },
   { key: "history", label: "Appointment History" },
@@ -96,14 +86,10 @@ function savePatients(arr) {
 export default function PatientProfile() {
   const { id } = useParams();
   const navigate = useNavigate();
-<<<<<<< HEAD
-  const [tab, setTab] = useState("medical");
-=======
   const menuRef = useRef(null);
   const [tab, setTab] = useState("medical");
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(true);
->>>>>>> 91bcf2652972863c1be99eaa5ea17e054103a645
   const [patients, setPatients] = useState(loadPatients());
   useEffect(() => { savePatients(patients); }, [patients]);
 
@@ -124,11 +110,8 @@ export default function PatientProfile() {
   });
   const [submitMsg, setSubmitMsg] = useState("");
 
-<<<<<<< HEAD
-=======
   
 
->>>>>>> 91bcf2652972863c1be99eaa5ea17e054103a645
   useEffect(() => {
     setTreatTeeth([]);
     setForm({ condition: '', procedure: '', dentist: '', notes: '', done: false });
@@ -195,21 +178,6 @@ export default function PatientProfile() {
 
   return (
     <div className="dashboard">
-<<<<<<< HEAD
-      <aside className="sidebar">
-        <div className="sidebar-header">
-          <button className="icon-btn" onClick={() => navigate(-1)}>≡</button>
-        </div>
-        <nav className="sidebar-nav">
-          <button className="nav-item" aria-label="Dashboard" onClick={() => navigate("/dashboard")}>🏠</button>
-          <button className="nav-item" aria-label="Schedule" onClick={() => navigate("/schedule")}>📅</button>
-          <button className="nav-item active" aria-label="Patients" onClick={() => navigate("/patient-list")}>👥</button>
-          <button className="nav-item" aria-label="Settings">⚙️</button>
-        </nav>
-      </aside>
-      <main className="main">
-        <header className="topbar">
-=======
       <header className="topbar">
       <button 
           className="icon-btn" 
@@ -221,7 +189,6 @@ export default function PatientProfile() {
         ≡
       </button>
       
->>>>>>> 91bcf2652972863c1be99eaa5ea17e054103a645
           <div className="brand-left">
             <div className="brand-logo" />
             <div className="brand-name">Menchie's Dental Clinic</div>
@@ -234,8 +201,6 @@ export default function PatientProfile() {
             </div>
           </div>
         </header>
-<<<<<<< HEAD
-=======
 
         <aside className={`sidebar ${menuOpen ? "open" : ""}`}>
         <nav className="sidebar-nav">
@@ -267,7 +232,6 @@ export default function PatientProfile() {
       </aside>
 
       <main className="main">
->>>>>>> 91bcf2652972863c1be99eaa5ea17e054103a645
         <div style={{ padding: 28, maxWidth: 1300, margin: 'auto' }}>
         <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
           <button onClick={() => navigate("/patient-list")} className="btn-secondary" style={{ marginRight: 36 }}>⟵ Back to List</button>

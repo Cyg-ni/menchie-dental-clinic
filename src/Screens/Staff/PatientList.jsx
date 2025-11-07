@@ -1,12 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-<<<<<<< HEAD
-import "./PatientList.css";
-import "./MainDashboard.css";
-=======
 import "./Layout.css";
 import "./PatientList.css";
->>>>>>> 91bcf2652972863c1be99eaa5ea17e054103a645
 import "./AddingPatientModal.css";
 
 // Sidebar icon (copied from ScheduleDashboard)
@@ -256,11 +251,7 @@ export default function PatientList() {
   const [profilePatient, setProfilePatient] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
   // Sidebar state
-<<<<<<< HEAD
-  const [menuOpen, setMenuOpen] = useState(false);
-=======
   const [menuOpen, setMenuOpen] = useState(true);
->>>>>>> 91bcf2652972863c1be99eaa5ea17e054103a645
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -316,19 +307,6 @@ export default function PatientList() {
   // Layout starts here (dashboard shell)
   return (
     <div className="dashboard">
-<<<<<<< HEAD
-      <aside className={`sidebar ${menuOpen ? "open" : ""}`}>
-        <div className="sidebar-header">
-          <button
-            className="icon-btn"
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-            onClick={() => setMenuOpen(v => !v)}
-          >
-            ≡
-          </button>
-        </div>
-=======
       <header className="topbar  ref={menuRef}">
         <button
           className="icon-btn menu-toggle"
@@ -355,7 +333,6 @@ export default function PatientList() {
         </header>
         
       <aside className={`sidebar ${menuOpen ? "open" : ""}`}>
->>>>>>> 91bcf2652972863c1be99eaa5ea17e054103a645
         <nav className="sidebar-nav">
           <button
             className={`nav-item ${location.pathname.startsWith("/dashboard") ? "active" : ""}`}
@@ -383,22 +360,6 @@ export default function PatientList() {
         </nav>
       </aside>
       <main className="main">
-<<<<<<< HEAD
-        <header className="topbar">
-          <div className="brand-left">
-            <div className="brand-logo" />
-            <div className="brand-name">Menchie's Dental Clinic</div>
-          </div>
-          <div className="user">
-            <div className="avatar" />
-            <div className="user-meta">
-              <div className="user-name">Juana Cruz</div>
-              <div className="user-role">Chief Dentist</div>
-            </div>
-          </div>
-        </header>
-=======
->>>>>>> 91bcf2652972863c1be99eaa5ea17e054103a645
         <div className="patient-list-container">
           <header className="patient-header">
             <h1>Patient List</h1>
