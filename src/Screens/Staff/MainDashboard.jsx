@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+
 import "./MainDashboard.css";
+import "./Layout.css";
 import AppointmentsModal from "./AppointmentsModal.jsx";
 import MoreAppointmentsModal from "./MoreAppointmentsModal.jsx";
 import AddingPatientModal from "./AddingPatientModal.jsx";
@@ -15,9 +17,7 @@ const Placeholder = ({ className }) => (
   </div>
 );
 
-const StatPill = ({ label }) => (
-  <div className="stat-pill">{label}</div>
-);
+const StatPill = ({ label }) => <div className="stat-pill">{label}</div>;
 
 const EllipsisIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden>
@@ -74,7 +74,7 @@ const Icon = ({ name }) => {
 };
 
 const MainDashboard = () => {
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(true);
   const menuRef = useRef(null);
   const [showAppointmentsModal, setShowAppointmentsModal] = useState(false);
   const [showMoreAppointments, setShowMoreAppointments] = useState(false);
@@ -85,7 +85,7 @@ const MainDashboard = () => {
   useEffect(() => {
     const onDocClick = (e) => {
       if (!menuRef.current) return;
-      if (!menuRef.current.contains(e.target)) setMenuOpen(false);
+      if (!menuRef.current.contains(e.target)) setMenuOpen(true);
     };
     document.addEventListener("click", onDocClick);
     return () => document.removeEventListener("click", onDocClick);
@@ -93,20 +93,35 @@ const MainDashboard = () => {
 
   return (
     <div className="dashboard">
-      <aside className={`sidebar ${menuOpen ? "open" : ""}`}>
-        <div className="sidebar-header" ref={menuRef}>
-          <button
-            className="icon-btn"
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-            onClick={(e) => {
-              e.stopPropagation();
-              setMenuOpen((o) => !o);
-            }}
-          >
-            ≡
-          </button>
+
+      <header className="topbar" ref={menuRef}>
+        <button
+          className="icon-btn menu-toggle"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          onClick={(e) => {
+            e.stopPropagation();
+            setMenuOpen(o => !o);
+          }}
+        >
+          ≡
+        </button>
+
+        <div className="brand-left">
+          <div className="brand-logo" />
+          <div className="brand-name">Menchie's Dental Clinic</div>
         </div>
+
+        <div className="user">
+          <div className="avatar" />
+          <div className="user-meta">
+            <div className="user-name">Juana Cruz</div>
+            <div className="user-role">Chief Dentist</div>
+          </div>
+        </div>
+      </header>
+
+      <aside className={`sidebar ${menuOpen ? "open" : ""}`}>
         <nav className="sidebar-nav">
           <button
             className={`nav-item ${location.pathname.startsWith("/dashboard") ? "active" : ""}`}
@@ -123,38 +138,26 @@ const MainDashboard = () => {
             <Icon name="appointments" />
           </button>
           <button
-            className={`nav-item ${(location.pathname.startsWith("/patient-list")) ? "active" : ""}`}
+            className={`nav-item ${location.pathname.startsWith("/patient-list") ? "active" : ""}`}
             aria-label="Patients"
             onClick={() => navigate("/patient-list")}
           >
             <Icon name="patients" />
           </button>
-          <button className="nav-item" aria-label="Settings"><Icon name="settings" /></button>
+          <button className="nav-item" aria-label="Settings">
+            <Icon name="settings" />
+          </button>
         </nav>
       </aside>
 
       <main className="main">
-        <header className="topbar">
-          <div className="brand-left">
-            <div className="brand-logo" />
-            <div className="brand-name">Menchie's Dental Clinic</div>
-          </div>
-          <div className="user">
-            <div className="avatar" />
-            <div className="user-meta">
-              <div className="user-name">Juana Cruz</div>
-              <div className="user-role">Chief Dentist</div>
-            </div>
-          </div>
-        </header>
-
-        <section className="grid">
+        <section className="main-grid">
           <div className="card list">
             <div className="card-title with-icon">
               <span>Recent Patients</span>
             </div>
             <ul className="list-items">
-              {["Maloy Mag", "Jason Gieb", "Darel Horma", "Mikael Renz", "Miguel Itto"].map((n, i) => (
+              {["Maloy Mag","Jason Gieb","Darel Horma","Mikael Renz","Miguel Itto"].map((n, i) => (
                 <li className="list-item" key={i}>
                   <div className="avatar small" />
                   <div className="item-meta">
@@ -178,7 +181,9 @@ const MainDashboard = () => {
               </div>
               <div className="hero-card">
                 <Placeholder />
-                <button className="link" onClick={() => setShowAddingPatient(true)}>Manage Patient Settings</button>
+                <button className="link" onClick={() => setShowAddingPatient(true)}>
+                  Manage Patient Settings
+                </button>
               </div>
             </div>
           </div>
@@ -188,6 +193,7 @@ const MainDashboard = () => {
             <div className="big-num">15</div>
             <div className="muted">Request waiting to Approve</div>
             <button className="btn ghost" onClick={() => setShowAppointmentsModal(true)}>More</button>
+
             <div className="muted">Upcoming Appointments</div>
             <div className="big-num">5</div>
             <button className="btn ghost">More</button>
@@ -224,7 +230,9 @@ const MainDashboard = () => {
               </div>
             </div>
             <div className="card-footer-right">
-              <button className="btn ghost" onClick={() => setShowMoreAppointments(true)}>More</button>
+              <button className="btn ghost" onClick={() => setShowMoreAppointments(true)}>
+                More
+              </button>
             </div>
           </div>
 
@@ -232,13 +240,7 @@ const MainDashboard = () => {
             <div className="card-title with-icon">
               <span>Top Treatments</span>
             </div>
-            {[
-              "Consultation",
-              "Scaling",
-              "Root Canal",
-              "Bleaching",
-              "Cosmetic",
-            ].map((t) => (
+            {["Consultation","Scaling","Root Canal","Bleaching","Cosmetic"].map(t => (
               <StatPill key={t} label={t} />
             ))}
           </div>
@@ -254,7 +256,9 @@ const MainDashboard = () => {
               <div className="big-num">2035</div>
             </div>
           </div>
+
         </section>
+
         {showAppointmentsModal && (
           <AppointmentsModal onClose={() => setShowAppointmentsModal(false)} />
         )}
@@ -270,5 +274,3 @@ const MainDashboard = () => {
 };
 
 export default MainDashboard;
-
-

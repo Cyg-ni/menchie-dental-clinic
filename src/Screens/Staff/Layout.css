@@ -1,18 +1,39 @@
-<<<<<<< HEAD
-/* modal styles moved to AppointmentsModal.css */
+@import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@100..900&display=swap');
+
+:root {
+  background-color: #ffffff;
+}
+body, html {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  font-family: Helvetica, Arial, sans-serif;
+  background: #ffffff;
+  font-family: "Exo 2", sans-serif;
+}
+
+.exo2 {
+  font-family: "Exo 2", sans-serif;
+}
+
 .dashboard {
   display: grid;
   grid-template-columns: 64px 1fr;
-  min-height: 100vh;
-  background: #f5f5f5;
+  grid-template-rows: 64px 1fr;
+  height: 100vh;
+  background: #ffffff;
 }
 
 .sidebar {
-  background: #ececec;
+  grid-column: 1;
+  grid-row: 2;
+  background: #fff;
+  height: 120%;
   border-right: 1px solid #e6e6e6;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  
 }
 
 .sidebar.open .sidebar-nav { 
@@ -25,13 +46,14 @@
   gap: 8px;
   padding: 12px;
   position: relative;
-  background: #3b3b3b;
-  border-bottom: 1px solid #2f2f2f;
+  background: #567C8D;
+  border-bottom: 1px solid #567C8D;
 }
 
 .brand {
   font-size: 12px;
   color: #777777;
+
 }
 
 .sidebar-nav {
@@ -67,21 +89,28 @@
 
 .main {
   display: grid;
-  grid-template-rows: 56px 1fr;
+  grid-template-rows: 65.23px 1fr;
 }
 
 .topbar {
-  background: #ffffff;
+  background: #567c8D;
   border-bottom: 1px solid #e6e6e6;
   display: flex;
   justify-content: space-between;
+  height: 64px;
+  flex-shrink: 0;
   align-items: center;
   padding: 0 16px;
+  grid-column: 1 / span 2; 
+  grid-row: 1;
 }
 
 .brand-left { 
     display: flex; 
+    justify-content: left;
     align-items: center; 
+    margin-right: auto;
+    padding-left: 18px;
     gap: 8px; 
 }
 
@@ -93,7 +122,8 @@
 
 .brand-name { 
     font-weight: 700; 
-    color: #333333; 
+    color: #ffffff; 
+    font-family: "Exo 2", sans-serif;
 }
 
 .user {
@@ -116,20 +146,24 @@
 
 .user-name {
   font-size: 15px;
-  color: #333333;
+  color: #ffffff;
+  font-family: "Exo 2", sans-serif;
 }
 
 .user-role {
   font-size: 12px;
-  color: #888888;
+  color: #f5efeB;
+  font-family: "Exo 2", sans-serif;
 }
 
 .grid {
-  padding: 16px;
+  width: 100%;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  grid-auto-rows: minmax(80px, auto);
   gap: 16px;
+  padding: 16px;
+  box-sizing: border-box;
+  background: #ffffff;
 }
 
 .card {
@@ -143,6 +177,7 @@
   font-weight: 600;
   color: #333333;
   margin-bottom: 8px;
+  font-family: "Exo 2", sans-serif;
 }
 
 .with-icon {
@@ -152,17 +187,18 @@
 }
 
 .icon-btn {
-  border: 1px solid #3b3b3b;
-  background: #3b3b3b;
+  border: 1px solid #567C8D;
+  background: #567C8D;
   border-radius: 6px;
   padding: 8px 12px;
   font-size: 18px;
   cursor: pointer;
   color: #ffffff;
+  font-family: "Exo 2", sans-serif;
 }
 
 .icon-btn:hover {
-    background: #444444; 
+    background: #567c8D; 
 }
 
 .dropdown {
@@ -199,78 +235,11 @@
     margin: 6px 0; 
 }
 
-.list { 
-  grid-column: 1 / span 1; 
-  grid-row: 1; 
-}
 
 .list-items {
   list-style: none;
   margin: 0;
   padding: 0;
-=======
-.main-grid {
-  width: 98%;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  padding: 16px;
-
-}
-
-.div {
-  color: #333333;
-}
-
-.list {
-  grid-column: 1;
-  grid-row: 1;
-}
-
-.hero {
-  grid-column: 2 / span 1;
-  grid-row: 1;
-}
-
-.approvals {
-  grid-column: 3;
-  grid-row: 1;
-}
-
-.appointments {
-  grid-column: 1;
-  grid-row: 2;
-}
-
-.totals {
-  grid-column: 2;
-  grid-row: 2;
-}
-
-.treatments {
-  grid-column: 3;
-  grid-row: 2;
-}
-
-.hero-cards {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.hero-card {
-  border: 1px solid #f0f0f0;
-  border-radius: 8px;
-  padding: 12px;
-
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-
-.list-items {
->>>>>>> 91bcf2652972863c1be99eaa5ea17e054103a645
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -289,20 +258,22 @@
 .item-title {
   font-size: 12px;
   color: #333333;
+  font-family: "Exo 2", sans-serif;
 }
 
 .item-sub {
   font-size: 10px;
   color: #999999;
+  font-family: "Exo 2", sans-serif;
 }
 
-<<<<<<< HEAD
 .chev {
   background: none;
   border: none;
   color: #888888;
   font-size: 18px;
   cursor: pointer;
+  font-family: "Exo 2", sans-serif;
 }
 
 .hero { 
@@ -315,14 +286,17 @@
   font-weight: 700;
   color: #333333;
   margin-bottom: 8px;
+  font-family: "Exo 2", sans-serif;
 }
 
 .muted {
   color: #8a8a8a;
+  font-family: "Exo 2", sans-serif;
 }
 
 .small { 
     font-size: 12px; 
+    font-family: "Exo 2", sans-serif;
 }
 
 .hero-cards {
@@ -346,6 +320,7 @@
   background: none;
   color: #4a4a4a;
   cursor: pointer;
+  font-family: "Exo 2", sans-serif;
 }
 
 .approvals { 
@@ -362,6 +337,7 @@
   font-weight: 700;
   color: #333333;
   padding-left: 10px;
+  font-family: "Exo 2", sans-serif;
 }
 
 .btn.ghost {
@@ -376,6 +352,7 @@
   border-radius: 9999px;
   font-weight: 600;
   cursor: pointer;
+  font-family: "Exo 2", sans-serif;
 }
 .btn.ghost::after {
   content: '\203A';
@@ -389,6 +366,7 @@
   box-shadow: inset 0 0 0 1px #e1e1e1;
   color: #333333;
   font-size: 16px;
+  font-family: "Exo 2", sans-serif;
 }
 
 .btn.ghost:hover { 
@@ -421,6 +399,7 @@
 .totals-content .muted {
   align-self: flex-start;
   text-align: left;
+  font-family: "Exo 2", sans-serif;
 }
 
 .treatments { 
@@ -428,39 +407,27 @@
     grid-row: 2; 
 }
 
-=======
->>>>>>> 91bcf2652972863c1be99eaa5ea17e054103a645
 .appointments-content {
   display: grid;
   grid-template-columns: 64px 1fr;
   gap: 12px;
-<<<<<<< HEAD
   align-items: start;
-=======
->>>>>>> 91bcf2652972863c1be99eaa5ea17e054103a645
 }
 
 .huge-num {
   font-size: 48px;
   font-weight: 800;
-<<<<<<< HEAD
-  color: #666666;
+  color: #333333;
   align-self: center;
   justify-self: start;
   text-align: left;
   padding-left: 10px;
+  font-family: "Exo 2", sans-serif;
 }
 
 .appt-list { 
     display: grid; 
     gap: 8px; 
-=======
-}
-
-.appt-list {
-  display: grid;
-  gap: 8px;
->>>>>>> 91bcf2652972863c1be99eaa5ea17e054103a645
 }
 
 .appt {
@@ -469,9 +436,8 @@
   padding: 10px 12px;
 }
 
-<<<<<<< HEAD
 .appt.highlight { 
-    background: #4a4a4a; 
+    background: #2F4156; 
     color: #ffffff; 
 }
 
@@ -490,6 +456,7 @@
 .appt-name { 
     font-size: 12px; 
     color: #666666; 
+    font-family: "Exo 2", sans-serif;
 }
 .appt-row { 
     display: flex; 
@@ -506,6 +473,7 @@
 .appt-time { 
     font-size: 12px; 
     color: #666666; 
+    font-family: "Exo 2", sans-serif;
 }
 
 .card-footer-right { 
@@ -525,6 +493,7 @@
   align-items: center;
   justify-content: center;
   text-align: center;
+  font-family: "Exo 2", sans-serif;
 }
 
 .ph {
@@ -539,19 +508,3 @@
 }
 
 
-=======
-.appt.highlight {
-  background: #2F4156;
-  color: #ffffff;
-}
-
-.totals {
-  display: flex;
-  flex-direction: column;
-}
-
-.totals-content {
-  display: flex;
-  flex-direction: column;
-}
->>>>>>> 91bcf2652972863c1be99eaa5ea17e054103a645
