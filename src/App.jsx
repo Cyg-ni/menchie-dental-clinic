@@ -4,6 +4,7 @@ import MainDashboard from "./Screens/Staff/MainDashboard.jsx";
 import ScheduleDashboard from "./Screens/Staff/ScheduleDashboard.jsx";
 import PatientList from "./Screens/Staff/PatientList.jsx";
 import PatientProfile from "./Screens/Staff/PatientProfile.jsx";
+import Settings from "./Screens/Staff/Settings.jsx";
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
         <Route path="/schedule" element={<ScheduleDashboard />} />
         <Route path="/patient-list" element={<PatientList />} />
         <Route path="/patient-list/:id" element={<PatientProfile />} />
+        <Route path="/settings" element={<Settings />} />
       </Routes>
     </Router>
   );

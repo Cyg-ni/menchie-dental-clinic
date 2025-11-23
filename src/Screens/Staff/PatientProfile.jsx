@@ -225,7 +225,11 @@ export default function PatientProfile() {
           >
             <Icon name="patients" />
           </button>
-          <button className="nav-item" aria-label="Settings">
+          <button
+            className={`nav-item ${location.pathname.startsWith("/settings") ? "active" : ""}`}
+            aria-label="Settings"
+            onClick={() => navigate("/settings")}
+          >
             <Icon name="settings" />
           </button>
         </nav>

@@ -220,7 +220,11 @@ const ScheduleDashboard = () => {
           >
             <Icon name="patients" />
           </button>
-          <button className="nav-item" aria-label="Settings">
+          <button
+            className={`nav-item ${location.pathname.startsWith("/settings") ? "active" : ""}`}
+            aria-label="Settings"
+            onClick={() => navigate("/settings")}
+          >
             <Icon name="settings" />
           </button>
         </nav>
@@ -331,7 +335,15 @@ const ScheduleDashboard = () => {
               <div className="section-head"><div>Serving Now</div></div>
               <div className="serving-body">
                 <div className="serving-text">Click Start to begin calling patients</div>
-                <button className="start-btn">Start</button>
+                <button className="start-btn" onClick={() => {
+                  // Play ping sound
+                  const audio = new window.Audio('/ping.mp3');
+                  audio.play();
+                  // Notify next patient (placeholder logic)
+                  if (waiting && waiting.length > 0) {
+                    alert(`Notifying next patient: ${waiting[0].name}`);
+                  }
+                }}>Start</button>
               </div>
             </section>
 

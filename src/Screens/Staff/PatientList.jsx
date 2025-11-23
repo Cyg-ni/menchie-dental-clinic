@@ -356,7 +356,13 @@ export default function PatientList() {
           >
             <Icon name="patients" active={location.pathname.startsWith("/patient-list")} />
           </button>
-          <button className="nav-item" aria-label="Settings"><Icon name="settings" /></button>
+          <button
+            className={`nav-item ${location.pathname.startsWith("/settings") ? "active" : ""}`}
+            aria-label="Settings"
+            onClick={() => navigate("/settings")}
+          >
+            <Icon name="settings" />
+          </button>
         </nav>
       </aside>
       <main className="main">

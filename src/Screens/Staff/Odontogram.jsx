@@ -1,5 +1,7 @@
 import React from "react";
 import "./Odontogram.css";
+import TeethModelViewer from "../../components/TeethModelViewer.jsx";
+const TEETH_3D_MODEL_URL = "https://sketchfab.com/3d-models/human-teeth-3d-dental-model-48d40cb88001";
 
 const upperPermanentLeft  = [18, 17, 16, 15, 14, 13, 12, 11];
 const upperPermanentRight = [21, 22, 23, 24, 25, 26];
@@ -41,6 +43,7 @@ function renderHalfRow(teeth, selectedTeeth, onClick, shadedTeeth = [], shadedSt
 }
 
 export default function Odontogram({ selectedTeeth = [], onSelectionChange, selectable = true, shadedTeeth = [], shadedStatus = {} }) {
+  const [isModelOpen, setIsModelOpen] = React.useState(false);
   const handleToothClick = (num) => {
     if (!onSelectionChange || !selectable) return;
     const sel = selectedTeeth.includes(num)
@@ -49,7 +52,7 @@ export default function Odontogram({ selectedTeeth = [], onSelectionChange, sele
     onSelectionChange(sel);
   };
   return (
-    <div className="odontogram-grid" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+    <div className="odontogram-grid" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
       {/* upper permanent */}
       <div className="odontogram-row" style={{ justifyContent: 'center' }}>
         {renderHalfRow(upperPermanentLeft, selectedTeeth, handleToothClick, shadedTeeth, shadedStatus, maxLenL)}
@@ -74,6 +77,34 @@ export default function Odontogram({ selectedTeeth = [], onSelectionChange, sele
         <div style={{ width: 20 }} />
         {renderHalfRow(lowerPermanentRight, selectedTeeth, handleToothClick, shadedTeeth, shadedStatus, maxLenR)}
       </div>
+      <button
+        type="button"
+        className="view-3d-model-btn"
+        style={{ marginTop: 16 }}
+        onClick={() => setIsModelOpen(true)}
+      >
+        View 3D Teeth Model
+      </button>
+      {isModelOpen && (
+        <div className="odontogram-modal-backdrop" onClick={() => setIsModelOpen(false)} role="presentation">
+          <div className="odontogram-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div className="odontogram-modal-header">
+              <h3>3D Teeth Visualization</h3>
+              <button type="button" className="modal-close-btn" aria-label="Close" onClick={() => setIsModelOpen(false)}>
+                ×
+              </button>
+            </div>
+            <div className="odontogram-modal-body">
+              <TeethModelViewer selectedTeeth={selectedTeeth} />
+            </div>
+            <div className="odontogram-modal-footer">
+              <button type="button" className="modal-close-secondary" onClick={() => setIsModelOpen(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
