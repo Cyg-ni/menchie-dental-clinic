@@ -1,8 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import "./AddingPatientModal.css";
 // NOTE: Adjust the import path for 'db' if your firebase.js file is not in 'src/'
 import { db } from "../../firebase"; 
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc } from 'firebase/firestore'; 
 
 const patientsCollectionRef = collection(db, "patients");
 
@@ -19,31 +19,64 @@ const NEW_PATIENT_TEMPLATE = {
     image: null
 };
 
-// IMPORTANT: We use 'onClose' and 'onSuccess' props
-const AddingPatientModal = ({ onClose, onSuccess }) => {
-    const [formData, setFormData] = useState({
-        // Patient Details - ALL FIELDS
-        firstName: "",
-        lastName: "",
-        contactNumber: "",
-        age: "", 
-        address: "", 
-        gender: "", 
-        occupation: "", 
-        status: "", // Marital Status
-        complaint: "", // Chief Complaint
+// Function to parse the combined 'name' field back into first/last name
+const parseName = (fullName) => {
+    const parts = fullName?.split(' ') || ['', ''];
+    return {
+        firstName: parts[0] || '',
+        // The rest of the parts are treated as the last name
+        lastName: parts.slice(1).join(' ') || '' 
+    };
+};
+
+// Utility function to generate the initial form state
+const getInitialFormData = (patient) => {
+    return {
+        // ID is crucial for editing, but not part of the form fields
+        id: patient?.id || null, 
         
-        // Checkboxes
-        sendConfirmation: true,
-        isPregnant: false, 
-        smokingStatus: false, 
+        // Use existing data or default to empty strings
+        firstName: patient ? parseName(patient.name).firstName : "",
+        lastName: patient ? parseName(patient.name).lastName : "",
+        
+        contactNumber: patient?.phone_num || "",
+        age: patient?.age?.toString() || "", // Convert number to string for input value
+        address: patient?.address || "", 
+        gender: patient?.gender || "", 
+        occupation: patient?.occupation || "", 
+        status: patient?.status || "", // Marital Status
+        complaint: patient?.complaint || "", // Chief Complaint
+        
+        // Checkboxes: use existing value (??) or default
+        sendConfirmation: patient?.sendConfirmation ?? true, 
+        isPregnant: patient?.isPregnant ?? false, 
+        smokingStatus: patient?.smokingStatus ?? false, 
 
         // Contact Info
-        contactInfo: "", 
+        contactInfo: patient?.contactInfo || "", 
         
-        image: null,
-    });
-    const [imagePreview, setImagePreview] = useState(null);
+        // Image
+        image: patient?.image || null,
+    };
+};
+
+
+const AddingPatientModal = ({ onClose, onSuccess, patientToEdit }) => {
+    
+    // Initialize state using the utility function, based on the prop
+    const [formData, setFormData] = useState(getInitialFormData(patientToEdit));
+    const [imagePreview, setImagePreview] = useState(patientToEdit?.image || null);
+    const isEditing = !!patientToEdit;
+
+    // 🌟 FIX FOR EDIT: Use useEffect to re-initialize state when patientToEdit changes 🌟
+    // This ensures the form pre-fills correctly when switching from Add (null) to Edit (object)
+    useEffect(() => {
+        const initialData = getInitialFormData(patientToEdit);
+        setFormData(initialData);
+        setImagePreview(patientToEdit?.image || null);
+    }, [patientToEdit]);
+    // ---------------------------------------------------------------------------------
+
 
     const handleInputChange = (e) => {
         const { name, value, type, checked } = e.target;
@@ -73,9 +106,13 @@ const AddingPatientModal = ({ onClose, onSuccess }) => {
             return;
         }
 
-        // Prepare the data for Firestore, mapping form data to DB fields
-        const patientData = {
-            ...NEW_PATIENT_TEMPLATE, 
+        // 1. Prepare data for Firestore
+        const dataToSave = {
+            // For editing, spread the original patientToEdit to preserve complex fields (like medicalHistory)
+            // For adding, spread NEW_PATIENT_TEMPLATE
+            ...(isEditing ? patientToEdit : NEW_PATIENT_TEMPLATE), 
+            
+            // Map form state to DB field names
             name: `${formData.firstName.trim()} ${formData.lastName.trim()}`,
             phone_num: formData.contactNumber,
             contactInfo: formData.contactInfo || "N/A", 
@@ -89,29 +126,40 @@ const AddingPatientModal = ({ onClose, onSuccess }) => {
             isPregnant: formData.isPregnant,
             smokingStatus: formData.smokingStatus,
             image: formData.image || null,
+            updated: new Date().toISOString().slice(0, 10), // Update timestamp
         };
 
         try {
-            await addDoc(patientsCollectionRef, patientData);
-            alert(`Patient ${patientData.name} successfully added!`);
+            if (isEditing) {
+                // UPDATE EXISTING PATIENT
+                const patientDoc = doc(db, "patients", formData.id);
+                await updateDoc(patientDoc, dataToSave);
+                alert(`Patient ${dataToSave.name} successfully updated!`);
+            } else {
+                // ADD NEW PATIENT
+                await addDoc(patientsCollectionRef, dataToSave);
+                alert(`Patient ${dataToSave.name} successfully added!`);
+            }
             
-            // FIX 1: Safe call after successful submission
             onClose?.(); 
+            if (onSuccess) onSuccess(); // Trigger parent list refresh
             
-            // Call onSuccess to trigger parent component actions (like refreshing patient list)
-            if (onSuccess) onSuccess(); 
         } catch (error) {
-            console.error("Error adding new patient:", error);
-            alert("Failed to add patient. Please check Firebase rules or console for details.");
+            console.error(`Error ${isEditing ? 'updating' : 'adding'} patient:`, error);
+            alert(`Failed to ${isEditing ? 'update' : 'add'} patient. Please check console for details.`);
         }
     };
 
+    // --- RENDER ---
+    const modalTitle = isEditing ? `Edit Patient: ${formData.firstName} ${formData.lastName}` : "Add New Patient";
+
     return (
-        <div className="modal-overlay" role="dialog" aria-modal="true">
-            <div className="modal add-patient-modal">
+        // Added onClick to overlay to close the modal if clicked outside
+        <div className="modal-overlay" role="dialog" aria-modal="true" onClick={() => onClose?.()}>
+            {/* Added onClick stopPropagation to prevent modal body clicks from closing the modal */}
+            <div className="modal add-patient-modal" onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
-                    <div className="modal-title">Add New Patient</div>
-                    {/* FIX 2: Safe call for the 'X' button */}
+                    <div className="modal-title">{modalTitle}</div>
                     <button 
                         className="modal-close" 
                         aria-label="Close" 
@@ -172,7 +220,7 @@ const AddingPatientModal = ({ onClose, onSuccess }) => {
                                     />
                                 </div>
 
-                                {/* --- 2. Demographic Fields (NEWLY ADDED) --- */}
+                                {/* --- 2. Demographic Fields --- */}
 
                                 <div className="form-group">
                                     <label htmlFor="address">Address</label>
@@ -289,8 +337,9 @@ const AddingPatientModal = ({ onClose, onSuccess }) => {
 
                                 {/* --- 4. Actions --- */}
                                 <div className="form-actions">
-                                    <button type="submit" className="btn-primary">Add User</button>
-                                    {/* FIX 3: Safe call for the Cancel button */}
+                                    <button type="submit" className="btn-primary">
+                                        {isEditing ? 'Save Changes' : 'Add User'}
+                                    </button>
                                     <button 
                                         type="button" 
                                         className="btn-secondary" 
@@ -328,7 +377,7 @@ const AddingPatientModal = ({ onClose, onSuccess }) => {
                                     style={{ display: "none" }}
                                 />
                                 <label htmlFor="imageUpload" className="select-image-btn">
-                                    Select image
+                                    {imagePreview ? 'Change Image' : 'Select image'}
                                 </label>
                             </div>
                         </section>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+// Ensure you have imported all necessary Firestore functions
 import { db } from '../../firebase';
 import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc } from 'firebase/firestore'; 
 import "./Layout.css";
@@ -75,34 +76,6 @@ function DeleteIcon() {
     );
 }
 
-// Default structure for adding a new patient, matching Firestore fields
-const NEW_PATIENT_TEMPLATE = {
-    // Basic Info
-    name: "",
-    phone_num: "",
-    address: "",
-    // Contact details
-    contactInfo: "", 
-    sendConfirmation: true,
-    // Detailed Info
-    age: "", // Will be converted to number on submit
-    gender: "",
-    occupation: "",
-    status: "", // Marital status
-    complaint: "",
-    isPregnant: false,
-    smokingStatus: false,
-    // Nested data
-    medicalHistory: {
-        Allergies: [],
-        conditionNotes: "",
-        currentMedications: []
-    },
-    updated: new Date().toISOString().slice(0, 10),
-    image: null
-};
-
-
 // -----------------------------------------------------------
 // 2. PROFILE MODAL (Kept for viewing details)
 // -----------------------------------------------------------
@@ -141,7 +114,8 @@ function PatientProfileModal({ open, patient, onClose }) {
                             <div className="section-title" style={{marginTop:'15px'}}>Medical Details</div>
                             <div className="profile-detail"><b>Allergies:</b> {formatArray(patient.medicalHistory?.Allergies)}</div>
                             <div className="profile-detail"><b>Condition Notes:</b> {patient.medicalHistory?.conditionNotes || <span style={{color:'#888'}}>N/A</span>}</div>
-                            <div className="profile-detail"><b>Current Meds:</b> {patient.medicalHistory?.currentMedications?.length > 0 ? patient.medicalHistory.currentMedications[0].name : <span style={{color:'#888'}}>N/A</span>}</div>
+                            {/* Simplified Current Meds display for profile */}
+                            <div className="profile-detail"><b>Current Meds:</b> {patient.medicalHistory?.currentMedications?.length > 0 ? (patient.medicalHistory.currentMedications[0]?.name || 'Yes, details N/A') : <span style={{color:'#888'}}>N/A</span>}</div>
                         </section>
                         <div className="divider"></div>
                         <section className="patient-picture-section">
@@ -175,34 +149,33 @@ export default function PatientList() {
     const [patients, setPatients] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
-    // showModal controls the ADDING/EDITING Patient Modal
+    
+    // State for Add/Edit Modal (AddingPatientModal.jsx)
     const [showModal, setShowModal] = useState(false); 
-    const [editPatient, setEditPatient] = useState(null);
+    const [editPatient, setEditPatient] = useState(null); // Holds patient data if editing
+    
+    // State for Profile Modal (PatientProfileModal)
     const [profilePatient, setProfilePatient] = useState(null);
     const [showProfile, setShowProfile] = useState(false);
+    
     const [menuOpen, setMenuOpen] = useState(true);
     const navigate = useNavigate();
     const location = useLocation();
 
 
-    // --- FIREBASE FETCH ---
+    // --- FIREBASE FETCH (READ) ---
     const getPatients = async () => {
         setLoading(true);
         try {
             const data = await getDocs(patientsCollectionRef);
             const patientData = data.docs.map(doc => {
                 const firestoreData = doc.data();
-                
-                // Combine First Name and Last Name from the single 'name' field
-                const [firstName, ...lastNameParts] = (firestoreData.name || "").split(' ');
-                const lastName = lastNameParts.join(' ');
-
                 return { 
                     id: doc.id, // Use Firestore document ID as the unique key
-                    firstName: firstName,
-                    lastName: lastName,
                     ...firestoreData,
-                    updated: firestoreData.updated || new Date().toISOString().slice(0, 10),
+                    updated: firestoreData.updated || 'N/A',
+                    // Ensure age is treated as a number if it exists
+                    age: typeof firestoreData.age === 'number' ? firestoreData.age : (parseInt(firestoreData.age) || null)
                 };
             });
             setPatients(patientData);
@@ -219,96 +192,52 @@ export default function PatientList() {
 
     // --- FILTERING ---
     const filtered = patients.filter(p =>
-        (p.name || "").toLowerCase().includes(search.toLowerCase())
+        (p.name || "").toLowerCase().includes(search.toLowerCase()) ||
+        (p.phone_num || "").includes(search)
     );
 
 
-    // --- MODAL HANDLERS ---
+    // --- MODAL HANDLERS (CREATE/UPDATE) ---
+    
     const openAdd = () => {
-        // Initial state for adding a new patient
-        setEditPatient(null); // Ensure editPatient is null for a new add
+        setEditPatient(null); // Ensure no patient is being edited
         setShowModal(true);
     };
 
     const openEdit = (patient) => {
-        setEditPatient(patient);
+        setEditPatient(patient); // Set the patient data for the modal to load
         setShowModal(true);
     };
 
+    const closeModal = () => {
+        setShowModal(false);
+        setEditPatient(null); // Clear edit state on close
+    };
+
+    // --- PROFILE MODAL HANDLERS ---
+    
     const closeProfile = () => {
         setShowProfile(false);
         setProfilePatient(null);
     };
 
-    // Function to close the Add/Edit modal
-    const closeModal = () => {
-        setShowModal(false);
-        setEditPatient(null);
-    };
-
-    // --- CRUD OPERATIONS ---
+    // --- DELETE OPERATION (DELETE) ---
     const handleDelete = async (patient) => {
-        if (!window.confirm(`Are you sure you want to delete patient ${patient.name} (${patient.id})?`)) return;
+        if (!window.confirm(`Are you sure you want to delete patient ${patient.name} (${patient.id})? This cannot be undone.`)) return;
 
         try {
             const patientDoc = doc(db, "patients", patient.id);
             await deleteDoc(patientDoc);
-            // Update local state to reflect deletion
+            
+            // Update local state by filtering out the deleted patient
             setPatients(patients.filter(p => p.id !== patient.id));
+            console.log(`Patient ${patient.id} deleted successfully.`);
         } catch (error) {
             console.error("Error deleting patient:", error);
             alert("Failed to delete patient. Check console for details.");
         }
     };
 
-    const handleSubmit = async (patientData) => {
-        const isEditing = patientData.id;
-
-        // Prepare data for Firestore save
-        const dataToSave = {
-            ...patientData,
-            updated: new Date().toISOString().slice(0, 10),
-            // IMPORTANT FIX: Convert age string to number for Firestore
-            // Use unary plus operator for quick string-to-number conversion:
-            age: patientData.age ? +patientData.age : null, 
-        };
-        
-        // Clean up local/temporary fields
-        delete dataToSave.id;
-        delete dataToSave.firstName; 
-        delete dataToSave.lastName;
-
-        // CRITICAL FIX: Remove large Base64 image data before saving to Firestore
-        // A string length > 500 is a good indicator of a large Base64 image.
-        if (typeof dataToSave.image === 'string' && dataToSave.image.length > 500) {
-            console.warn("Large image data detected. Removing image field for Firestore save to prevent size limit error. Use Firebase Storage for files.");
-            delete dataToSave.image;
-        }
-        
-        // Ensure nested object fields are not missing if they came from the template
-        if (!dataToSave.medicalHistory) {
-            dataToSave.medicalHistory = NEW_PATIENT_TEMPLATE.medicalHistory;
-        }
-
-        try {
-            if (isEditing) {
-                // Update operation
-                const patientDoc = doc(db, "patients", isEditing);
-                await updateDoc(patientDoc, dataToSave);
-            } else {
-                // Add operation
-                await addDoc(patientsCollectionRef, dataToSave);
-            }
-            
-            // Refresh the list from the database and close modal
-            await getPatients(); 
-            closeModal(); // Call the correct closeModal function
-        } catch (error) {
-            // Log the detailed Firestore error
-            console.error(`FIREBASE WRITE ERROR: Failed to ${isEditing ? 'update' : 'add'} patient:`, error);
-            alert(`Failed to ${isEditing ? 'save' : 'add'} patient. Check console for details.`);
-        }
-    };
 
     // --- RENDERING ---
     return (
@@ -381,7 +310,7 @@ export default function PatientList() {
                             <input
                                 className="search-input"
                                 type="text"
-                                placeholder="Patient Search (by Name)"
+                                placeholder="Patient Search (by Name or Phone)"
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
                             />
@@ -414,17 +343,19 @@ export default function PatientList() {
                                                 style={{ background: "none", border: "none", padding: 0, color: "#1e5276", fontWeight: 600, cursor: "pointer", fontSize: "15px" }}
                                                 onClick={() => setProfilePatient(p) || setShowProfile(true)} // Open profile on click
                                             >
-                                                {p.name || `${p.firstName} ${p.lastName}`}
+                                                {p.name || 'N/A'}
                                             </button>
                                         </td>
                                         <td>{p.phone_num || 'N/A'}</td>
                                         <td>{p.updated}</td>
                                         <td>
+                                            {/* Calls the openEdit handler */}
                                             <button className="icon-btn" title="Edit" onClick={() => openEdit(p)}>
                                                 <EditIcon />
                                             </button>
                                         </td>
                                         <td>
+                                            {/* Calls the handleDelete handler */}
                                             <button className="icon-btn" title="Delete" onClick={() => handleDelete(p)}>
                                                 <DeleteIcon />
                                             </button>
@@ -435,16 +366,19 @@ export default function PatientList() {
                         </table>
                     </div>
                     
-                   
+                    {/* 👇️ MODAL RENDERING BLOCK (Handles Add and Edit) 👇️ */}
                     {showModal && (
                         <AddingPatientModal 
-                            // The modal component uses the prop name 'onClose'
                             onClose={closeModal} 
-                            // This prop is used by the modal's handleSubmit to refresh the patient list after a successful save
+                            // onSuccess calls getPatients to refresh the list after Add/Edit
                             onSuccess={getPatients} 
+                            // Pass the patientToEdit object (null for Add, object for Edit)
+                            patientToEdit={editPatient} 
                         />
                     )}
-                  
+                    {/* 👆️ MODAL RENDERING BLOCK (Handles Add and Edit) 👆️ */}
+
+                    {/* Patient Profile Modal */}
                     <PatientProfileModal
                         open={showProfile}
                         patient={profilePatient}
