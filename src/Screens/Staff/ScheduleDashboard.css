@@ -4,7 +4,9 @@
     width: 100%;
     height: 100%;
     display: grid;
-    grid-template-columns: repeat(2fr 1fr);
+    /* Main grid layout: 2 columns, 2 rows */
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto; 
     gap: 16px;
     padding: 16px;
     background: #ffffff;
@@ -13,16 +15,20 @@
   }
   
   .row-top {
+    /* Takes up the top area, split into Calendar (2fr) and Reports (1fr) */
     display: grid;
     grid-template-columns: 2fr 1fr;
     gap: 16px;
+    grid-column: 1 / -1; /* Ensure it spans the full width of the main grid */
   }
   
   .row-bottom {
+    /* Takes up the bottom area, split into 3 columns */
     display: grid;
     grid-template-columns: 1.2fr 1.8fr 1fr;
     gap: 16px;
     align-items: stretch;
+    grid-column: 1 / -1;
   }
   
   .calendar-bar {
@@ -87,12 +93,23 @@
     text-align: center;
     font-size: 12px;
     color: #666;
+    cursor: pointer; /* Added for interaction */
+    transition: all 0.15s ease-in-out;
   }
   
   .calendar-card .day.dim {
     opacity: 0.5;
   }
   
+  /* NEW: Selected Day Highlight */
+  .calendar-card .day.selected-day {
+      border: 2px solid #1e5276; 
+      box-shadow: 0 0 5px rgba(30, 82, 118, 0.5);
+      font-weight: bold;
+      transform: scale(1.03);
+  }
+  
+  /* Existing shading classes */
   .calendar-card .day.rep-orange { background: #ffe1b5; }
   .calendar-card .day.rep-red { background: #ffc7c7; }
   .calendar-card .day.rep-blue { background: #cdeeff; }
@@ -100,9 +117,10 @@
 
   
   .reports-grid {
+    /* UPDATED: 6 tiles require 3 columns */
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 24px;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px; 
     padding: 16px;
     justify-items: center;
   }
@@ -112,6 +130,7 @@
     flex-direction: column;
     align-items: center;
     gap: 10px;
+    text-align: center;
   }
   
   .tile-icon {
@@ -121,6 +140,26 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    /* Required for count badge positioning */
+    position: relative; 
+  }
+
+  /* NEW: Count Badge Style */
+  .tile-icon .tile-count {
+      position: absolute;
+      top: -8px; 
+      right: -8px;
+      background-color: #d23c3c; 
+      color: white;
+      font-size: 10px;
+      font-weight: bold;
+      border-radius: 50%;
+      padding: 3px 6px;
+      min-width: 18px;
+      text-align: center;
+      line-height: 1;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+      z-index: 10;
   }
   
   .tile-label {
@@ -131,6 +170,8 @@
   
 
 
+  /* ----------------------- NOTIFICATIONS ----------------------- */
+  
   .notifs {
     display: grid;
     gap: 8px;
@@ -216,24 +257,23 @@
     cursor: pointer;
   }
 
+/* --- BOTTOM ROW LAYOUT --- */
+/* These rules define the placement within the .row-bottom grid (which is 3 columns) */
 .notifications-card {
-    grid-column: 1 ;
-    grid-row: 1;
-}
-
-.reports-card {
-    grid-column: 2 / span 1;
-    grid-row: 1;
-}
-
-.serving-card {
     grid-column: 1 / span 1;
-    grid-row: 2;
 }
 
 .waiting-card {
-    grid-column: 2 / span 3 ;
-    grid-row: 1 / span 2;
+    grid-column: 2 / span 1;
+}
+
+.serving-card {
+    grid-column: 3 / span 1;
+}
+
+/* Ensure reports card is properly placed in the top row */
+.reports-card {
+    /* Inherits from row-top 2fr 1fr layout */
 }
 
 .see-all {

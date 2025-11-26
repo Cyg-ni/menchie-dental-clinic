@@ -1,9 +1,57 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import "./Layout.css";
 import "./ScheduleDashboard.css";
 import ReportsModal from "./ReportsModal.jsx";
 
+// ===============================================
+// 1. FIREBASE SETUP & IMPORTS (Self-Contained)
+// ===============================================
+import { initializeApp } from "firebase/app";
+import { 
+  getFirestore, 
+  collection, 
+  onSnapshot, 
+  query, 
+  getDocs 
+} from 'firebase/firestore'; 
+
+// *** REPLACE THIS CONFIG WITH YOUR ACTUAL PROJECT CONFIGURATION ***
+const firebaseConfig = {
+  apiKey: "AIzaSyCS-olCQRpJZGcYSGWG7CZ8PIpV-wBNaOE",
+  authDomain: "menchie-dental-clinic.firebaseapp.com",
+  projectId: "menchie-dental-clinic",
+  storageBucket: "menchie-dental-clinic.firebasestorage.app",
+  messagingSenderId: "1005995383687",
+  appId: "1:1005995383687:web:42301faf7bbfcb544b1122",
+  measurementId: "G-C96BVD0XY6"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// Collection Reference
+const appointmentsCol = collection(db, "appointments");
+
+// Helper function equivalent to onAppointmentsSnapshot from firebase.js
+function appointmentsSnapshotListener(callback) {
+  // We use a simple query to fetch all appointments for the dashboard view
+  const q = query(appointmentsCol); 
+  
+  return onSnapshot(q, (snapshot) => {
+    const data = snapshot.docs.map(d => ({ 
+      id: d.id, 
+      ...d.data() 
+    }));
+    callback(data);
+  });
+}
+// ===============================================
+
+
+// ===============================================
+// ICON COMPONENTS (Unchanged)
+// ===============================================
 
 const Icon = ({ name }) => {
   switch (name) {
@@ -47,10 +95,9 @@ const Icon = ({ name }) => {
   }
 };
 
-
 const ReportIcon = ({ kind }) => {
   switch (kind) {
-    case "exams":
+    case "exams": 
       return (
         <svg width="28" height="28" fill="none" stroke="#FFF" strokeWidth="2.2">
           <circle cx="11" cy="11" r="6" />
@@ -58,7 +105,7 @@ const ReportIcon = ({ kind }) => {
         </svg>
       );
 
-    case "surgeries":
+    case "surgeries": 
       return (
         <svg width="28" height="28" fill="none" stroke="#FFF" strokeWidth="2.2">
           <rect x="3" y="7" width="18" height="12" rx="2" />
@@ -76,7 +123,7 @@ const ReportIcon = ({ kind }) => {
         </svg>
       );
 
-    case "cleaning":
+    case "cleaning": 
       return (
         <svg width="28" height="28" fill="none" stroke="#FFF" strokeWidth="2.2">
           <rect x="6" y="10" width="12" height="8" rx="2" />
@@ -90,14 +137,20 @@ const ReportIcon = ({ kind }) => {
   }
 };
 
-const IconTile = ({ color, label, kind }) => (
+const IconTile = ({ color, label, kind, count = 0 }) => (
   <div className="report-tile">
     <div className="tile-icon" style={{ backgroundColor: color }}>
       <ReportIcon kind={kind} />
+      <span className="tile-count">{count}</span> 
     </div>
     <div className="tile-label">{label}</div>
   </div>
 );
+
+
+// ===============================================
+// SCHEDULE DASHBOARD COMPONENT
+// ===============================================
 
 const ScheduleDashboard = () => {
   const navigate = useNavigate();
@@ -106,32 +159,92 @@ const ScheduleDashboard = () => {
   const [showReports, setShowReports] = useState(false);
   const menuRef = useRef(null);
 
+  // Date States
+  const [viewDate, setViewDate] = useState(new Date());
+  const todayISO = new Date().toISOString().slice(0, 10);
+  const [selectedDate, setSelectedDate] = useState(todayISO); 
+  
+  // Firebase State
+  const [appointments, setAppointments] = useState([]); 
+
+  const formatDate = (dateObj) => dateObj.toISOString().slice(0, 10);
+
+
   useEffect(() => {
+    // Setup Firebase real-time listener using the local helper
+    const unsubscribe = appointmentsSnapshotListener(setAppointments);
+    
+    // Cleanup for menu toggle (using original logic)
     const closeMenu = (e) => {
       if (!menuRef.current) return;
-      if (!menuRef.current.contains(e.target)) setMenuOpen(true);
+      if (!menuRef.current.contains(e.target)) setMenuOpen(true); 
     };
     document.addEventListener("click", closeMenu);
-    return () => document.removeEventListener("click", closeMenu);
-  }, []);
 
-  const [viewDate, setViewDate] = useState(new Date());
+    return () => {
+      unsubscribe(); // Cleanup the Firestore listener
+      document.removeEventListener("click", closeMenu);
+    }
+  }, []); 
+
+  // --- Service Definitions for Reports ---
+  const serviceCategories = [
+    { label: "Check-up & Cleaning", key: "Routine Check-up & Cleaning", color: "#8EE08E", kind: "cleaning" },
+    { label: "Teeth Whitening", key: "Teeth Whitening (Cosmetic)", color: "#FFA64D", kind: "exams" },
+    { label: "Dental Implants", key: "Dental Implants Consultation", color: "#77D2FF", kind: "consultations" },
+    { label: "Emergency Visit", key: "Emergency Visit (Pain/Injury)", color: "#FF6B6B", kind: "surgeries" },
+    { label: "Orthodontics Consult", key: "Orthodontics Consultation", color: "#FFC3A0", kind: "exams" },
+    { label: "Other / Not Sure", key: "Other / Not Sure", color: "#D3D3D3", kind: "consultations" },
+  ];
+  
+  // --- Calculate Daily Appointment Counts (Memoized for performance) ---
+  const dailyAppointmentCounts = useMemo(() => {
+    const counts = {};
+    const appointmentsOnSelectedDay = appointments.filter(app => 
+        app.scheduledDate === selectedDate
+    );
+
+    serviceCategories.forEach(cat => {
+        counts[cat.key] = 0;
+    });
+
+    appointmentsOnSelectedDay.forEach(app => {
+        const service = app.serviceType;
+        if (counts.hasOwnProperty(service)) {
+            counts[service] = (counts[service] || 0) + 1;
+        } else {
+             counts['Other / Not Sure'] = (counts['Other / Not Sure'] || 0) + 1;
+        }
+    });
+
+    return counts;
+  }, [appointments, selectedDate]);
+
+
+  // --- Calendar Day Shading (Memoized) ---
   const startOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
-  const endOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0);
   const startWeekDay = startOfMonth.getDay();
-  const daysInMonth = endOfMonth.getDate();
 
-  let seed = viewDate.getFullYear() * 100 + viewDate.getMonth();
-  let prng = seed;
-  const rand = () => (prng = (prng * 1664525 + 1013904223) % 4294967296) / 4294967296;
+  const appointmentMap = useMemo(() => {
+    const map = {};
+    appointments.forEach(app => {
+        const dateStr = app.scheduledDate; 
+        if (dateStr) {
+            const dateParts = dateStr.split('-');
+            const year = Number(dateParts[0]);
+            const month = Number(dateParts[1]) - 1; 
+            const day = Number(dateParts[2]);
 
-  const shadedMap = new Map();
-  ["rep-orange", "rep-red", "rep-blue", "rep-green"].forEach((shade, i) => {
-    const d = 1 + Math.floor(rand() * daysInMonth);
-    const key = `${viewDate.getFullYear()}-${viewDate.getMonth()}-${d}`;
-    shadedMap.set(key, shade);
-  });
+            if (year === viewDate.getFullYear() && month === viewDate.getMonth()) {
+                map[day] = 'rep-blue'; 
+            }
+        }
+    });
+    return map;
+  }, [appointments, viewDate]);
 
+
+  // 4. Generate Weeks/Days
   const weeks = [];
   let day = 1 - startWeekDay;
   for (let w = 0; w < 6; w++) {
@@ -151,13 +264,13 @@ const ScheduleDashboard = () => {
     year: "numeric",
   });
 
-  const notifications = [
-    { title: "New Consultation Approved", time: "8:20 am", date: "Oct 3, 2025" },
-    { title: "New Dental Surgery Scheduled", time: "11:40 am", date: "Oct 3, 2025" },
-    { title: "Dental Exam Scheduled", time: "12:20 pm", date: "Oct 3, 2025" },
-    { title: "New Appointment Approved", time: "1:00 pm", date: "Oct 2, 2025" },
-  ];
-
+  // Notifications display (pulling from the first 4 appointments)
+  const displayNotifications = appointments.slice(0, 4).map(app => ({
+      title: `${app.serviceType} Scheduled`,
+      time: app.scheduledTime || 'N/A', 
+      date: app.scheduledDate,
+  }));
+  
   const waiting = [
     { name: "Juan Cruz", queue: "4 mins" },
     { name: "Allan Gabe", queue: "30 mins" },
@@ -254,13 +367,25 @@ const ScheduleDashboard = () => {
               <div className="calendar-grid">
                 {weeks.map((week, wi) =>
                   week.map((cell, di) => {
-                    const key = `${cell.date.getFullYear()}-${cell.date.getMonth()}-${cell.date.getDate()}`;
                     const classes = ["day"];
                     if (!cell.inMonth) classes.push("dim");
-                    if (shadedMap.has(key)) classes.push(shadedMap.get(key));
+                    
+                    const dayNumber = cell.date.getDate();
+                    if (cell.inMonth && appointmentMap[dayNumber]) classes.push(appointmentMap[dayNumber]);
+                    
+                    const cellDateStr = formatDate(cell.date);
+                    if (cellDateStr === selectedDate) classes.push('selected-day');
 
                     return (
-                      <div className={classes.join(" ")} key={`${wi}-${di}`}>
+                      <div 
+                        className={classes.join(" ")} 
+                        key={`${wi}-${di}`}
+                        onClick={() => {
+                          if (cell.inMonth) {
+                             setSelectedDate(cellDateStr);
+                          }
+                        }}
+                      >
                         <span className="num">{cell.date.getDate()}</span>
                       </div>
                     );
@@ -271,17 +396,22 @@ const ScheduleDashboard = () => {
 
             <section className="card reports-card">
               <div className="section-head">
-                <div>Reports</div>
+                <div>Appointments for: {selectedDate}</div>
                 <button className="see-all btn-link" onClick={() => setShowReports(true)}>
                   See All
                 </button>
               </div>
 
               <div className="reports-grid">
-                <IconTile color="#FFA64D" label="Dental Exams" kind="exams" />
-                <IconTile color="#FF6B6B" label="Surgeries" kind="surgeries" />
-                <IconTile color="#77D2FF" label="Consultations" kind="consultations" />
-                <IconTile color="#8EE08E" label="Tooth Cleaning" kind="cleaning" />
+                {serviceCategories.map((cat) => (
+                    <IconTile 
+                        key={cat.key}
+                        color={cat.color} 
+                        label={cat.label} 
+                        kind={cat.kind} 
+                        count={dailyAppointmentCounts[cat.key]} 
+                    />
+                ))}
               </div>
             </section>
 
@@ -296,7 +426,7 @@ const ScheduleDashboard = () => {
               </div>
 
               <div className="notifs">
-                {notifications.map((n, i) => (
+                {displayNotifications.map((n, i) => (
                   <div className="notif-row" key={i}>
                     <div className="notif-dot" />
                     <div className="notif-title">{n.title}</div>
