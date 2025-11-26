@@ -36,6 +36,7 @@
   font-weight: 500;
   transition: border 0.15s, background 0.14s;
 }
+/* (Deciduous placeholders removed) */
 .odontogram-tooth.selected .tooth-square {
   border: 1.4px solid #2196f3;
   background: #e3f1ff;

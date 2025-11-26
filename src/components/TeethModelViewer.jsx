@@ -5,10 +5,16 @@ import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import teethModelUrl from "../assets/source/Teeth.obj?url";
 import teethTextureUrl from "../assets/textures/AlysonTeeth.png?url";
 
-export default function TeethModelViewer({ className = "", selectedTeeth = [] }) {
+export default function TeethModelViewer({ 
+  className = "", 
+  selectedTeeth = [],
+  shadedTeeth = [],
+  shadedStatus = {}
+}) {
   const mountRef = React.useRef(null);
   const [status, setStatus] = React.useState("loading");
   const toothMeshMapRef = React.useRef({}); // { toothId: THREE.Mesh[] }
+  const sceneRef = React.useRef(null);
 
   React.useEffect(() => {
     const mountNode = mountRef.current;
@@ -21,6 +27,7 @@ export default function TeethModelViewer({ className = "", selectedTeeth = [] })
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x030712);
+    sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(45, sizes.width / sizes.height, 0.1, 1000);
 
@@ -68,11 +75,24 @@ export default function TeethModelViewer({ className = "", selectedTeeth = [] })
             child.castShadow = true;
             child.receiveShadow = true;
 
-            // Collect all meshes so we can highlight the whole model
-            toothMeshMap.all.push(child);
+            // Try to detect tooth id from mesh name (many OBJ exports include part names)
+            // Accept patterns like 'tooth_11', 'tooth11', '11', 'Tooth.11', etc.
+            const name = (child.name || "").toLowerCase();
+            const match = name.match(/(tooth[_-]?|\b)(\d{2,3})\b/);
+            if (match && match[2]) {
+              const id = match[2];
+              if (!toothMeshMap[id]) toothMeshMap[id] = [];
+              toothMeshMap[id].push(child);
+              console.log("Found mesh with tooth ID:", id, "from name:", child.name);
+            } else {
+              // If no tooth id found, add to 'all' fallback
+              toothMeshMap.all.push(child);
+              console.log("No tooth ID detected from mesh name:", child.name);
+            }
           }
         });
         toothMeshMapRef.current = toothMeshMap;
+        console.log("Tooth mesh map:", toothMeshMap);
         const boundingBox = new THREE.Box3().setFromObject(object);
         const center = boundingBox.getCenter(new THREE.Vector3());
         const size = boundingBox.getSize(new THREE.Vector3());
@@ -161,18 +181,130 @@ export default function TeethModelViewer({ className = "", selectedTeeth = [] })
     };
   }, []);
 
-  // Update highlighting whenever selected teeth change
+  // Update highlighting whenever selected teeth or shaded teeth change
   React.useEffect(() => {
     const map = toothMeshMapRef.current;
-    if (!map || !map.all || map.all.length === 0) return;
+    if (!map || Object.keys(map).length === 0) {
+      console.warn("toothMeshMap is empty");
+      return;
+    }
 
-    const isAnySelected = selectedTeeth.length > 0;
-    map.all.forEach((mesh) => {
-      if (!mesh.material) return;
-      mesh.material.emissive = new THREE.Color(isAnySelected ? 0x2b6cb0 : 0x000000);
-      mesh.material.emissiveIntensity = isAnySelected ? 0.7 : 0.0;
+    console.log("Updating shading. selectedTeeth:", selectedTeeth, "shadedTeeth:", shadedTeeth, "shadedStatus:", shadedStatus, "map keys:", Object.keys(map));
+
+    // Check if we collected any meshes
+    const allMeshes = [];
+    Object.keys(map).forEach((key) => {
+      if (Array.isArray(map[key])) {
+        allMeshes.push(...map[key]);
+      }
     });
-  }, [selectedTeeth]);
+    
+    if (allMeshes.length === 0) {
+      console.warn("No meshes found in toothMeshMap");
+      return;
+    }
+
+    // If we have per-tooth meshes, shade only those corresponding to selectedTeeth.
+    const hasPerTooth = Object.keys(map).some((k) => k !== "all" && Array.isArray(map[k]) && map[k].length > 0);
+    if (hasPerTooth) {
+      // Reset all materials first
+      Object.keys(map).forEach((key) => {
+        if (Array.isArray(map[key])) {
+          map[key].forEach((mesh) => {
+            if (!mesh.material) return;
+            mesh.material.color = new THREE.Color(0xffffff);
+            mesh.material.emissive = new THREE.Color(0x000000);
+            mesh.material.emissiveIntensity = 0;
+          });
+        }
+      });
+      
+      // Apply colors based on shaded status first (treatment record)
+      shadedTeeth.forEach((t) => {
+        const id = String(t);
+        // Try both the tooth ID and zero-padded versions (54, 054, etc.)
+        const possibleIds = [id, id.padStart(3, '0'), id.padStart(2, '0')];
+        let found = false;
+        
+        for (const checkId of possibleIds) {
+          if (map[checkId] && Array.isArray(map[checkId])) {
+            console.log("Found shaded tooth", t, "as ID:", checkId, "with", map[checkId].length, "meshes");
+            const treatmentStatus = shadedStatus[t];
+            // Green for done treatments, orange for ongoing
+            const color = treatmentStatus === 'done' ? 0x4caf50 : 0xff9800;
+            map[checkId].forEach((mesh) => {
+              if (!mesh.material) return;
+              mesh.material.color = new THREE.Color(color);
+              mesh.material.emissive = new THREE.Color(color);
+              mesh.material.emissiveIntensity = 0.2;
+            });
+            found = true;
+            break;
+          }
+        }
+        
+        if (!found) {
+          console.log("Shaded tooth ID", id, "NOT found in map. Tried:", possibleIds, "Available keys:", Object.keys(map));
+        }
+      });
+      
+      // Then apply red color to selected teeth (overrides shaded status for visual priority)
+      selectedTeeth.forEach((t) => {
+        const id = String(t);
+        // Try both the tooth ID and zero-padded versions (54, 054, etc.)
+        const possibleIds = [id, id.padStart(3, '0'), id.padStart(2, '0')];
+        let found = false;
+        
+        for (const checkId of possibleIds) {
+          if (map[checkId] && Array.isArray(map[checkId])) {
+            console.log("Found selected tooth", t, "as ID:", checkId, "with", map[checkId].length, "meshes");
+            map[checkId].forEach((mesh) => {
+              if (!mesh.material) return;
+              mesh.material.color = new THREE.Color(0xff4d4d);
+              mesh.material.emissive = new THREE.Color(0xff4d4d);
+              mesh.material.emissiveIntensity = 0.3;
+            });
+            found = true;
+            break;
+          }
+        }
+        
+        if (!found) {
+          console.log("Selected tooth ID", id, "NOT found in map. Tried:", possibleIds);
+        }
+      });
+    } else {
+      // Fallback: shade the whole model when any selection exists
+      const hasSelected = selectedTeeth.length > 0;
+      const hasShaded = shadedTeeth.length > 0;
+      if (map.all && Array.isArray(map.all)) {
+        map.all.forEach((mesh) => {
+          if (!mesh.material) return;
+          let color, emissive, intensity;
+          
+          if (hasSelected) {
+            color = 0xff4d4d;
+            emissive = 0xff4d4d;
+            intensity = 0.3;
+          } else if (hasShaded) {
+            // Use first shaded tooth status for whole model
+            const firstTeethStatus = shadedStatus[shadedTeeth[0]];
+            color = firstTeethStatus === 'done' ? 0x4caf50 : 0xff9800;
+            emissive = color;
+            intensity = 0.2;
+          } else {
+            color = 0xffffff;
+            emissive = 0x000000;
+            intensity = 0.0;
+          }
+          
+          mesh.material.color = new THREE.Color(color);
+          mesh.material.emissive = new THREE.Color(emissive);
+          mesh.material.emissiveIntensity = intensity;
+        });
+      }
+    }
+  }, [selectedTeeth, shadedTeeth, shadedStatus, status]);
 
   return (
     <div className={`teeth-viewer ${className}`.trim()}>

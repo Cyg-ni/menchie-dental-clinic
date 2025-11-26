@@ -1,20 +1,15 @@
 import React from "react";
 import "./Odontogram.css";
 import TeethModelViewer from "../../components/TeethModelViewer.jsx";
-const TEETH_3D_MODEL_URL = "https://sketchfab.com/3d-models/human-teeth-3d-dental-model-48d40cb88001";
 
 const upperPermanentLeft  = [18, 17, 16, 15, 14, 13, 12, 11];
 const upperPermanentRight = [21, 22, 23, 24, 25, 26];
-const upperDeciduousLeft  = [55, 54, 53, 52, 51];
-const upperDeciduousRight = [61, 62, 63, 64, 65];
-const lowerDeciduousLeft  = [85, 84, 83, 82, 81];
-const lowerDeciduousRight = [71, 72, 73, 74, 75];
 const lowerPermanentLeft  = [48, 47, 46, 45, 44, 43, 42, 41];
 const lowerPermanentRight = [31, 32, 33, 34, 35, 36];
 const maxLenL = 8, maxLenR = 6;
 
 function renderHalfRow(teeth, selectedTeeth, onClick, shadedTeeth = [], shadedStatus = {}, maxLen = 8) {
-  // Left pad for arch symmetry
+  // Left pad
   return (
     <div style={{ display: 'flex', flexDirection: 'row', gap: 3 }}>
       {Array(maxLen - teeth.length).fill(0).map((_, i) => (
@@ -59,18 +54,6 @@ export default function Odontogram({ selectedTeeth = [], onSelectionChange, sele
         <div style={{ width: 20 }} />
         {renderHalfRow(upperPermanentRight, selectedTeeth, handleToothClick, shadedTeeth, shadedStatus, maxLenR)}
       </div>
-      {/* upper deciduous */}
-      <div className="odontogram-row" style={{ justifyContent: 'center' }}>
-        {renderHalfRow(upperDeciduousLeft, selectedTeeth, handleToothClick, shadedTeeth, shadedStatus, maxLenL)}
-        <div style={{ width: 20 }} />
-        {renderHalfRow(upperDeciduousRight, selectedTeeth, handleToothClick, shadedTeeth, shadedStatus, maxLenR)}
-      </div>
-      {/* lower deciduous */}
-      <div className="odontogram-row" style={{ justifyContent: 'center' }}>
-        {renderHalfRow(lowerDeciduousLeft, selectedTeeth, handleToothClick, shadedTeeth, shadedStatus, maxLenL)}
-        <div style={{ width: 20 }} />
-        {renderHalfRow(lowerDeciduousRight, selectedTeeth, handleToothClick, shadedTeeth, shadedStatus, maxLenR)}
-      </div>
       {/* lower permanent */}
       <div className="odontogram-row" style={{ justifyContent: 'center' }}>
         {renderHalfRow(lowerPermanentLeft, selectedTeeth, handleToothClick, shadedTeeth, shadedStatus, maxLenL)}
@@ -95,7 +78,7 @@ export default function Odontogram({ selectedTeeth = [], onSelectionChange, sele
               </button>
             </div>
             <div className="odontogram-modal-body">
-              <TeethModelViewer selectedTeeth={selectedTeeth} />
+              <TeethModelViewer selectedTeeth={selectedTeeth} shadedTeeth={shadedTeeth} shadedStatus={shadedStatus} />
             </div>
             <div className="odontogram-modal-footer">
               <button type="button" className="modal-close-secondary" onClick={() => setIsModelOpen(false)}>

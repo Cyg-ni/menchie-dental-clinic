@@ -109,6 +109,7 @@ export default function PatientProfile() {
     done: false
   });
   const [submitMsg, setSubmitMsg] = useState("");
+  const [selectedTreatment, setSelectedTreatment] = useState(null);
 
   
 
@@ -150,7 +151,22 @@ export default function PatientProfile() {
     <div style={{ marginTop: 12 }}>
       {(patient.treatments && patient.treatments.length > 0) ? (
         patient.treatments.map((t, i) => (
-          <div style={{ background: '#fff', borderRadius: 8, boxShadow:'0 1px 9px #ebedf1', padding: 20, marginBottom: 18, display:'flex', gap:18 }} key={i}>
+          <div 
+            onClick={() => setSelectedTreatment(t)}
+            style={{ 
+              background: selectedTreatment === t ? '#e3f2fd' : '#fff', 
+              borderRadius: 8, 
+              boxShadow:'0 1px 9px #ebedf1', 
+              padding: 20, 
+              marginBottom: 18, 
+              display:'flex', 
+              gap:18,
+              cursor: 'pointer',
+              border: selectedTreatment === t ? '2px solid #2452a2' : '2px solid transparent',
+              transition: 'all 0.2s ease'
+            }} 
+            key={i}
+          >
             <div style={{ minWidth: 58, textAlign:'center', color:'#4a587d', fontWeight:700, fontSize:17, marginTop: 4 }}>
               <div style={{fontSize:18}}>{t.teeth.join(', ')}</div>
               <span style={{fontWeight:500, color:'#888',fontSize:11}}>
@@ -311,8 +327,17 @@ export default function PatientProfile() {
         {tab === "medical" && (
           <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
             {(() => {
-              let shadedTeeth = [], shadedStatus = {};
-              if (patient.treatments) {
+              let shadedTeeth = [], shadedStatus = {}, displayTeeth = [];
+              
+              // If a treatment is selected, show its odontogram; otherwise show all treatments
+              if (selectedTreatment) {
+                displayTeeth = selectedTreatment.teeth;
+                const status = selectedTreatment.done ? 'done' : 'ongoing';
+                selectedTreatment.teeth.forEach(tooth => {
+                  shadedStatus[tooth] = status;
+                });
+                shadedTeeth = selectedTreatment.teeth;
+              } else if (patient.treatments) {
                 const statusOrder = { ongoing: 2, done: 1 };
                 const teethMap = {};
                 for (const t of patient.treatments) {
@@ -325,15 +350,36 @@ export default function PatientProfile() {
                 shadedTeeth = Object.keys(teethMap).map(Number);
                 shadedStatus = teethMap;
               }
+              
               return (
                 <div style={{ background: "#fff", borderRadius: 10, boxShadow: "0 2px 24px #eee", padding: 22, maxWidth: '100%', overflowX: 'auto' }}>
-                  <div style={{ fontWeight: 700, color: '#223245', marginBottom: 10, fontSize: 18 }}>Odontogram</div>
-                  <Odontogram selectedTeeth={patient.odontogram || []} selectable={false} shadedTeeth={shadedTeeth} shadedStatus={shadedStatus}/>
+                  <div style={{ fontWeight: 700, color: '#223245', marginBottom: 10, fontSize: 18 }}>
+                    Odontogram{selectedTreatment ? ' - ' + selectedTreatment.date : ''}
+                  </div>
+                  <Odontogram selectedTeeth={displayTeeth} selectable={false} shadedTeeth={shadedTeeth} shadedStatus={shadedStatus}/>
                 </div>
               );
             })()}
             <div style={{ flex: 1, background: '#f7f7f7', borderRadius: 8, minHeight: 280, padding: 20 }}>
               <div style={{ fontWeight: 600, fontSize: 18, marginBottom: 18 }}>Treatment Record Timeline</div>
+              {selectedTreatment && (
+                <button 
+                  onClick={() => setSelectedTreatment(null)}
+                  style={{
+                    background: '#f0f0f0',
+                    border: '1px solid #ddd',
+                    padding: '8px 12px',
+                    borderRadius: 4,
+                    cursor: 'pointer',
+                    marginBottom: 12,
+                    fontSize: 14,
+                    fontWeight: 500,
+                    color: '#333'
+                  }}
+                >
+                  ✕ Clear Selection
+                </button>
+              )}
               <RenderTreatmentsTimeline />
             </div>
           </div>
