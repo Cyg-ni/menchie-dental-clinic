@@ -7,14 +7,17 @@ import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc } from 'firebase
 import "./Layout.css";
 import "./PatientList.css";
 import "./AddingPatientModal.css";
-import AddingPatientModal from './AddingPatientModal.jsx';
+// Assuming AddingPatientModal.jsx is in the same directory as PatientList.jsx
+import AddingPatientModal from './AddingPatientModal.jsx'; 
 
 // -----------------------------------------------------------
 // 1. CONSTANTS AND UTILS
 // -----------------------------------------------------------
 
+// Reference to the 'patients' collection
 const patientsCollectionRef = collection(db, "patients");
 
+// Icon component (kept for completeness)
 const Icon = ({ name, active }) => {
   switch (name) {
     case "dashboard":
@@ -84,7 +87,7 @@ const NEW_PATIENT_TEMPLATE = {
     contactInfo: "", 
     sendConfirmation: true,
     // Detailed Info
-    age: "", // Keep as string for initial state, will be converted to number on submit
+    age: "", // Will be converted to number on submit
     gender: "",
     occupation: "",
     status: "", // Marital status
@@ -105,8 +108,6 @@ const NEW_PATIENT_TEMPLATE = {
 // -----------------------------------------------------------
 // 2. PROFILE MODAL (Kept for viewing details)
 // -----------------------------------------------------------
-
-// NOTE: The redundant PatientModal has been removed.
 
 function PatientProfileModal({ open, patient, onClose }) {
   // Utility function to display array content clearly
@@ -240,6 +241,7 @@ export default function PatientList() {
     setProfilePatient(null);
   };
 
+  // Function to close the Add/Edit modal
   const closeModal = () => {
     setShowModal(false);
     setEditPatient(null);
@@ -268,7 +270,8 @@ export default function PatientList() {
       ...patientData,
       updated: new Date().toISOString().slice(0, 10),
       // IMPORTANT FIX: Convert age string to number for Firestore
-      age: patientData.age ? parseInt(patientData.age) : null,
+      // Use unary plus operator for quick string-to-number conversion:
+      age: patientData.age ? +patientData.age : null, 
     };
     
     // Clean up local/temporary fields
@@ -277,12 +280,13 @@ export default function PatientList() {
     delete dataToSave.lastName;
 
     // CRITICAL FIX: Remove large Base64 image data before saving to Firestore
+    // A string length > 500 is a good indicator of a large Base64 image.
     if (typeof dataToSave.image === 'string' && dataToSave.image.length > 500) {
-        console.warn("Base64 image data is too large for Firestore; removing it from the document. Consider Firebase Storage.");
+        console.warn("Large image data detected. Removing image field for Firestore save to prevent size limit error. Use Firebase Storage for files.");
         delete dataToSave.image;
     }
     
-    // Ensure nested object fields are not undefined/null if they came from the template
+    // Ensure nested object fields are not missing if they came from the template
     if (!dataToSave.medicalHistory) {
       dataToSave.medicalHistory = NEW_PATIENT_TEMPLATE.medicalHistory;
     }
@@ -299,11 +303,11 @@ export default function PatientList() {
       
       // Refresh the list from the database and close modal
       await getPatients(); 
-      closeModal();
+      closeModal(); // Call the correct closeModal function
     } catch (error) {
       // Log the detailed Firestore error
       console.error(`FIREBASE WRITE ERROR: Failed to ${isEditing ? 'update' : 'add'} patient:`, error);
-      alert(`Failed to ${isEditing ? 'save' : 'add'} patient. Check console for details. (Even with permissive rules, Firestore can fail due to data format or size)`);
+      alert(`Failed to ${isEditing ? 'save' : 'add'} patient. Check console for details.`);
     }
   };
 
@@ -383,14 +387,8 @@ export default function PatientList() {
                 onChange={e => setSearch(e.target.value)}
               />
             </div>
-            {/* Disabled button while loading */}
-            <button 
-              className="btn-primary" 
-              onClick={openAdd} 
-              style={{ marginLeft: "16px" }}
-              disabled={loading}
-            >
-              + Add Patient {loading ? '(Saving...)' : ''}
+            <button className="btn-primary" onClick={openAdd} style={{ marginLeft: "16px" }}>
+              + Add Patient
             </button>
           </div>
           <div className="patient-table-scroll">
