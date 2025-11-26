@@ -1,4 +1,8 @@
+// src/Screens/Appointment.jsx
+
 import React, { useState } from 'react';
+// 1. Import Link from react-router-dom
+import { Link } from 'react-router-dom';
 
 const BookOpen = (props) => (
   <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -105,15 +109,17 @@ const Appointment = () => {
             <span>Menchie's Dental Clinic</span>
           </div>
           <nav className="hidden md:flex space-x-8 text-lg">
-            <a href="#" className="text-gray-600 hover:text-indigo-600 transition duration-150">Home</a>
-            <a href="#" className="text-gray-600 hover:text-indigo-600 transition duration-150">About Us</a>
-            <a href="#" className="text-gray-600 hover:text-indigo-600 transition duration-150">Services</a>
+            {/* 2. Replaced <a> with Link */}
+            <Link to="/" className="text-gray-600 hover:text-indigo-600 transition duration-150">Home</Link>
+            <Link to="/about" className="text-gray-600 hover:text-indigo-600 transition duration-150">About Us</Link>
+            <Link to="/services" className="text-gray-600 hover:text-indigo-600 transition duration-150">Services</Link>
           </nav>
           <div className="hidden sm:block">
-            <button className="flex items-center px-4 py-2 bg-indigo-700 text-white font-medium rounded-xl shadow-lg transition duration-200 text-lg">
+            {/* 3. Converted button to Link (for styling consistency) */}
+            <Link to="/book" className="flex items-center px-4 py-2 bg-indigo-700 text-white font-medium rounded-xl shadow-lg transition duration-200 text-lg">
               <BookOpen className="w-5 h-5 mr-2" />
               Book Appointment
-            </button>
+            </Link>
           </div>
         </div>
       </section>

@@ -1,5 +1,7 @@
-import React from 'react';
+// src/Screens/Services.jsx
 
+import React from 'react';
+import { NavLink, Link } from 'react-router-dom';
 
 
 const BookOpen = (props) => (
@@ -32,7 +34,7 @@ const Sparkles = (props) => (
 
 const Wrench = (props) => (
   <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-3.76 3.76a2 2 0 0 1-2.83 0L3 19a2 2 0 0 1 0-2.83l3.76-3.76a6 6 0 0 1 7.94-7.94l-3.76 3.76a2 2 0 0 1-2.83 0L3 19a2 2 0 0 1 0-2.83l3.76-3.76a6 6 0 0 1 7.94-7.94l-3.76 3.76a2 2 0 0 1-2.83 0L3 19a2 2 0 0 1 0-2.83l3.76-3.76a6 6 0 0 1 7.94-7.94z" />
+    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-3.76 3.76a2 2 0 0 1-2.83 0L3 19a2 2 0 0 1 0-2.83l3.76-3.76a6 6 0 0 1 7.94-7.94l-3.76 3.76a2 2 0 0 1-2.83 0L3 19a2 2 0 0 1 0-2.83l3.76-3.76a6 6 0 0 1 7.94-7.94z" />
     <path d="M21.2 15c.1-.5.2-1.1.2-1.7 0-3.4-2.4-6.3-5.5-7.1l-1.2 1.2a4 4 0 0 0 4.3 4.3l1.2-1.2z" />
   </svg>
 );
@@ -129,15 +131,17 @@ const Services = () => {
             <span>Menchie's Dental Clinic</span>
           </div>
           <nav className="hidden md:flex space-x-8 text-lg">
-            <a href="#" className="text-gray-600 hover:text-indigo-600 transition duration-150">Home</a>
-            <a href="#" className="text-gray-600 hover:text-indigo-600 transition duration-150">About Us</a>
-            <a href="#" className="text-indigo-600 font-bold transition duration-150">Services</a> {/* Active link */}
+           
+            <NavLink to="/" className={({ isActive }) => isActive ? 'text-indigo-600 font-bold transition duration-150' : 'text-gray-600 hover:text-indigo-600 transition duration-150'}>Home</NavLink>
+            <NavLink to="/about" className={({ isActive }) => isActive ? 'text-indigo-600 font-bold transition duration-150' : 'text-gray-600 hover:text-indigo-600 transition duration-150'}>About Us</NavLink>
+            <NavLink to="/services" className={({ isActive }) => isActive ? 'text-indigo-600 font-bold transition duration-150' : 'text-gray-600 hover:text-indigo-600 transition duration-150'}>Services</NavLink> {/* Active link */}
           </nav>
           <div className="hidden sm:block">
-            <button className="flex items-center px-4 py-2 bg-indigo-600 text-white font-medium rounded-xl shadow-lg hover:bg-indigo-700 transition duration-200 text-lg">
+            
+            <Link to="/book" className="flex items-center px-4 py-2 bg-indigo-600 text-white font-medium rounded-xl shadow-lg hover:bg-indigo-700 transition duration-200 text-lg">
               <BookOpen className="w-5 h-5 mr-2" />
               Book Appointment
-            </button>
+            </Link>
           </div>
         </div>
       </section>
@@ -166,9 +170,10 @@ const Services = () => {
               </div>
               <h3 className="text-xl font-bold text-gray-800">{service.title}</h3>
               <p className="text-gray-600 flex-grow">{service.description}</p>
-              <a href="#" className="text-indigo-600 font-semibold text-sm hover:text-indigo-800 transition duration-150 mt-4">
+              {/* 4. Converted <a> to Link */}
+              <Link to="/services" className="text-indigo-600 font-semibold text-sm hover:text-indigo-800 transition duration-150 mt-4">
                 Learn More &rarr;
-              </a>
+              </Link>
             </div>
           ))}
         </section>
@@ -179,10 +184,11 @@ const Services = () => {
                 <h2 className="text-3xl font-bold mb-2">Ready for a Healthier Smile?</h2>
                 <p className="text-indigo-100">Contact us today to schedule your first appointment and discover personalized care.</p>
             </div>
-            <button className="flex items-center px-6 py-3 bg-white text-indigo-600 font-bold rounded-xl shadow-lg hover:bg-gray-100 transition duration-200 text-lg whitespace-nowrap">
+             {/* 5. Converted button to Link */}
+            <Link to="/book" className="flex items-center px-6 py-3 bg-white text-indigo-600 font-bold rounded-xl shadow-lg hover:bg-gray-100 transition duration-200 text-lg whitespace-nowrap">
                 <BookOpen className="w-5 h-5 mr-2" />
                 Book Your Visit
-            </button>
+            </Link>
         </section>
         
 
@@ -205,6 +211,7 @@ const Services = () => {
             
             <div className="text-center md:text-left space-y-2">
                 <h4 className="font-bold text-lg text-gray-800 mb-2">Connect Online</h4>
+                {/* <a> tags are fine here if they link to external social media sites */}
                 <a href="#" className="block text-indigo-600 hover:underline">Facebook</a>
                 <a href="#" className="block text-indigo-600 hover:underline">Instagram</a>
                 <a href="#" className="block text-indigo-600 hover:underline">Twitter</a>

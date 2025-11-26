@@ -1,14 +1,26 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import Appointment from "./Screens/appointment"; // import Appointment component
+// src/App.jsx
 
-function App() {
+import React from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+
+// Import all screens from your Screens folder
+import Home from './Screens/Home';
+import AboutUs from './Screens/About_us';
+import Services from './Screens/services';
+import Appointment from './Screens/appointment';
+
+const App = () => {
   return (
-    <Router>
+    <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Appointment />} /> {/* display Appointment instead of Home */}
+        {/* Map each path to its component */}
+        <Route path="/" element={<Home />} />
+        <Route path="/about" element={<AboutUs />} />
+        <Route path="/services" element={<Services />} />
+        <Route path="/book" element={<Appointment />} />
       </Routes>
-    </Router>
+    </BrowserRouter>
   );
-}
+};
 
 export default App;

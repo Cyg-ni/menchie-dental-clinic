@@ -1,5 +1,11 @@
-import React from 'react';
+// src/Screens/Home.jsx
 
+import React from 'react'; 
+// Ensure you have run: npm install react-router-dom
+import { Link } from 'react-router-dom'; 
+
+
+// --- Icon Components ---
 
 const BookOpen = (props) => (
   <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -23,8 +29,8 @@ const Phone = (props) => (
 );
 
 
-
-const App = () => {
+// --- Main Component ---
+const Home = () => {
   
   return (
     <div className="min-h-screen bg-gray-50 font-inter">
@@ -33,7 +39,6 @@ const App = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           
           <div className="flex items-center space-x-3 text-gray-800 font-semibold text-xl">
-           
             <img 
               src="https://cdn-icons-png.flaticon.com/512/103/103386.png" 
               alt="Dental Clinic Logo" 
@@ -43,16 +48,18 @@ const App = () => {
           </div>
 
           <nav className="hidden md:flex space-x-8 text-lg">
-            <a href="#" className="text-gray-600 hover:text-indigo-600 transition duration-150">Home</a>
-            <a href="#" className="text-gray-600 hover:text-indigo-600 transition duration-150">About Us</a>
-            <a href="#" className="text-gray-600 hover:text-indigo-600 transition duration-150">Services</a>
+            {/* 💡 FIXED: Navigation links use <Link to="..."> */}
+            <Link to="/" className="text-indigo-600 font-bold transition duration-150">Home</Link>
+            <Link to="/about" className="text-gray-600 hover:text-indigo-600 transition duration-150">About Us</Link>
+            <Link to="/services" className="text-gray-600 hover:text-indigo-600 transition duration-150">Services</Link>
           </nav>
 
           <div className="hidden sm:block">
-            <button className="flex items-center px-4 py-2 bg-indigo-600 text-white font-medium rounded-xl shadow-lg hover:bg-indigo-700 transition duration-200 text-lg">
+            {/* 💡 FIXED: Button uses <Link to="/book"> */}
+            <Link to="/book" className="flex items-center px-4 py-2 bg-indigo-600 text-white font-medium rounded-xl shadow-lg hover:bg-indigo-700 transition duration-200 text-lg">
               <BookOpen className="w-5 h-5 mr-2" />
               Book Appointment
-            </button>
+            </Link>
           </div>
         </div>
       </section>
@@ -60,7 +67,6 @@ const App = () => {
       
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24 grid md:grid-cols-2 gap-12 items-center min-h-[90vh]">
         
-     
         <section id="homehero" className="space-y-6">
           <h1 className="text-5xl lg:text-7xl font-extrabold text-gray-900 leading-tight">
             Modern Dentistry for a <span className="text-indigo-600">Perfect Smile</span>
@@ -70,7 +76,6 @@ const App = () => {
             Providing comprehensive, personalized dental care to meet your unique needs.
           </h3>
           
-         
           <div className="pt-4 space-y-4 text-gray-700 text-lg leading-relaxed">
             <p>
               Welcome to Menchie's Dental Clinic, where your comfort and oral health are our top priorities. We blend cutting-edge technology with compassionate care to deliver exceptional results in a relaxing, modern environment. From routine checkups to advanced cosmetic procedures, we are here to ensure your smile is healthy and bright.
@@ -117,4 +122,4 @@ const App = () => {
   );
 };
 
-export default App;
+export default Home;
