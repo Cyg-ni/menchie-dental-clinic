@@ -1,10 +1,20 @@
-import React, { useState } from "react";
+// src/Screens/PatientList.jsx
+
+import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { db } from '../../firebase';
+import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc } from 'firebase/firestore'; 
 import "./Layout.css";
 import "./PatientList.css";
 import "./AddingPatientModal.css";
+import AddingPatientModal from './AddingPatientModal.jsx';
 
-// Sidebar icon (copied from ScheduleDashboard)
+// -----------------------------------------------------------
+// 1. CONSTANTS AND UTILS
+// -----------------------------------------------------------
+
+const patientsCollectionRef = collection(db, "patients");
+
 const Icon = ({ name, active }) => {
   switch (name) {
     case "dashboard":
@@ -53,14 +63,6 @@ const imagePlaceholder = (
   </div>
 );
 
-const initialPatients = [
-  { id: 1, firstName: "Juan", lastName: "Cruz", updated: "2025-10-29", contactNumber: "", service: "", contactInfo: "email@address.com", sendConfirmation: true, image: null },
-  { id: 2, firstName: "Bella", lastName: "Reyes", updated: "2025-10-23", contactNumber: "", service: "", contactInfo: "email@address.com", sendConfirmation: true, image: null },
-  { id: 3, firstName: "Maria", lastName: "Santos", updated: "2025-10-19", contactNumber: "", service: "", contactInfo: "email@address.com", sendConfirmation: true, image: null },
-  { id: 4, firstName: "Allan", lastName: "Gabe", updated: "2025-10-18", contactNumber: "", service: "", contactInfo: "email@address.com", sendConfirmation: true, image: null },
-  { id: 5, firstName: "Michael", lastName: "Lopez", updated: "2025-10-15", contactNumber: "", service: "", contactInfo: "email@address.com", sendConfirmation: true, image: null }
-];
-
 function EditIcon() {
   return (
     <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#666"><path d="M4 21v-4a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v4" strokeWidth="2"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7.5 18.5l-4 1 1-4L16.5 3.5Z" strokeWidth="2"/></svg>
@@ -72,160 +74,75 @@ function DeleteIcon() {
   );
 }
 
-function PatientModal({ open, initial, onSubmit, onCancel }) {
-  const [formData, setFormData] = useState({
-    contactNumber: initial?.contactNumber || "",
-    service: initial?.service || "",
-    contactInfo: initial?.contactInfo || "email@address.com",
-    firstName: initial?.firstName || "",
-    lastName: initial?.lastName || "",
-    sendConfirmation: typeof initial?.sendConfirmation === "boolean" ? initial.sendConfirmation : true,
-    image: initial?.image || null
-  });
-  const [imagePreview, setImagePreview] = useState(initial?.image || null);
+// Default structure for adding a new patient, matching Firestore fields
+const NEW_PATIENT_TEMPLATE = {
+    // Basic Info
+    name: "",
+    phone_num: "",
+    address: "",
+    // Contact details
+    contactInfo: "", 
+    sendConfirmation: true,
+    // Detailed Info
+    age: "", // Keep as string for initial state, will be converted to number on submit
+    gender: "",
+    occupation: "",
+    status: "", // Marital status
+    complaint: "",
+    isPregnant: false,
+    smokingStatus: false,
+    // Nested data
+    medicalHistory: {
+        Allergies: [],
+        conditionNotes: "",
+        currentMedications: []
+    },
+    updated: new Date().toISOString().slice(0, 10),
+    image: null
+};
 
-  const handleInputChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
-  };
 
-  const handleImageSelect = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData((prev) => ({ ...prev, image: reader.result }));
-        setImagePreview(reader.result);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+// -----------------------------------------------------------
+// 2. PROFILE MODAL (Kept for viewing details)
+// -----------------------------------------------------------
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!formData.firstName || !formData.lastName) return;
-    onSubmit({ ...initial, ...formData });
-  };
-
-  if (!open) return null;
-  return (
-    <div className="modal-overlay" role="dialog" aria-modal="true">
-      <div className="modal add-patient-modal">
-        <div className="modal-header">
-          <div className="modal-title">{initial?.id ? "Edit Patient" : "Add New Patient"}</div>
-          <button className="modal-close" aria-label="Close" onClick={onCancel}>×</button>
-        </div>
-        <div className="modal-body add-patient-body">
-          <div className="patient-form-grid">
-            <section className="patient-details-section">
-              <div className="section-title">Patient Details</div>
-              <form onSubmit={handleSubmit}>
-                <div className="form-group">
-                  <label htmlFor="contactNumber">Contact Number</label>
-                  <input
-                    type="text"
-                    id="contactNumber"
-                    name="contactNumber"
-                    value={formData.contactNumber}
-                    onChange={handleInputChange}
-                  />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="contactInfo">Contact Information</label>
-                  <input
-                    type="text"
-                    id="contactInfo"
-                    name="contactInfo"
-                    value={formData.contactInfo}
-                    onChange={handleInputChange}
-                  />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="firstName">First Name</label>
-                  <input
-                    type="text"
-                    id="firstName"
-                    name="firstName"
-                    value={formData.firstName}
-                    onChange={handleInputChange}
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="lastName">Last Name</label>
-                  <input
-                    type="text"
-                    id="lastName"
-                    name="lastName"
-                    value={formData.lastName}
-                    onChange={handleInputChange}
-                    required
-                  />
-                </div>
-                <div className="form-group checkbox-group">
-                  <label className="checkbox-label">
-                    <input
-                      type="checkbox"
-                      name="sendConfirmation"
-                      checked={formData.sendConfirmation}
-                      onChange={handleInputChange}
-                    />
-                    <span>Send email/sms confirmation</span>
-                  </label>
-                </div>
-                <div className="form-actions">
-                  <button type="submit" className="btn-primary">{initial?.id ? "Save" : "Add User"}</button>
-                  <button type="button" className="btn-secondary" onClick={onCancel}>Cancel</button>
-                </div>
-              </form>
-            </section>
-            <div className="divider"></div>
-            <section className="patient-picture-section">
-              <div className="section-title">Patient Picture</div>
-              <div className="image-upload-area">
-                {imagePreview ? (
-                  <img src={imagePreview} alt="Patient preview" className="preview-image" />
-                ) : (
-                  imagePlaceholder
-                )}
-                <input
-                  type="file"
-                  id="imageUpload"
-                  accept="image/*"
-                  onChange={handleImageSelect}
-                  style={{ display: "none" }}
-                />
-                <label htmlFor="imageUpload" className="select-image-btn">
-                  Select image
-                </label>
-              </div>
-            </section>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+// NOTE: The redundant PatientModal has been removed.
 
 function PatientProfileModal({ open, patient, onClose }) {
+  // Utility function to display array content clearly
+  const formatArray = (arr) => arr?.length > 0 && arr[0] !== "" ? arr.join(', ') : <span style={{color:'#888'}}>None</span>;
+  
   if (!open || !patient) return null;
+
   return (
     <div className="modal-overlay" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="modal add-patient-modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <div className="modal-title">Patient Profile</div>
+          <div className="modal-title">Patient Profile: {patient.name}</div>
           <button className="modal-close" aria-label="Close" onClick={onClose}>×</button>
         </div>
         <div className="modal-body add-patient-body">
           <div className="patient-form-grid">
             <section className="patient-details-section">
               <div className="section-title">Patient Details</div>
-              <div className="profile-detail"><b>First Name:</b> {patient.firstName}</div>
-              <div className="profile-detail"><b>Last Name:</b> {patient.lastName}</div>
-              <div className="profile-detail"><b>Contact Number:</b> {patient.contactNumber || <span style={{color:'#888'}}>N/A</span>}</div>
-              <div className="profile-detail"><b>Contact Info:</b> {patient.contactInfo || <span style={{color:'#888'}}>N/A</span>}</div>
-              <div className="profile-detail"><b>Send Confirmation:</b> {patient.sendConfirmation ? "Yes" : "No"}</div>
-              <div className="profile-detail"><b>Last Updated:</b> {patient.updated}</div>
+              <div className="profile-detail"><b>Patient ID:</b> {patient.id}</div>
+              <div className="profile-detail"><b>Name:</b> {patient.name}</div>
+              <div className="profile-detail"><b>Contact Number:</b> {patient.phone_num || <span style={{color:'#888'}}>N/A</span>}</div>
+              <div className="profile-detail"><b>Email/Contact Info:</b> {patient.contactInfo || <span style={{color:'#888'}}>N/A</span>}</div>
+              <div className="profile-detail"><b>Address:</b> {patient.address || <span style={{color:'#888'}}>N/A</span>}</div>
+              <div className="profile-detail"><b>Last Updated:</b> {patient.updated || <span style={{color:'#888'}}>N/A</span>}</div>
+              <div className="section-title" style={{marginTop:'15px'}}>Vitals & History</div>
+              <div className="profile-detail"><b>Age:</b> {patient.age || <span style={{color:'#888'}}>N/A</span>}</div>
+              <div className="profile-detail"><b>Gender:</b> {patient.gender || <span style={{color:'#888'}}>N/A</span>}</div>
+              <div className="profile-detail"><b>Occupation:</b> {patient.occupation || <span style={{color:'#888'}}>N/A</span>}</div>
+              <div className="profile-detail"><b>Marital Status:</b> {patient.status || <span style={{color:'#888'}}>N/A</span>}</div>
+              <div className="profile-detail"><b>Complaint:</b> {patient.complaint || <span style={{color:'#888'}}>N/A</span>}</div>
+              <div className="profile-detail"><b>Smoking Status:</b> {patient.smokingStatus ? "Yes" : "No"}</div>
+              <div className="profile-detail"><b>Pregnant:</b> {patient.isPregnant ? "Yes" : "No"}</div>
+              <div className="section-title" style={{marginTop:'15px'}}>Medical Details</div>
+              <div className="profile-detail"><b>Allergies:</b> {formatArray(patient.medicalHistory?.Allergies)}</div>
+              <div className="profile-detail"><b>Condition Notes:</b> {patient.medicalHistory?.conditionNotes || <span style={{color:'#888'}}>N/A</span>}</div>
+              <div className="profile-detail"><b>Current Meds:</b> {patient.medicalHistory?.currentMedications?.length > 0 ? patient.medicalHistory.currentMedications[0].name : <span style={{color:'#888'}}>N/A</span>}</div>
             </section>
             <div className="divider"></div>
             <section className="patient-picture-section">
@@ -235,6 +152,14 @@ function PatientProfileModal({ open, patient, onClose }) {
                   ? <img src={patient.image} alt="Patient" className="preview-image" />
                   : imagePlaceholder}
               </div>
+              <div style={{marginTop: '20px', textAlign: 'center'}}>
+                <button className="btn-secondary" onClick={() => {
+                  onClose(); 
+                  // Placeholder for navigation/other action
+                }}>
+                  Full Dental Chart
+                </button>
+              </div>
             </section>
           </div>
         </div>
@@ -243,35 +168,71 @@ function PatientProfileModal({ open, patient, onClose }) {
   );
 }
 
+// -----------------------------------------------------------
+// 3. MAIN PATIENT LIST COMPONENT
+// -----------------------------------------------------------
+
 export default function PatientList() {
-  const [patients, setPatients] = useState(initialPatients);
+  const [patients, setPatients] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [editPatient, setEditPatient] = useState(null);
   const [profilePatient, setProfilePatient] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
-  // Sidebar state
   const [menuOpen, setMenuOpen] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
 
+
+  // --- FIREBASE FETCH ---
+  const getPatients = async () => {
+    setLoading(true);
+    try {
+      const data = await getDocs(patientsCollectionRef);
+      const patientData = data.docs.map(doc => {
+        const firestoreData = doc.data();
+        
+        // Combine First Name and Last Name from the single 'name' field
+        const [firstName, ...lastNameParts] = (firestoreData.name || "").split(' ');
+        const lastName = lastNameParts.join(' ');
+
+        return { 
+          id: doc.id, // Use Firestore document ID as the unique key
+          firstName: firstName,
+          lastName: lastName,
+          ...firestoreData,
+          updated: firestoreData.updated || new Date().toISOString().slice(0, 10),
+        };
+      });
+      setPatients(patientData);
+    } catch (error) {
+      console.error("Error fetching patients:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    getPatients();
+  }, []);
+
+  // --- FILTERING ---
   const filtered = patients.filter(p =>
-    (p.firstName + " " + p.lastName).toLowerCase().includes(search.toLowerCase())
+    (p.name || "").toLowerCase().includes(search.toLowerCase())
   );
 
+
+  // --- MODAL HANDLERS ---
   const openAdd = () => {
-    setEditPatient(null);
+    // Initial state for adding a new patient
+    setEditPatient(NEW_PATIENT_TEMPLATE); 
     setShowModal(true);
   };
 
   const openEdit = (patient) => {
     setEditPatient(patient);
     setShowModal(true);
-  };
-
-  const openProfile = (patient) => {
-    setProfilePatient(patient);
-    setShowProfile(true);
   };
 
   const closeProfile = () => {
@@ -284,30 +245,72 @@ export default function PatientList() {
     setEditPatient(null);
   };
 
-  const handleDelete = (patient) => {
-    if (window.confirm("Delete this patient?")) {
+  // --- CRUD OPERATIONS ---
+  const handleDelete = async (patient) => {
+    if (!window.confirm(`Are you sure you want to delete patient ${patient.name} (${patient.id})?`)) return;
+
+    try {
+      const patientDoc = doc(db, "patients", patient.id);
+      await deleteDoc(patientDoc);
+      // Update local state to reflect deletion
       setPatients(patients.filter(p => p.id !== patient.id));
+    } catch (error) {
+      console.error("Error deleting patient:", error);
+      alert("Failed to delete patient. Check console for details.");
     }
   };
 
-  const handleSubmit = (patient) => {
-    if (patient.id) {
-      // Edit
-      setPatients(ps => ps.map(p => p.id === patient.id ? { ...patient, updated: new Date().toISOString().slice(0, 10) } : p));
-    } else {
-      // Add
-      setPatients(ps => [
-        ...ps,
-        { ...patient, id: Math.max(0, ...ps.map(p => p.id)) + 1, updated: new Date().toISOString().slice(0,10) }
-      ]);
+  const handleSubmit = async (patientData) => {
+    const isEditing = patientData.id;
+
+    // Prepare data for Firestore save
+    const dataToSave = {
+      ...patientData,
+      updated: new Date().toISOString().slice(0, 10),
+      // IMPORTANT FIX: Convert age string to number for Firestore
+      age: patientData.age ? parseInt(patientData.age) : null,
+    };
+    
+    // Clean up local/temporary fields
+    delete dataToSave.id;
+    delete dataToSave.firstName; 
+    delete dataToSave.lastName;
+
+    // CRITICAL FIX: Remove large Base64 image data before saving to Firestore
+    if (typeof dataToSave.image === 'string' && dataToSave.image.length > 500) {
+        console.warn("Base64 image data is too large for Firestore; removing it from the document. Consider Firebase Storage.");
+        delete dataToSave.image;
     }
-    closeModal();
+    
+    // Ensure nested object fields are not undefined/null if they came from the template
+    if (!dataToSave.medicalHistory) {
+      dataToSave.medicalHistory = NEW_PATIENT_TEMPLATE.medicalHistory;
+    }
+
+    try {
+      if (isEditing) {
+        // Update operation
+        const patientDoc = doc(db, "patients", isEditing);
+        await updateDoc(patientDoc, dataToSave);
+      } else {
+        // Add operation
+        await addDoc(patientsCollectionRef, dataToSave);
+      }
+      
+      // Refresh the list from the database and close modal
+      await getPatients(); 
+      closeModal();
+    } catch (error) {
+      // Log the detailed Firestore error
+      console.error(`FIREBASE WRITE ERROR: Failed to ${isEditing ? 'update' : 'add'} patient:`, error);
+      alert(`Failed to ${isEditing ? 'save' : 'add'} patient. Check console for details. (Even with permissive rules, Firestore can fail due to data format or size)`);
+    }
   };
 
-  // Layout starts here (dashboard shell)
+  // --- RENDERING ---
   return (
     <div className="dashboard">
-      <header className="topbar  ref={menuRef}">
+      <header className="topbar">
         <button
           className="icon-btn menu-toggle"
           aria-haspopup="menu"
@@ -321,7 +324,7 @@ export default function PatientList() {
         </button>
           <div className="brand-left">
             <div className="brand-logo" />
-            <div className="brand-name">Menchie's Dental Clinic</div>
+            <div className="brand-name">jisong's Dental Clinic</div>
           </div>
           <div className="user">
             <div className="avatar" />
@@ -368,14 +371,14 @@ export default function PatientList() {
       <main className="main">
         <div className="patient-list-container">
           <header className="patient-header">
-            <h1>Patient List</h1>
+            <h1>Patient List {loading && <span style={{fontSize: '14px', color: '#999'}}>(Loading...)</span>}</h1>
           </header>
           <div className="patient-actions">
             <div className="search-bar-container">
               <input
                 className="search-input"
                 type="text"
-                placeholder="Patient Search"
+                placeholder="Patient Search (by Name)"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
               />
@@ -389,25 +392,29 @@ export default function PatientList() {
               <thead>
                 <tr>
                   <th>Patient Name</th>
+                  <th>Phone Number</th>
                   <th>Last Updated</th>
                   <th>Edit</th>
                   <th>Delete</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.length === 0 ? (
-                  <tr><td colSpan={4} className="empty-row">No patients found.</td></tr>
+                {loading ? (
+                  <tr><td colSpan={5} className="empty-row">Loading patient data from Firebase...</td></tr>
+                ) : filtered.length === 0 ? (
+                  <tr><td colSpan={5} className="empty-row">No patients found.</td></tr>
                 ) : filtered.map((p) => (
                   <tr key={p.id}>
                     <td>
                       <button
                         className="link-btn"
                         style={{ background: "none", border: "none", padding: 0, color: "#1e5276", fontWeight: 600, cursor: "pointer", fontSize: "15px" }}
-                        onClick={() => navigate(`/patient-list/${p.id}`)}
+                        onClick={() => setProfilePatient(p) || setShowProfile(true)} // Open profile on click
                       >
-                        {p.firstName} {p.lastName}
+                        {p.name || `${p.firstName} ${p.lastName}`}
                       </button>
                     </td>
+                    <td>{p.phone_num || 'N/A'}</td>
                     <td>{p.updated}</td>
                     <td>
                       <button className="icon-btn" title="Edit" onClick={() => openEdit(p)}>
@@ -424,11 +431,12 @@ export default function PatientList() {
               </tbody>
             </table>
           </div>
-          <PatientModal
+          {/* Renders the imported modal */}
+          <AddingPatientModal 
             open={showModal}
             initial={editPatient}
             onSubmit={handleSubmit}
-            onCancel={closeModal}
+            onCancel={closeModal} // Passing closeModal as onCancel
           />
           <PatientProfileModal
             open={showProfile}
