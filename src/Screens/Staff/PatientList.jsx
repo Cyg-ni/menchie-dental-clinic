@@ -4,7 +4,11 @@ import "./Layout.css";
 import "./PatientList.css";
 import "./AddingPatientModal.css";
 
-// Sidebar icon (copied from ScheduleDashboard)
+
+import { createPatient } from '../../firebase'; 
+
+
+
 const Icon = ({ name, active }) => {
   switch (name) {
     case "dashboard":
@@ -53,12 +57,10 @@ const imagePlaceholder = (
   </div>
 );
 
+// We keep a small initial set, knowing new additions will get Firestore IDs
 const initialPatients = [
   { id: 1, firstName: "Juan", lastName: "Cruz", updated: "2025-10-29", contactNumber: "", service: "", contactInfo: "email@address.com", sendConfirmation: true, image: null },
   { id: 2, firstName: "Bella", lastName: "Reyes", updated: "2025-10-23", contactNumber: "", service: "", contactInfo: "email@address.com", sendConfirmation: true, image: null },
-  { id: 3, firstName: "Maria", lastName: "Santos", updated: "2025-10-19", contactNumber: "", service: "", contactInfo: "email@address.com", sendConfirmation: true, image: null },
-  { id: 4, firstName: "Allan", lastName: "Gabe", updated: "2025-10-18", contactNumber: "", service: "", contactInfo: "email@address.com", sendConfirmation: true, image: null },
-  { id: 5, firstName: "Michael", lastName: "Lopez", updated: "2025-10-15", contactNumber: "", service: "", contactInfo: "email@address.com", sendConfirmation: true, image: null }
 ];
 
 function EditIcon() {
@@ -250,6 +252,8 @@ export default function PatientList() {
   const [editPatient, setEditPatient] = useState(null);
   const [profilePatient, setProfilePatient] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
+  const [loading, setLoading] = useState(false); // State for tracking saving process
+  
   // Sidebar state
   const [menuOpen, setMenuOpen] = useState(true);
   const navigate = useNavigate();
@@ -286,28 +290,63 @@ export default function PatientList() {
 
   const handleDelete = (patient) => {
     if (window.confirm("Delete this patient?")) {
+      // NOTE: This would use deletePatient(patient.id) from firebase.js
       setPatients(patients.filter(p => p.id !== patient.id));
     }
   };
 
-  const handleSubmit = (patient) => {
+  // 2. FIREBASE INTEGRATED handleSubmit
+  const handleSubmit = async (patient) => {
+    const today = new Date().toISOString().slice(0, 10);
+
     if (patient.id) {
-      // Edit
-      setPatients(ps => ps.map(p => p.id === patient.id ? { ...patient, updated: new Date().toISOString().slice(0, 10) } : p));
+      // Edit logic (Should use updatePatient from firebase.js)
+      setPatients(ps => ps.map(p => p.id === patient.id ? { ...patient, updated: today } : p));
+      
     } else {
-      // Add
-      setPatients(ps => [
-        ...ps,
-        { ...patient, id: Math.max(0, ...ps.map(p => p.id)) + 1, updated: new Date().toISOString().slice(0,10) }
-      ]);
+      // Add logic (Using createPatient to hit Firestore)
+      setLoading(true);
+      
+      const newPatientData = {
+        firstName: patient.firstName,
+        lastName: patient.lastName,
+        contactNumber: patient.contactNumber || "",
+        contactInfo: patient.contactInfo || "",
+        sendConfirmation: patient.sendConfirmation,
+        image: patient.image || null,
+        // The createdAt/updatedAt Timestamps are handled by the createPatient helper
+      };
+
+      try {
+        // CALL THE FIRESTORE HELPER
+        const savedPatient = await createPatient(newPatientData);
+        console.log("Patient successfully added with ID: ", savedPatient.id);
+        
+        // Update local state using the ID returned by Firestore
+        setPatients(ps => [
+          ...ps,
+          { 
+            ...patient, 
+            id: savedPatient.id, 
+            updated: today 
+          }
+        ]);
+        
+      } catch (error) {
+        console.error("Error adding patient:", error);
+        alert(`Failed to add patient: ${error.message}`);
+      } finally {
+        setLoading(false);
+      }
     }
+
     closeModal();
   };
 
   // Layout starts here (dashboard shell)
   return (
     <div className="dashboard">
-      <header className="topbar  ref={menuRef}">
+      <header className="topbar">
         <button
           className="icon-btn menu-toggle"
           aria-haspopup="menu"
@@ -380,8 +419,14 @@ export default function PatientList() {
                 onChange={e => setSearch(e.target.value)}
               />
             </div>
-            <button className="btn-primary" onClick={openAdd} style={{ marginLeft: "16px" }}>
-              + Add Patient
+            {/* Disabled button while loading */}
+            <button 
+              className="btn-primary" 
+              onClick={openAdd} 
+              style={{ marginLeft: "16px" }}
+              disabled={loading}
+            >
+              + Add Patient {loading ? '(Saving...)' : ''}
             </button>
           </div>
           <div className="patient-table-scroll">
