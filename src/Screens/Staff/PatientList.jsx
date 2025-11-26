@@ -7,22 +7,17 @@ import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc } from 'firebase
 import "./Layout.css";
 import "./PatientList.css";
 import "./AddingPatientModal.css";
-import AddingPatientModal from './AddingPatientModal.jsx';
+// Assuming AddingPatientModal.jsx is in the same directory as PatientList.jsx
+import AddingPatientModal from './AddingPatientModal.jsx'; 
 
 // -----------------------------------------------------------
 // 1. CONSTANTS AND UTILS
 // -----------------------------------------------------------
 
+// Reference to the 'patients' collection
 const patientsCollectionRef = collection(db, "patients");
 
-<<<<<<< HEAD
-=======
-
-import { createPatient } from '../../firebase'; 
-
-
-
->>>>>>> 01adb4a9f46008b01aaaad66a6e99fe85b4c073d
+// Icon component (kept for completeness)
 const Icon = ({ name, active }) => {
   switch (name) {
     case "dashboard":
@@ -71,15 +66,6 @@ const imagePlaceholder = (
   </div>
 );
 
-<<<<<<< HEAD
-=======
-// We keep a small initial set, knowing new additions will get Firestore IDs
-const initialPatients = [
-  { id: 1, firstName: "Juan", lastName: "Cruz", updated: "2025-10-29", contactNumber: "", service: "", contactInfo: "email@address.com", sendConfirmation: true, image: null },
-  { id: 2, firstName: "Bella", lastName: "Reyes", updated: "2025-10-23", contactNumber: "", service: "", contactInfo: "email@address.com", sendConfirmation: true, image: null },
-];
-
->>>>>>> 01adb4a9f46008b01aaaad66a6e99fe85b4c073d
 function EditIcon() {
   return (
     <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#666"><path d="M4 21v-4a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v4" strokeWidth="2"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7.5 18.5l-4 1 1-4L16.5 3.5Z" strokeWidth="2"/></svg>
@@ -101,7 +87,7 @@ const NEW_PATIENT_TEMPLATE = {
     contactInfo: "", 
     sendConfirmation: true,
     // Detailed Info
-    age: "", // Keep as string for initial state, will be converted to number on submit
+    age: "", // Will be converted to number on submit
     gender: "",
     occupation: "",
     status: "", // Marital status
@@ -122,8 +108,6 @@ const NEW_PATIENT_TEMPLATE = {
 // -----------------------------------------------------------
 // 2. PROFILE MODAL (Kept for viewing details)
 // -----------------------------------------------------------
-
-// NOTE: The redundant PatientModal has been removed.
 
 function PatientProfileModal({ open, patient, onClose }) {
   // Utility function to display array content clearly
@@ -197,12 +181,6 @@ export default function PatientList() {
   const [editPatient, setEditPatient] = useState(null);
   const [profilePatient, setProfilePatient] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
-<<<<<<< HEAD
-=======
-  const [loading, setLoading] = useState(false); // State for tracking saving process
-  
-  // Sidebar state
->>>>>>> 01adb4a9f46008b01aaaad66a6e99fe85b4c073d
   const [menuOpen, setMenuOpen] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
@@ -263,12 +241,12 @@ export default function PatientList() {
     setProfilePatient(null);
   };
 
+  // Function to close the Add/Edit modal
   const closeModal = () => {
     setShowModal(false);
     setEditPatient(null);
   };
 
-<<<<<<< HEAD
   // --- CRUD OPERATIONS ---
   const handleDelete = async (patient) => {
     if (!window.confirm(`Are you sure you want to delete patient ${patient.name} (${patient.id})?`)) return;
@@ -277,11 +255,6 @@ export default function PatientList() {
       const patientDoc = doc(db, "patients", patient.id);
       await deleteDoc(patientDoc);
       // Update local state to reflect deletion
-=======
-  const handleDelete = (patient) => {
-    if (window.confirm("Delete this patient?")) {
-      // NOTE: This would use deletePatient(patient.id) from firebase.js
->>>>>>> 01adb4a9f46008b01aaaad66a6e99fe85b4c073d
       setPatients(patients.filter(p => p.id !== patient.id));
     } catch (error) {
       console.error("Error deleting patient:", error);
@@ -289,7 +262,6 @@ export default function PatientList() {
     }
   };
 
-<<<<<<< HEAD
   const handleSubmit = async (patientData) => {
     const isEditing = patientData.id;
 
@@ -298,7 +270,8 @@ export default function PatientList() {
       ...patientData,
       updated: new Date().toISOString().slice(0, 10),
       // IMPORTANT FIX: Convert age string to number for Firestore
-      age: patientData.age ? parseInt(patientData.age) : null,
+      // Use unary plus operator for quick string-to-number conversion:
+      age: patientData.age ? +patientData.age : null, 
     };
     
     // Clean up local/temporary fields
@@ -307,12 +280,13 @@ export default function PatientList() {
     delete dataToSave.lastName;
 
     // CRITICAL FIX: Remove large Base64 image data before saving to Firestore
+    // A string length > 500 is a good indicator of a large Base64 image.
     if (typeof dataToSave.image === 'string' && dataToSave.image.length > 500) {
-        console.warn("Base64 image data is too large for Firestore; removing it from the document. Consider Firebase Storage.");
+        console.warn("Large image data detected. Removing image field for Firestore save to prevent size limit error. Use Firebase Storage for files.");
         delete dataToSave.image;
     }
     
-    // Ensure nested object fields are not undefined/null if they came from the template
+    // Ensure nested object fields are not missing if they came from the template
     if (!dataToSave.medicalHistory) {
       dataToSave.medicalHistory = NEW_PATIENT_TEMPLATE.medicalHistory;
     }
@@ -329,60 +303,12 @@ export default function PatientList() {
       
       // Refresh the list from the database and close modal
       await getPatients(); 
-      closeModal();
+      closeModal(); // Call the correct closeModal function
     } catch (error) {
       // Log the detailed Firestore error
       console.error(`FIREBASE WRITE ERROR: Failed to ${isEditing ? 'update' : 'add'} patient:`, error);
-      alert(`Failed to ${isEditing ? 'save' : 'add'} patient. Check console for details. (Even with permissive rules, Firestore can fail due to data format or size)`);
+      alert(`Failed to ${isEditing ? 'save' : 'add'} patient. Check console for details.`);
     }
-=======
-  // 2. FIREBASE INTEGRATED handleSubmit
-  const handleSubmit = async (patient) => {
-    const today = new Date().toISOString().slice(0, 10);
-
-    if (patient.id) {
-      // Edit logic (Should use updatePatient from firebase.js)
-      setPatients(ps => ps.map(p => p.id === patient.id ? { ...patient, updated: today } : p));
-      
-    } else {
-      // Add logic (Using createPatient to hit Firestore)
-      setLoading(true);
-      
-      const newPatientData = {
-        firstName: patient.firstName,
-        lastName: patient.lastName,
-        contactNumber: patient.contactNumber || "",
-        contactInfo: patient.contactInfo || "",
-        sendConfirmation: patient.sendConfirmation,
-        image: patient.image || null,
-        // The createdAt/updatedAt Timestamps are handled by the createPatient helper
-      };
-
-      try {
-        // CALL THE FIRESTORE HELPER
-        const savedPatient = await createPatient(newPatientData);
-        console.log("Patient successfully added with ID: ", savedPatient.id);
-        
-        // Update local state using the ID returned by Firestore
-        setPatients(ps => [
-          ...ps,
-          { 
-            ...patient, 
-            id: savedPatient.id, 
-            updated: today 
-          }
-        ]);
-        
-      } catch (error) {
-        console.error("Error adding patient:", error);
-        alert(`Failed to add patient: ${error.message}`);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    closeModal();
->>>>>>> 01adb4a9f46008b01aaaad66a6e99fe85b4c073d
   };
 
   // --- RENDERING ---
@@ -461,14 +387,8 @@ export default function PatientList() {
                 onChange={e => setSearch(e.target.value)}
               />
             </div>
-            {/* Disabled button while loading */}
-            <button 
-              className="btn-primary" 
-              onClick={openAdd} 
-              style={{ marginLeft: "16px" }}
-              disabled={loading}
-            >
-              + Add Patient {loading ? '(Saving...)' : ''}
+            <button className="btn-primary" onClick={openAdd} style={{ marginLeft: "16px" }}>
+              + Add Patient
             </button>
           </div>
           <div className="patient-table-scroll">
