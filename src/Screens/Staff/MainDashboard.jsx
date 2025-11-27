@@ -1,16 +1,17 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-// ADDED: Firebase Imports
+// Assuming the Firebase context is exported correctly from the shared file
 import { db } from "../../firebase"; 
 import { collection, getDocs, query, where } from 'firebase/firestore'; 
 
 import "./MainDashboard.css";
 import "./Layout.css";
 import AppointmentsModal from "./AppointmentsModal.jsx";
-// REMOVED: import MoreAppointmentsModal from "./MoreAppointmentsModal.jsx"; 
 import AddingPatientModal from "./AddingPatientModal.jsx";
 
+// Define collection reference using the imported db instance
 const appointmentsCollectionRef = collection(db, "appointments");
+// const patientsCollectionRef = collection(db, "patients"); // Not strictly needed here
 
 // --- UTILITY COMPONENTS ---
 const Placeholder = ({ className }) => (
@@ -84,46 +85,88 @@ const MainDashboard = () => {
   const [menuOpen, setMenuOpen] = useState(true);
   const menuRef = useRef(null);
   const [showAppointmentsModal, setShowAppointmentsModal] = useState(false);
-  // REMOVED: [showMoreAppointments, setShowMoreAppointments]
   const [showAddingPatient, setShowAddingPatient] = useState(false);
   
-  // ADDED: State for Firebase Data
+  // State for Firebase Data
   const [pendingAppointments, setPendingAppointments] = useState([]);
+  const [upcomingAppointmentCount, setUpcomingAppointmentCount] = useState(0); 
+  
   const [loading, setLoading] = useState(true);
   
   const navigate = useNavigate();
   const location = useLocation();
 
-  // In MainDashboard.jsx
 
-const getPendingAppointments = async () => {
-    setLoading(true);
+  // --- Data Fetching Functions ---
+
+  const getPendingAppointments = useCallback(async () => {
     try {
+        // FIX: Use dot notation to correctly query the nested status field
         const q = query(
             appointmentsCollectionRef, 
-            // 🚨 FIX: Ensure this string exactly matches the Firestore value
-            where("status", "==", "Approval Pending") 
+            where("status.isPending", "==", "Approval Pending") 
         );
 
         const data = await getDocs(q);
-        // ... rest of the logic
-          const pendingData = data.docs.map(doc => ({
-              id: doc.id, 
-              ...doc.data()
-          }));
-          
-          setPendingAppointments(pendingData);
-      } catch (error) {
-          console.error("Error fetching pending appointments:", error);
-      } finally {
-          setLoading(false);
-      }
-  };
+        const pendingData = data.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        setPendingAppointments(pendingData);
+        return pendingData.length;
+    } catch (error) {
+        console.error("Error fetching pending appointments:", error);
+        return 0;
+    }
+  }, []); 
+
+  const getUpcomingAppointments = useCallback(async () => {
+    const now = Date.now(); 
+    
+    try {
+        const q = query(
+            appointmentsCollectionRef, 
+            where("status.isScheduled", "==", "Scheduled")
+        );
+        const data = await getDocs(q);
+
+        let futureCount = 0;
+        data.docs.forEach(doc => {
+            const apptData = doc.data();
+            
+            // Check if the appointment time is in the future
+            if (apptData.dateTime && apptData.dateTime.toDate) {
+                const apptTimestamp = apptData.dateTime.toDate().getTime();
+                
+                if (apptTimestamp > now) {
+                    futureCount++;
+                }
+            }
+        });
+        
+        setUpcomingAppointmentCount(futureCount);
+        return futureCount;
+
+    } catch (error) {
+        console.error("Error fetching upcoming appointments:", error);
+        return 0;
+    }
+  }, []); 
+
+  
+  const fetchDashboardData = useCallback(async () => {
+      setLoading(true);
+      
+      await Promise.all([
+          getPendingAppointments(),
+          getUpcomingAppointments()
+      ]);
+      
+      setLoading(false);
+      
+  }, [getPendingAppointments, getUpcomingAppointments]);
 
 
   useEffect(() => {
-    // Call the data fetching function on mount
-    getPendingAppointments(); 
+    fetchDashboardData(); 
 
     const onDocClick = (e) => {
       if (!menuRef.current) return;
@@ -131,13 +174,13 @@ const getPendingAppointments = async () => {
     };
     document.addEventListener("click", onDocClick);
     return () => document.removeEventListener("click", onDocClick);
-  }, []);
+  }, [fetchDashboardData]); 
+
 
   return (
     <div className="dashboard">
 
       <header className="topbar" ref={menuRef}>
-        {/* ... Topbar content ... */}
         <button
           className="icon-btn menu-toggle"
           aria-haspopup="menu"
@@ -161,12 +204,12 @@ const getPendingAppointments = async () => {
             <div className="user-name">Juana Cruz</div>
             <div className="user-role">Chief Dentist</div>
           </div>
+          
         </div>
       </header>
 
       <aside className={`sidebar ${menuOpen ? "open" : ""}`}>
         <nav className="sidebar-nav">
-          {/* ... Navigation buttons ... */}
           <button
             className={`nav-item ${location.pathname.startsWith("/dashboard") ? "active" : ""}`}
             aria-label="Dashboard"
@@ -201,7 +244,6 @@ const getPendingAppointments = async () => {
       <main className="main">
         <section className="main-grid">
           <div className="card list">
-            {/* ... Recent Patients content ... */}
             <div className="card-title with-icon">
               <span>Recent Patients</span>
             </div>
@@ -220,7 +262,6 @@ const getPendingAppointments = async () => {
           </div>
 
           <div className="card hero">
-            {/* ... Hero content ... */}
             <div className="section-title">
               <span className="muted">Good Morning,</span> Juana
             </div>
@@ -238,13 +279,13 @@ const getPendingAppointments = async () => {
             </div>
           </div>
 
-          {/* --- UPDATED APPROVALS CARD --- */}
+          {/* --- APPROVALS CARD --- */}
           <div className="card approvals">
             <div className="card-title">Approval Request</div>
             {loading ? (
                 <div className="big-num" style={{fontSize: '24px'}}>...</div>
             ) : (
-                // DYNAMIC COUNT
+                // DYNAMIC PENDING COUNT
                 <div className="big-num">{pendingAppointments.length}</div> 
             )}
             <div className="muted">Request waiting to Approve</div>
@@ -257,12 +298,15 @@ const getPendingAppointments = async () => {
             </button>
 
             <div className="muted">Upcoming Appointments</div>
-            <div className="big-num">5</div>
-            <button className="btn ghost" onClick={() => setShowAppointmentsModal(true)}>More</button>
+            {loading ? (
+                <div className="big-num" style={{fontSize: '24px'}}>...</div>
+            ) : (
+                <div className="big-num">{upcomingAppointmentCount}</div>
+            )}
+            <button className="btn ghost" onClick={() => navigate("/schedule")}>More</button>
           </div>
 
           <div className="card appointments">
-            {/* ... Today's Appointments content ... */}
             <div className="card-title with-icon">
               <span>Today's Appointments</span>
             </div>
@@ -293,13 +337,12 @@ const getPendingAppointments = async () => {
               </div>
             </div>
             <div className="card-footer-right">
-              <button className="btn ghost" onClick={() => setShowAppointmentsModal(true)}>
+              <button className="btn ghost" onClick={() => navigate("/schedule")}>
                 More
               </button>
             </div>
           </div>
 
-          {/* ... Treatments card ... */}
           <div className="card treatments">
             <div className="card-title with-icon">
               <span>Top Treatments</span>
@@ -309,7 +352,6 @@ const getPendingAppointments = async () => {
             ))}
           </div>
 
-          {/* ... Totals card ... */}
           <div className="card totals">
             <div className="card-title with-icon">
               <span>Total Patients</span>
@@ -328,11 +370,9 @@ const getPendingAppointments = async () => {
         {showAppointmentsModal && (
           <AppointmentsModal 
               onClose={() => setShowAppointmentsModal(false)} 
-              // Added onUpdate to refresh the dashboard count after an action in the modal
-              onUpdate={getPendingAppointments}
+              onUpdate={fetchDashboardData}
             />
         )}
-        {/* REMOVED: {showMoreAppointments && (<MoreAppointmentsModal onClose={() => setShowMoreAppointments(false)} />)} */}
         {showAddingPatient && (
           <AddingPatientModal onClose={() => setShowAddingPatient(false)} />
         )}

@@ -1,58 +1,78 @@
-import React, { useState, useEffect } from "react";
-// FIX 1: Corrected path for component in src/Screens/Staff/
-import { db } from "../../firebase"; 
+import React, { useState, useEffect, useCallback } from "react";
+import "./AppointmentsModal.css";
+
+// ===============================================
+// 1. FIREBASE SETUP & IMPORTS (Self-Contained)
+// ===============================================
+import { initializeApp } from "firebase/app";
 import { 
+    getFirestore, 
     collection, 
-    getDocs, 
     doc, 
     updateDoc, 
     query, 
     where, 
-    getDoc 
+    getDoc,
+    getDocs,
+    Timestamp 
 } from 'firebase/firestore'; 
 
-import "./AppointmentsModal.css";
+// *** REPLACE THIS CONFIG WITH YOUR ACTUAL PROJECT CONFIGURATION ***
+// (Assuming you placed your real config here from the last step)
+const firebaseConfig = {
+  apiKey: "AIzaSyCS-olCQRpJZGcYSGWG7CZ8PIpV-wBNaOE",
+  authDomain: "menchie-dental-clinic.firebaseapp.com",
+  projectId: "menchie-dental-clinic",
+  storageBucket: "menchie-dental-clinic.firebasestorage.app",
+  messagingSenderId: "1005995383687",
+  appId: "1:1005995383687:web:42301faf7bbfcb544b1122",
+  measurementId: "G-C96BVD0XY6"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
 const appointmentsCollectionRef = collection(db, "appointments");
+// ===============================================
+
 
 const AppointmentsModal = ({ onClose, onUpdate }) => {
     const [appointments, setAppointments] = useState([]);
     const [loading, setLoading] = useState(true);
     
-    // Function to fetch patient details using the patientID from the appointment
-    const getPatientDetails = async (patientID) => {
-        const patientRef = doc(db, "patients", patientID);
+    const getPatientDetails = useCallback(async (patientIDRef) => {
+        const patientID = patientIDRef.includes('/') ? patientIDRef.split('/').pop() : patientIDRef;
+        const patientRef = doc(db, "patients", patientID); 
         try {
             const patientSnap = await getDoc(patientRef);
             if (patientSnap.exists()) {
                 const data = patientSnap.data();
-                // Return a combined name field for display
-                return data.name || (data.firstName + " " + data.lastName); 
+                // Prioritize patientFullName if stored in the appointment document, otherwise use patient data
+                return data.fullName || (data.firstName + " " + data.lastName) || "Patient ID: " + patientID; 
             }
         } catch (e) {
             console.error("Error fetching patient details for ID:", patientID, e);
         }
         return "Unknown Patient";
-    };
+    }, []);
 
-    // Function to fetch pending appointments and patient names
-    const fetchPendingAppointments = async () => {
+    const fetchPendingAppointments = useCallback(async () => {
         setLoading(true);
         try {
-            // FIX 2: Query the database for appointments awaiting approval
+            // Query the nested status field for pending approval
             const q = query(
                 appointmentsCollectionRef, 
-                where("status", "==", "Approval Pending")
+                where("status.isPending", "==", "Approval Pending")
             );
             const data = await getDocs(q);
             
             const pendingDataPromises = data.docs.map(async doc => {
                 const apptData = doc.data();
-                // Safely extract the patient ID
-                const patientID = apptData.patientID.includes('/') ? apptData.patientID.split('/').pop() : apptData.patientID;
                 
-                // Fetch the full name
-                const patientFullName = await getPatientDetails(patientID);
+                let patientFullName = apptData.patientFullName;
+                if (!patientFullName && apptData.patientId) {
+                    patientFullName = await getPatientDetails(apptData.patientId);
+                }
 
                 return {
                     id: doc.id, 
@@ -68,29 +88,37 @@ const AppointmentsModal = ({ onClose, onUpdate }) => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [getPatientDetails]);
 
     useEffect(() => {
         fetchPendingAppointments();
-    }, []);
+    }, [fetchPendingAppointments]);
 
     // Handler to update the status of an appointment
-    const updateAppointmentStatus = async (id, newStatus) => {
+    const updateAppointmentStatus = async (id, action) => {
+        const apptDoc = doc(db, "appointments", id);
+        
+        // Define status updates based on action
+        let newIsPendingStatus = "Not Pending";
+        let newIsScheduledStatus = action === "Approved" ? "Scheduled" : "Declined";
+        let newIsCompleteStatus = action === "Approved" ? "Pending" : "Cancelled"; // Use 'Cancelled' for declined
+
         try {
-            const apptDoc = doc(db, "appointments", id);
             await updateDoc(apptDoc, {
-                status: newStatus,
-                isScheduled: newStatus === "Approved" ? true : false
+                'status.isPending': newIsPendingStatus,
+                'status.isScheduled': newIsScheduledStatus,
+                'status.isComplete': newIsCompleteStatus,
+                updatedAt: Timestamp.fromDate(new Date()),
             });
             
-            // Refresh list and dashboard count
-            fetchPendingAppointments();
+            // Refresh list (removes approved/rejected item) and notify dashboard
+            await fetchPendingAppointments();
             if (onUpdate) {
                 onUpdate(); 
             }
         } catch (error) {
             console.error("Error updating appointment status:", error);
-            alert("Failed to update appointment status. Check Firebase Rules.");
+            alert(`Failed to update status: ${error.message}.`);
         }
     }
     
@@ -100,51 +128,69 @@ const AppointmentsModal = ({ onClose, onUpdate }) => {
     // Helper function to format the timestamp
     const formatDateTime = (seconds) => {
         if (!seconds) return 'N/A';
-        return new Date(seconds * 1000).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+        let date = seconds.toDate ? seconds.toDate() : new Date(seconds * 1000); 
+        
+        return date.toLocaleString('en-US', { 
+            month: 'short', 
+            day: 'numeric', 
+            year: 'numeric',
+            hour: 'numeric', 
+            minute: '2-digit',
+            hour12: true
+        });
     }
 
     return (
         <div className="modal-overlay">
-            <div className="modal-content">
+            {/* Using the .modal class from the CSS */}
+            <div className="modal"> 
                 <div className="modal-header">
-                    <h2>Pending Appointment Requests</h2>
-                    <button className="close-btn" onClick={onClose}>&times;</button>
+                    {/* Using the .modal-title class from the CSS */}
+                    <div className="modal-title">Pending Appointment Requests</div> 
+                    {/* Using the .modal-close class from the CSS */}
+                    <button className="modal-close" onClick={onClose}>×</button>
                 </div>
+                
                 <div className="modal-body">
                     {loading ? (
                         <p>Loading pending appointments...</p>
                     ) : appointments.length === 0 ? (
                         <p>No pending approvals found.</p>
                     ) : (
-                        <table className="approval-table">
-                            <thead>
-                                <tr>
-                                    <th>Patient Name</th>
-                                    <th>Service</th>
-                                    <th>Date/Time</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {appointments.map(appt => (
-                                    <tr key={appt.id}>
-                                        <td>{appt.patientFullName || 'Loading...'}</td>
-                                        <td>{appt.serviceType}</td>
-                                        <td>
-                                            {formatDateTime(appt.dateTime?.seconds)}
-                                        </td>
-                                        <td>
-                                            <button className="btn success" onClick={() => handleApprove(appt.id)}>Approve</button>
-                                            <button className="btn danger" onClick={() => handleDecline(appt.id)}>Decline</button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                        <div className="req-list">
+                            {appointments.map(appt => (
+                                <div className="req-row" key={appt.id}>
+                                    
+                                    {/* Left side: Patient info pill */}
+                                    <div className="req-left">
+                                        <div className="req-pill">
+                                            <div className="req-name">{appt.patientFullName}</div>
+                                            <div className="req-note">
+                                                {appt.serviceType} | {formatDateTime(appt.dateTime)}
+                                            </div>
+                                            {/* Optional chevron based on your CSS; assumes no function */}
+                                            <span className="req-chevron">›</span> 
+                                        </div>
+                                    </div>
+
+                                    {/* Right side: Actions */}
+                                    <div className="req-actions">
+                                        <button className="approve" title="Approve" onClick={() => handleApprove(appt.id)}>
+                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                                                <path d="M20 6L9 17l-5-5"/>
+                                            </svg>
+                                        </button>
+                                        <button className="reject" title="Reject" onClick={() => handleDecline(appt.id)}>
+                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#d0d0d0" strokeWidth="2">
+                                                <line x1="18" y1="6" x2="6" y2="18"/>
+                                                <line x1="6" y1="6" x2="18" y2="18"/>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     )}
-                </div>
-                <div className="modal-footer">
-                    <button className="btn secondary" onClick={onClose}>Close</button>
                 </div>
             </div>
         </div>
