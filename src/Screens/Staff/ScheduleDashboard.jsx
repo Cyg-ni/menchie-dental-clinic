@@ -13,7 +13,6 @@ import {
   collection, 
   onSnapshot, 
   query, 
-  getDocs 
 } from 'firebase/firestore'; 
 
 // *** REPLACE THIS CONFIG WITH YOUR ACTUAL PROJECT CONFIGURATION ***
@@ -33,11 +32,9 @@ const db = getFirestore(app);
 // Collection Reference
 const appointmentsCol = collection(db, "appointments");
 
-// Helper function equivalent to onAppointmentsSnapshot from firebase.js
+// Helper function equivalent to onAppointmentsSnapshot
 function appointmentsSnapshotListener(callback) {
-  // We use a simple query to fetch all appointments for the dashboard view
   const q = query(appointmentsCol); 
-  
   return onSnapshot(q, (snapshot) => {
     const data = snapshot.docs.map(d => ({ 
       id: d.id, 
@@ -160,21 +157,32 @@ const ScheduleDashboard = () => {
   const menuRef = useRef(null);
 
   // Date States
+  const todayISO = useMemo(() => {
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  }, []);
+  
   const [viewDate, setViewDate] = useState(new Date());
-  const todayISO = new Date().toISOString().slice(0, 10);
   const [selectedDate, setSelectedDate] = useState(todayISO); 
   
   // Firebase State
   const [appointments, setAppointments] = useState([]); 
 
-  const formatDate = (dateObj) => dateObj.toISOString().slice(0, 10);
+  // --- FIX: Modified formatDate function to prevent timezone shifting ---
+  const formatDate = (dateObj) => {
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const day = String(dateObj.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  // -------------------------------------------------------------------
 
 
   useEffect(() => {
-    // Setup Firebase real-time listener using the local helper
+    // Setup Firebase real-time listener
     const unsubscribe = appointmentsSnapshotListener(setAppointments);
     
-    // Cleanup for menu toggle (using original logic)
+    // Cleanup for menu toggle
     const closeMenu = (e) => {
       if (!menuRef.current) return;
       if (!menuRef.current.contains(e.target)) setMenuOpen(true); 
@@ -182,7 +190,7 @@ const ScheduleDashboard = () => {
     document.addEventListener("click", closeMenu);
 
     return () => {
-      unsubscribe(); // Cleanup the Firestore listener
+      unsubscribe(); 
       document.removeEventListener("click", closeMenu);
     }
   }, []); 
@@ -197,7 +205,7 @@ const ScheduleDashboard = () => {
     { label: "Other / Not Sure", key: "Other / Not Sure", color: "#D3D3D3", kind: "consultations" },
   ];
   
-  // --- Calculate Daily Appointment Counts (Memoized for performance) ---
+  // --- Calculate Daily Appointment Counts (Memoized) ---
   const dailyAppointmentCounts = useMemo(() => {
     const counts = {};
     const appointmentsOnSelectedDay = appointments.filter(app => 
@@ -250,6 +258,7 @@ const ScheduleDashboard = () => {
   for (let w = 0; w < 6; w++) {
     const week = [];
     for (let d = 0; d < 7; d++) {
+      // Date object created in local time
       const dateObj = new Date(viewDate.getFullYear(), viewDate.getMonth(), day++);
       week.push({
         date: dateObj,
@@ -374,6 +383,8 @@ const ScheduleDashboard = () => {
                     if (cell.inMonth && appointmentMap[dayNumber]) classes.push(appointmentMap[dayNumber]);
                     
                     const cellDateStr = formatDate(cell.date);
+                    
+                    if (cellDateStr === todayISO) classes.push('today'); 
                     if (cellDateStr === selectedDate) classes.push('selected-day');
 
                     return (
@@ -382,7 +393,8 @@ const ScheduleDashboard = () => {
                         key={`${wi}-${di}`}
                         onClick={() => {
                           if (cell.inMonth) {
-                             setSelectedDate(cellDateStr);
+                             // This now uses the fixed formatDate, ensuring the report header is correct
+                             setSelectedDate(cellDateStr); 
                           }
                         }}
                       >
@@ -480,7 +492,9 @@ const ScheduleDashboard = () => {
           </div>
         </section>
 
-        {showReports && <ReportsModal onClose={() => setShowReports(false)} />}
+        {showReports && <ReportsModal onClose={() => setShowReports(false)}
+        appointments={appointments}
+        />}
 
       </main>
     </div>

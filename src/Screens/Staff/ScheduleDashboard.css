@@ -272,9 +272,6 @@
 }
 
 /* Ensure reports card is properly placed in the top row */
-.reports-card {
-    /* Inherits from row-top 2fr 1fr layout */
-}
 
 .see-all {
     color: #9e9e9e;
