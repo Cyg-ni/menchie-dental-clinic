@@ -2,8 +2,15 @@ import React from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
-import teethModelUrl from "../assets/source/Teeth.obj?url";
-import teethTextureUrl from "../assets/textures/AlysonTeeth.png?url";
+
+// 🛑 REMOVE the previous import statements that used "?url"
+// import teethModelUrl from "../assets/source/Teeth.obj?url";
+// import teethTextureUrl from "../assets/textures/AlysonTeeth.png?url";
+
+// ✅ Use hardcoded paths that point to the public directory
+// ASSUMPTION: You move the files to 'public/models/'
+const TEETH_MODEL_PATH = "/models/Teeth.obj";
+const TEETH_TEXTURE_PATH = "/models/AlysonTeeth.png"; 
 
 export default function TeethModelViewer({ 
   className = "", 
@@ -53,14 +60,17 @@ export default function TeethModelViewer({
 
     const loader = new OBJLoader();
     const textureLoader = new THREE.TextureLoader();
-    const texture = textureLoader.load(teethTextureUrl);
+    
+    // ✅ Use the public path for the texture
+    const texture = textureLoader.load(TEETH_TEXTURE_PATH); 
 
     let model = null;
     let resizeObserver = null;
     let windowResizeHandler = null;
 
     loader.load(
-      teethModelUrl,
+      // ✅ Use the public path for the model
+      TEETH_MODEL_PATH, 
       (object) => {
         const toothMeshMap = { all: [] };
         object.traverse((child) => {
@@ -317,4 +327,3 @@ export default function TeethModelViewer({
     </div>
   );
 }
-
