@@ -1,5 +1,8 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
+// 👇️ ADDED FIREBASE IMPORTS
+import { db } from '../../firebase'; // Assuming the path is correct
+import { doc, getDoc, updateDoc } from 'firebase/firestore'; 
 import Odontogram from "./Odontogram.jsx";
 import "./Layout.css";
 import "./AddingPatientModal.css";
@@ -54,13 +57,7 @@ const TABS = [
   { key: "medical", label: "Medical Record" }
 ];
 
-const getInitialPatients = () => [
-  { id: 1, firstName: "Juan", lastName: "Cruz", updated: "2025-10-29", contactNumber: "", service: "", contactInfo: "email@address.com", sendConfirmation: true, image: null, odontogram: [], treatments: [] },
-  { id: 2, firstName: "Bella", lastName: "Reyes", updated: "2025-10-23", contactNumber: "", service: "", contactInfo: "email@address.com", sendConfirmation: true, image: null, odontogram: [], treatments: [] },
-  { id: 3, firstName: "Maria", lastName: "Santos", updated: "2025-10-19", contactNumber: "", service: "", contactInfo: "email@address.com", sendConfirmation: true, image: null, odontogram: [], treatments: [] },
-  { id: 4, firstName: "Allan", lastName: "Gabe", updated: "2025-10-18", contactNumber: "", service: "", contactInfo: "email@address.com", sendConfirmation: true, image: null, odontogram: [], treatments: [] },
-  { id: 5, firstName: "Michael", lastName: "Lopez", updated: "2025-10-15", contactNumber: "", service: "", contactInfo: "email@address.com", sendConfirmation: true, image: null, odontogram: [], treatments: [] }
-];
+// Removed hardcoded patient data
 
 const imagePlaceholder = (
   <div className="image-placeholder" style={{ width: 76, height: 76 }}>
@@ -72,34 +69,24 @@ const imagePlaceholder = (
   </div>
 );
 
-function loadPatients() {
-  try {
-    const p = JSON.parse(window.localStorage.getItem("patients"));
-    if (Array.isArray(p) && p.length > 0) return p;
-  } catch {}
-  return getInitialPatients();
-}
-function savePatients(arr) {
-  window.localStorage.setItem("patients", JSON.stringify(arr));
-}
+// Removed loadPatients and savePatients functions
 
 export default function PatientProfile() {
+  // ----------------------------------------------
+  // 👇️ START: ALL HOOKS MOVED TO THE TOP (Rules of Hooks Fix)
+  // ----------------------------------------------
   const { id } = useParams();
   const navigate = useNavigate();
   const menuRef = useRef(null);
   const [tab, setTab] = useState("medical");
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(true);
-  const [patients, setPatients] = useState(loadPatients());
-  useEffect(() => { savePatients(patients); }, [patients]);
 
-  const pId = parseInt(id);
-  const patient = patients.find(p => p.id === pId);
-  if (!patient) {
-    return <div style={{ padding: 48 }}>Patient Not Found</div>;
-  }
+  // New states for single patient object and loading
+  const [patient, setPatient] = useState(null);
+  const [loading, setLoading] = useState(true); 
 
-  // ---- Next Treatment logic ----
+  // Next Treatment hooks
   const [treatTeeth, setTreatTeeth] = useState([]);
   const [form, setForm] = useState({
     condition: '',
@@ -111,38 +98,98 @@ export default function PatientProfile() {
   const [submitMsg, setSubmitMsg] = useState("");
   const [selectedTreatment, setSelectedTreatment] = useState(null);
 
-  
-
+  // Reset forms/state when tab or patient changes
   useEffect(() => {
     setTreatTeeth([]);
     setForm({ condition: '', procedure: '', dentist: '', notes: '', done: false });
     setSubmitMsg("");
   }, [tab, id]);
 
+  // 👇️ EFFECT TO FETCH PATIENT DATA (Firestore Integration Fix)
+  const getPatient = async (patientId) => {
+    if (!patientId) {
+        setLoading(false);
+        return;
+    }
+    setLoading(true);
+    try {
+        const docRef = doc(db, "patients", patientId);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+            // Document ID (string) is now correctly used as the patient's id
+            setPatient({ id: docSnap.id, ...docSnap.data() }); 
+        } else {
+            setPatient(null); // Patient Not Found
+        }
+    } catch (error) {
+        console.error("Error fetching patient:", error);
+        setPatient(null);
+    } finally {
+        setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    getPatient(id);
+  }, [id]); // Re-run when the URL ID changes
+  // ----------------------------------------------
+  // 👆️ END: ALL HOOKS ARE MOVED HERE
+  // ----------------------------------------------
+  
+  // 👇️ CONDITIONAL RETURNS (Now safe because all hooks are above)
+  if (loading) {
+    return <div style={{ padding: 48 }}>Loading Patient...</div>;
+  }
+
+  if (!patient) {
+    return <div style={{ padding: 48 }}>Patient Not Found</div>;
+  }
+
   const handleFormChange = e => {
     const { name, value, type, checked } = e.target;
     setForm(f => ({ ...f, [name]: type === 'checkbox' ? checked : value }));
   };
 
-  const handleTreatmentSubmit = e => {
+  // 👇️ UPDATED TREATMENT SUBMISSION LOGIC (Firestore update)
+  const handleTreatmentSubmit = async e => {
     e.preventDefault();
     if (!form.condition || !form.procedure || !form.dentist || treatTeeth.length === 0) {
       setSubmitMsg("Fill all required fields and select at least one tooth.");
       return;
     }
+    
+    // Create new treatment object
     const newTreat = {
       ...form,
       teeth: [...treatTeeth],
       date: new Date().toISOString().split('T')[0],
     };
-    setPatients(ps => ps.map(p =>
-        p.id === pId
-          ? { ...p, treatments: [newTreat, ...(p.treatments || [])], odontogram: [...treatTeeth] }
-          : p
-      ));
-    setSubmitMsg("Treatment added!");
-    setTreatTeeth([]);
-    setForm({ condition: '', procedure: '', dentist: '', notes: '', done: false });
+
+    try {
+        // Prepare the new list of treatments
+        const updatedTreatments = [newTreat, ...(patient.treatments || [])];
+        
+        // Reference to the patient document
+        const patientDocRef = doc(db, "patients", id); 
+        
+        // Update the document in Firestore
+        await updateDoc(patientDocRef, {
+            treatments: updatedTreatments,
+            odontogram: [...treatTeeth], // Update the current odontogram/teeth treated
+            updated: new Date().toISOString().split('T')[0] // Update the last updated date
+        });
+
+        // Re-fetch patient data to update the local state with the new treatments
+        await getPatient(id); 
+
+        setSubmitMsg("Treatment added!");
+        setTreatTeeth([]);
+        setForm({ condition: '', procedure: '', dentist: '', notes: '', done: false });
+    } catch (error) {
+        console.error("Error submitting treatment:", error);
+        setSubmitMsg("Failed to add treatment. Check console for details.");
+    }
+
     setTimeout(() => setSubmitMsg(''), 1400);
   };
 
@@ -259,8 +306,9 @@ export default function PatientProfile() {
             <img src={patient.image} alt="profile" style={{ width: 76, height: 76, borderRadius: 50, border: '2px solid #ebebeb', objectFit: 'cover' }}/>
           ) : imagePlaceholder}
           <div>
-            <h2 style={{ margin: 0 }}>{patient.firstName} {patient.lastName}</h2>
-            <div style={{ color: '#555', marginTop: 4 }}>{patient.contactInfo}</div>
+            {/* Displaying name from firestore document (firstName and lastName may not exist) */}
+            <h2 style={{ margin: 0 }}>{patient.name || 'N/A'}</h2> 
+            <div style={{ color: '#555', marginTop: 4 }}>{patient.contactInfo || patient.phone_num}</div>
           </div>
           <div style={{ flex: 1 }} />
           <button className="btn-primary">Create Appointment</button>
@@ -387,12 +435,15 @@ export default function PatientProfile() {
         {tab === "info" && (
           <div style={{ marginTop: 30, background: '#fff', borderRadius: 8, padding: 32, maxWidth: 560, boxShadow: '0 2px 24px #f1f1f1'}}>
             <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 16}}>General Information</div>
-            <div><b>First Name:</b> {patient.firstName}</div>
-            <div><b>Last Name:</b> {patient.lastName}</div>
-            <div><b>Contact Number:</b> {patient.contactNumber || <span style={{color:'#888'}}>N/A</span>}</div>
+            <div><b>Name:</b> {patient.name || 'N/A'}</div>
+            <div><b>Contact Number:</b> {patient.phone_num || <span style={{color:'#888'}}>N/A</span>}</div>
             <div><b>Email/Contact Info:</b> {patient.contactInfo || <span style={{color:'#888'}}>N/A</span>}</div>
-            <div><b>Send Confirmation:</b> {patient.sendConfirmation ? "Yes" : "No"}</div>
-            <div><b>Last Updated:</b> {patient.updated}</div>
+            <div><b>Address:</b> {patient.address || <span style={{color:'#888'}}>N/A</span>}</div>
+            <div><b>Gender:</b> {patient.gender || <span style={{color:'#888'}}>N/A</span>}</div>
+            <div><b>Age:</b> {patient.age || <span style={{color:'#888'}}>N/A</span>}</div>
+            {/* Assuming sendConfirmation is a key in your Firestore document */}
+            <div><b>Send Confirmation:</b> {patient.sendConfirmation ? "Yes" : "No"}</div> 
+            <div><b>Last Updated:</b> {patient.updated || 'N/A'}</div>
           </div>
         )}
         {tab === "history" && (

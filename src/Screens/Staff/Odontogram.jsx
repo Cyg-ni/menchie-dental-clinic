@@ -2,11 +2,19 @@ import React from "react";
 import "./Odontogram.css";
 import TeethModelViewer from "../../components/TeethModelViewer.jsx";
 
+// Permanent Dentition (FDI Two-Digit System)
+// Upper Left (18 to 11)
 const upperPermanentLeft  = [18, 17, 16, 15, 14, 13, 12, 11];
-const upperPermanentRight = [21, 22, 23, 24, 25, 26];
+// Upper Right (21 to 28)
+const upperPermanentRight = [21, 22, 23, 24, 25, 26, 27, 28]; 
+
+// Lower Left (48 to 41)
 const lowerPermanentLeft  = [48, 47, 46, 45, 44, 43, 42, 41];
-const lowerPermanentRight = [31, 32, 33, 34, 35, 36];
-const maxLenL = 8, maxLenR = 6;
+// Lower Right (31 to 38)
+const lowerPermanentRight = [31, 32, 33, 34, 35, 36, 37, 38]; 
+
+// Set max length to 8 for full permanent dentition (alignment)
+const maxLenL = 8, maxLenR = 8; 
 
 function renderHalfRow(teeth, selectedTeeth, onClick, shadedTeeth = [], shadedStatus = {}, maxLen = 8) {
   // Left pad
@@ -52,13 +60,13 @@ export default function Odontogram({ selectedTeeth = [], onSelectionChange, sele
       <div className="odontogram-row" style={{ justifyContent: 'center' }}>
         {renderHalfRow(upperPermanentLeft, selectedTeeth, handleToothClick, shadedTeeth, shadedStatus, maxLenL)}
         <div style={{ width: 20 }} />
-        {renderHalfRow(upperPermanentRight, selectedTeeth, handleToothClick, shadedTeeth, shadedStatus, maxLenR)}
+        {renderHalfRow(upperPermanentRight, selectedTeeth, handleToothClick, shadedTeeth, shadedStatus, maxLenL)} 
       </div>
       {/* lower permanent */}
       <div className="odontogram-row" style={{ justifyContent: 'center' }}>
         {renderHalfRow(lowerPermanentLeft, selectedTeeth, handleToothClick, shadedTeeth, shadedStatus, maxLenL)}
         <div style={{ width: 20 }} />
-        {renderHalfRow(lowerPermanentRight, selectedTeeth, handleToothClick, shadedTeeth, shadedStatus, maxLenR)}
+        {renderHalfRow(lowerPermanentRight, selectedTeeth, handleToothClick, shadedTeeth, shadedStatus, maxLenL)}
       </div>
       <button
         type="button"
