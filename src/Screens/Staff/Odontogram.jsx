@@ -3,10 +3,15 @@ import "./Odontogram.css";
 import TeethModelViewer from "../../components/TeethModelViewer.jsx";
 
 const upperPermanentLeft  = [18, 17, 16, 15, 14, 13, 12, 11];
-const upperPermanentRight = [21, 22, 23, 24, 25, 26];
+// FIX: Added teeth 27 and 28
+const upperPermanentRight = [21, 22, 23, 24, 25, 26, 27, 28]; 
+
 const lowerPermanentLeft  = [48, 47, 46, 45, 44, 43, 42, 41];
-const lowerPermanentRight = [31, 32, 33, 34, 35, 36];
-const maxLenL = 8, maxLenR = 6;
+// FIX: Added teeth 37 and 38
+const lowerPermanentRight = [31, 32, 33, 34, 35, 36, 37, 38]; 
+
+// FIX: Set maxLenR to 8 to match maxLenL for full permanent dentition
+const maxLenL = 8, maxLenR = 8; 
 
 function renderHalfRow(teeth, selectedTeeth, onClick, shadedTeeth = [], shadedStatus = {}, maxLen = 8) {
   // Left pad
@@ -52,13 +57,15 @@ export default function Odontogram({ selectedTeeth = [], onSelectionChange, sele
       <div className="odontogram-row" style={{ justifyContent: 'center' }}>
         {renderHalfRow(upperPermanentLeft, selectedTeeth, handleToothClick, shadedTeeth, shadedStatus, maxLenL)}
         <div style={{ width: 20 }} />
-        {renderHalfRow(upperPermanentRight, selectedTeeth, handleToothClick, shadedTeeth, shadedStatus, maxLenR)}
+        {/* FIX: Changed maxLenR to maxLenL for consistent padding/alignment */}
+        {renderHalfRow(upperPermanentRight, selectedTeeth, handleToothClick, shadedTeeth, shadedStatus, maxLenL)} 
       </div>
       {/* lower permanent */}
       <div className="odontogram-row" style={{ justifyContent: 'center' }}>
         {renderHalfRow(lowerPermanentLeft, selectedTeeth, handleToothClick, shadedTeeth, shadedStatus, maxLenL)}
         <div style={{ width: 20 }} />
-        {renderHalfRow(lowerPermanentRight, selectedTeeth, handleToothClick, shadedTeeth, shadedStatus, maxLenR)}
+        {/* FIX: Changed maxLenR to maxLenL for consistent padding/alignment */}
+        {renderHalfRow(lowerPermanentRight, selectedTeeth, handleToothClick, shadedTeeth, shadedStatus, maxLenL)}
       </div>
       <button
         type="button"

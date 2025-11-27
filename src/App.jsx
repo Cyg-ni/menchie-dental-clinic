@@ -6,6 +6,7 @@ import PatientList from "./Screens/Staff/PatientList.jsx";
 import PatientProfile from "./Screens/Staff/PatientProfile.jsx";
 import Settings from "./Screens/Staff/Settings.jsx";
 
+
 function App() {
   return (
     <Router>
@@ -13,9 +14,21 @@ function App() {
         <Route path="/" element={<Login />} />
         <Route path="/dashboard" element={<MainDashboard />} />
         <Route path="/schedule" element={<ScheduleDashboard />} />
+        
+        {/* Patient List */}
         <Route path="/patient-list" element={<PatientList />} />
-        <Route path="/patient-list/:id" element={<PatientProfile />} />
+        
+        {/* Patient Profile: Uses the :id parameter to load the specific patient */}
+        {/* FIX 1: Changed the path base from /patient-list/:id to /patient-profile/:id to match the URL you are using. */}
+        <Route path="/patient-profile/:id/*" element={<PatientProfile />} />
+        
+        {/* FIX 2: Added a specific route for the /odontogram segment.
+          This handles the URL "/patient-profile/KPKs4hh00duZE2H5qlQz/odontogram" 
+        */}
+        <Route path="/patient-profile/:id/odontogram" element={<PatientProfile />} />
+        
         <Route path="/settings" element={<Settings />} />
+        
       </Routes>
     </Router>
   );
