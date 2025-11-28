@@ -1,17 +1,16 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-// Assuming the Firebase context is exported correctly from the shared file
 import { db } from "../../firebase"; 
-import { collection, getDocs, query, where } from 'firebase/firestore'; 
+import { collection, getDocs, query, where, doc, getDoc, orderBy, limit, Timestamp } from 'firebase/firestore'; 
 
 import "./MainDashboard.css";
 import "./Layout.css";
 import AppointmentsModal from "./AppointmentsModal.jsx";
 import AddingPatientModal from "./AddingPatientModal.jsx";
 
-// Define collection reference using the imported db instance
+// Define collection references
 const appointmentsCollectionRef = collection(db, "appointments");
-// const patientsCollectionRef = collection(db, "patients"); // Not strictly needed here
+const patientsCollectionRef = collection(db, "patients");
 
 // --- UTILITY COMPONENTS ---
 const Placeholder = ({ className }) => (
@@ -80,6 +79,52 @@ const Icon = ({ name }) => {
   }
 };
 
+// --- Helper Functions ---
+const SERVICE_DURATIONS = {
+    'Routine Check-up & Cleaning': 60,   
+    'Teeth Whitening (Cosmetic)': 90,    
+    'Dental Implants Consultation': 120, 
+    'Emergency Visit (Pain/Injury)': 60, 
+    'Orthodontics Consultation': 60,     
+    'Other / Not Sure': 30               
+};
+
+const formatTimeAndDuration = (timeStr, serviceType) => {
+    if (!timeStr) return 'N/A';
+    
+    const [h, m] = timeStr.split(':').map(Number);
+    const startObj = new Date(2000, 0, 1, h, m); 
+    const startTime12hr = startObj.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+
+    const durationMinutes = SERVICE_DURATIONS[serviceType] || 30;
+
+    const endMs = startObj.getTime() + durationMinutes * 60000;
+    const endObj = new Date(endMs);
+    const endTime12hr = endObj.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+
+    return `${startTime12hr} – ${endTime12hr}`;
+};
+
+const formatDateForDisplay = (dateInput) => {
+    if (!dateInput) return 'N/A';
+    
+    let date;
+    if (dateInput && dateInput.toDate) {
+        date = dateInput.toDate();
+    } else if (typeof dateInput === 'string') {
+        date = new Date(dateInput + 'T00:00:00'); 
+    } else if (dateInput instanceof Date) {
+        date = dateInput;
+    } else {
+        return 'Invalid Date';
+    }
+
+    if (isNaN(date.getTime())) return 'N/A';
+
+    return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+};
+
+
 const MainDashboard = () => {
   // --- STATE MANAGEMENT ---
   const [menuOpen, setMenuOpen] = useState(true);
@@ -90,23 +135,203 @@ const MainDashboard = () => {
   // State for Firebase Data
   const [pendingAppointments, setPendingAppointments] = useState([]);
   const [upcomingAppointmentCount, setUpcomingAppointmentCount] = useState(0); 
+  const [topServices, setTopServices] = useState([]); 
+  const [patientCounts, setPatientCounts] = useState({ month: 0, year: 0 }); 
+  const [todaysAppointments, setTodaysAppointments] = useState([]); 
+  const [recentPatients, setRecentPatients] = useState([]); 
   
   const [loading, setLoading] = useState(true);
   
   const navigate = useNavigate();
   const location = useLocation();
 
-
+  // Get today's date in YYYY-MM-DD format for Firestore querying
+  const todayISO = useMemo(() => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }, []);
+  
   // --- Data Fetching Functions ---
+
+  // Helper to extract the best available name from a patient document (data)
+  const getBestPatientName = (data) => {
+      const constructedName = `${data.firstName || ''} ${data.lastName || ''}`.trim();
+      if (constructedName) return constructedName;
+
+      if (data.medicalHistory?.currentMedications?.name) {
+          return data.medicalHistory.currentMedications.name;
+      }
+      
+      // 3. Fallback to a readable ID
+      if (data.id) {
+          return `Patient ID: ${data.id.substring(0, 8)}`;
+      }
+
+      return 'Name N/A';
+  };
+
+  // Helper to fetch full patient name from ID
+  const getPatientFullName = useCallback(async (patientIdRef) => {
+    if (!patientIdRef) return "Unknown Patient";
+    const patientID = patientIdRef.includes('/') ? patientIdRef.split('/').pop() : patientIdRef;
+    const patientRef = doc(db, "patients", patientID);
+    try {
+        const snap = await getDoc(patientRef);
+        if (snap.exists()) {
+            const data = snap.data();
+            return getBestPatientName({ ...data, id: patientID }); 
+        }
+    } catch (e) {
+        console.error("Error fetching patient name:", e);
+    }
+    return `Patient ID: ${patientID}`;
+  }, []);
+
+
+  const getRecentPatients = useCallback(async () => {
+    try {
+      // Query the patients collection, ordering by the 'updated' field 
+      const q = query(
+        patientsCollectionRef, 
+        orderBy("updated", "desc"), 
+        limit(5)
+      );
+      
+      const snapshot = await getDocs(q);
+      
+      const patients = snapshot.docs.map(doc => {
+          const data = doc.data();
+
+          const fullName = getBestPatientName({ ...data, id: doc.id });
+
+          const displayDate = data.updated || data.createdAt;
+
+          return {
+              id: doc.id,
+              name: fullName, 
+              date: displayDate 
+          };
+      });
+      
+      setRecentPatients(patients);
+      return patients;
+
+    } catch (error) {
+      console.error("Error fetching recent patients:", error);
+      return [];
+    }
+  }, []);
+
+
+  // --- Existing Fetch Functions ---
+
+  const getTodaysAppointments = useCallback(async () => {
+    try {
+      const q = query(
+        appointmentsCollectionRef,
+        where("scheduledDate", "==", todayISO),
+        where("status.isScheduled", "==", "Scheduled")
+      );
+      const snapshot = await getDocs(q);
+      
+      let appts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      appts.sort((a, b) => {
+          const timeA = a.scheduledTime || '00:00';
+          const timeB = b.scheduledTime || '00:00';
+          if (timeA < timeB) return -1;
+          if (timeA > timeB) return 1;
+          return 0;
+      });
+      
+      const apptsWithNames = appts.map((appt) => {
+          const name = appt.patientFullName || getPatientFullName(appt.patientId);
+          return { ...appt, patientFullName: name };
+      });
+      
+      setTodaysAppointments(apptsWithNames);
+      return apptsWithNames.length;
+
+    } catch (error) {
+      console.error("Error fetching today's appointments:", error);
+      return 0;
+    }
+  }, [todayISO]);
+
+
+  const getPatientCounts = useCallback(async () => {
+    try {
+        const data = await getDocs(patientsCollectionRef);
+        const patients = data.docs.map(doc => doc.data());
+        
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth(); 
+
+        let countMonth = 0;
+        let countYear = 0;
+
+        patients.forEach(p => {
+            let createdDate = null;
+            if (p.createdAt && p.createdAt.toDate) {
+                createdDate = p.createdAt.toDate();
+            } else if (p.updated) {
+                 createdDate = new Date(p.updated + 'T00:00:00'); 
+            } else if (p.createdAt) {
+                createdDate = new Date(p.createdAt);
+            }
+
+            if (createdDate && !isNaN(createdDate.getTime())) {
+                const patientYear = createdDate.getFullYear();
+                const patientMonth = createdDate.getMonth();
+                
+                if (patientYear === currentYear) { countYear++; }
+                if (patientYear === currentYear && patientMonth === currentMonth) { countMonth++; }
+            }
+        });
+
+        setPatientCounts({ month: countMonth, year: countYear });
+        return { month: countMonth, year: countYear };
+        
+    } catch (error) {
+        console.error("Error fetching patient counts:", error);
+        return { month: 0, year: 0 };
+    }
+  }, []);
+
+
+  const getTopServices = useCallback(async () => {
+    try {
+        const data = await getDocs(appointmentsCollectionRef);
+        const frequencyMap = {};
+        data.docs.forEach(doc => {
+            const service = doc.data().serviceType;
+            if (service) { frequencyMap[service] = (frequencyMap[service] || 0) + 1; }
+        });
+
+        const sortedServices = Object.entries(frequencyMap)
+            .map(([serviceName, count]) => ({ serviceName, count }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 5) 
+
+        setTopServices(sortedServices);
+        return sortedServices;
+
+    } catch (error) {
+        console.error("Error fetching top services:", error);
+        return [];
+    }
+  }, []); 
 
   const getPendingAppointments = useCallback(async () => {
     try {
-        // FIX: Use dot notation to correctly query the nested status field
         const q = query(
             appointmentsCollectionRef, 
             where("status.isPending", "==", "Approval Pending") 
         );
-
         const data = await getDocs(q);
         const pendingData = data.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         
@@ -132,7 +357,6 @@ const MainDashboard = () => {
         data.docs.forEach(doc => {
             const apptData = doc.data();
             
-            // Check if the appointment time is in the future
             if (apptData.dateTime && apptData.dateTime.toDate) {
                 const apptTimestamp = apptData.dateTime.toDate().getTime();
                 
@@ -142,14 +366,15 @@ const MainDashboard = () => {
             }
         });
         
-        setUpcomingAppointmentCount(futureCount);
-        return futureCount;
+        const totalUpcoming = futureCount;
+        setUpcomingAppointmentCount(totalUpcoming);
+        return totalUpcoming;
 
     } catch (error) {
         console.error("Error fetching upcoming appointments:", error);
         return 0;
     }
-  }, []); 
+  }, [todayISO]); 
 
   
   const fetchDashboardData = useCallback(async () => {
@@ -157,12 +382,16 @@ const MainDashboard = () => {
       
       await Promise.all([
           getPendingAppointments(),
-          getUpcomingAppointments()
+          getUpcomingAppointments(),
+          getTopServices(),
+          getPatientCounts(),
+          getTodaysAppointments(),
+          getRecentPatients()
       ]);
       
       setLoading(false);
       
-  }, [getPendingAppointments, getUpcomingAppointments]);
+  }, [getPendingAppointments, getUpcomingAppointments, getTopServices, getPatientCounts, getTodaysAppointments, getRecentPatients]);
 
 
   useEffect(() => {
@@ -248,16 +477,21 @@ const MainDashboard = () => {
               <span>Recent Patients</span>
             </div>
             <ul className="list-items">
-              {["Maloy Mag","Jason Gieb","Darel Horma","Mikael Renz","Miguel Itto"].map((n, i) => (
-                <li className="list-item" key={i}>
-                  <div className="avatar small" />
-                  <div className="item-meta">
-                    <div className="item-title">{n}</div>
-                    <div className="item-sub">August 10, 2025</div>
-                  </div>
-                  <button className="chev">›</button>
-                </li>
-              ))}
+                {loading && <li className="list-item"><div className="item-meta">Loading recent patients...</div></li>}
+                {!loading && recentPatients.length === 0 && (
+                    <li className="list-item"><div className="item-meta">No recent patients found.</div></li>
+                )}
+                
+                {!loading && recentPatients.map(p => (
+                    <li className="list-item" key={p.id}>
+                        <div className="avatar small" />
+                        <div className="item-meta">
+                            <div className="item-title">{p.name || 'Name Unknown'}</div> 
+                            <div className="item-sub">{formatDateForDisplay(p.date)}</div> 
+                        </div>
+                        <button className="chev">›</button>
+                    </li>
+                ))}
             </ul>
           </div>
 
@@ -285,7 +519,6 @@ const MainDashboard = () => {
             {loading ? (
                 <div className="big-num" style={{fontSize: '24px'}}>...</div>
             ) : (
-                // DYNAMIC PENDING COUNT
                 <div className="big-num">{pendingAppointments.length}</div> 
             )}
             <div className="muted">Request waiting to Approve</div>
@@ -311,30 +544,25 @@ const MainDashboard = () => {
               <span>Today's Appointments</span>
             </div>
             <div className="appointments-content">
-              <div className="huge-num">5</div>
-              <div className="appt-list">
-                <div className="appt highlight">
-                  <div className="appt-name">Ken Drussi</div>
-                  <div className="appt-row">
-                    <div className="appt-title">Consultation</div>
-                    <div className="appt-time">11:00 – 12:30</div>
-                  </div>
-                </div>
-                <div className="appt">
-                  <div className="appt-name">Sean Mendez</div>
-                  <div className="appt-row">
-                    <div className="appt-title">Tooth Cleaning</div>
-                    <div className="appt-time">11:00 – 12:30</div>
-                  </div>
-                </div>
-                <div className="appt">
-                  <div className="appt-name">Sean Mendez</div>
-                  <div className="appt-row">
-                    <div className="appt-title">Full Dental Exam</div>
-                    <div className="appt-time">11:00 – 12:30</div>
-                  </div>
-                </div>
-              </div>
+              <div className="huge-num">{todaysAppointments.length}</div>
+              
+              {loading ? (
+                <div className="appt-list" style={{paddingTop: '10px', color: '#888'}}>Loading appointments...</div>
+              ) : todaysAppointments.length === 0 ? (
+                <div className="appt-list" style={{paddingTop: '10px', color: '#888'}}>No scheduled appointments today.</div>
+              ) : (
+                <div className="appt-list">
+                  {todaysAppointments.slice(0, 3).map((appt, i) => (
+                    <div className={`appt ${i === 0 ? 'highlight' : ''}`} key={appt.id}>
+                        <div className="appt-name">{appt.patientFullName || 'Patient'}</div>
+                        <div className="appt-row">
+                            <div className="appt-title">{appt.serviceType || 'Service N/A'}</div>
+                            <div className="appt-time">{formatTimeAndDuration(appt.scheduledTime, appt.serviceType)}</div>
+                        </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="card-footer-right">
               <button className="btn ghost" onClick={() => navigate("/schedule")}>
@@ -343,24 +571,44 @@ const MainDashboard = () => {
             </div>
           </div>
 
+          {/* --- TOP TREATMENTS CARD --- */}
           <div className="card treatments">
             <div className="card-title with-icon">
-              <span>Top Treatments</span>
+              <span>Top Services</span>
             </div>
-            {["Consultation","Scaling","Root Canal","Bleaching","Cosmetic"].map(t => (
-              <StatPill key={t} label={t} />
-            ))}
+            {loading && <div style={{padding: '10px', textAlign: 'center', color: '#888'}}>Loading services...</div>}
+            
+            {!loading && topServices.length === 0 && (
+                <div style={{padding: '10px', textAlign: 'center', color: '#888'}}>No service data available.</div>
+            )}
+
+            {!loading && topServices.length > 0 && (
+                topServices.map(service => (
+                    // Label shows the service name and the count (e.g., "Consultation (15)")
+                    <StatPill key={service.serviceName} label={`${service.serviceName} (${service.count})`} />
+                ))
+            )}
           </div>
 
+          {/* --- TOTAL PATIENTS CARD --- */}
           <div className="card totals">
             <div className="card-title with-icon">
               <span>Total Patients</span>
             </div>
             <div className="totals-content">
               <div className="muted">This month</div>
-              <div className="big-num">135</div>
+                {loading ? (
+                    <div className="big-num" style={{fontSize: '24px'}}>...</div>
+                ) : (
+                    <div className="big-num">{patientCounts.month}</div>
+                )}
+              
               <div className="muted">This year</div>
-              <div className="big-num">2035</div>
+                {loading ? (
+                    <div className="big-num" style={{fontSize: '24px'}}>...</div>
+                ) : (
+                    <div className="big-num">{patientCounts.year}</div>
+                )}
             </div>
           </div>
 
