@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 // 👇️ ADDED FIREBASE IMPORTS
-import { db } from '../../firebase'; // Assuming the path is correct
+import { db } from '../../firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore'; 
 import Odontogram from "./Odontogram.jsx";
 import "./Layout.css";
@@ -57,8 +57,6 @@ const TABS = [
   { key: "medical", label: "Medical Record" }
 ];
 
-// Removed hardcoded patient data
-
 const imagePlaceholder = (
   <div className="image-placeholder" style={{ width: 76, height: 76 }}>
     <svg width="76" height="76" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -69,12 +67,8 @@ const imagePlaceholder = (
   </div>
 );
 
-// Removed loadPatients and savePatients functions
-
 export default function PatientProfile() {
-  // ----------------------------------------------
-  // 👇️ START: ALL HOOKS MOVED TO THE TOP (Rules of Hooks Fix)
-  // ----------------------------------------------
+  
   const { id } = useParams();
   const navigate = useNavigate();
   const menuRef = useRef(null);
@@ -85,6 +79,7 @@ export default function PatientProfile() {
   // New states for single patient object and loading
   const [patient, setPatient] = useState(null);
   const [loading, setLoading] = useState(true); 
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false); // New state for update loading
 
   // Next Treatment hooks
   const [treatTeeth, setTreatTeeth] = useState([]);
@@ -105,18 +100,19 @@ export default function PatientProfile() {
     setSubmitMsg("");
   }, [tab, id]);
 
-  // 👇️ EFFECT TO FETCH PATIENT DATA (Firestore Integration Fix)
-  const getPatient = async (patientId) => {
+  // EFFECT TO FETCH PATIENT DATA (Wrapped in useCallback for refresh)
+  const getPatient = useCallback(async (patientId) => {
     if (!patientId) {
         setLoading(false);
         return;
     }
-    setLoading(true);
+    // Only set loading if we aren't currently updating a status (to avoid visual flash)
+    if (!isUpdatingStatus) setLoading(true); 
+    
     try {
         const docRef = doc(db, "patients", patientId);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
-            // Document ID (string) is now correctly used as the patient's id
             setPatient({ id: docSnap.id, ...docSnap.data() }); 
         } else {
             setPatient(null); // Patient Not Found
@@ -125,32 +121,64 @@ export default function PatientProfile() {
         console.error("Error fetching patient:", error);
         setPatient(null);
     } finally {
-        setLoading(false);
+        if (!isUpdatingStatus) setLoading(false);
     }
-  };
+  }, [isUpdatingStatus]);
 
   useEffect(() => {
     getPatient(id);
-  }, [id]); // Re-run when the URL ID changes
-  // ----------------------------------------------
-  // 👆️ END: ALL HOOKS ARE MOVED HERE
-  // ----------------------------------------------
+  }, [id, getPatient]); // Re-run when the URL ID changes
+
   
-  // 👇️ CONDITIONAL RETURNS (Now safe because all hooks are above)
-  if (loading) {
-    return <div style={{ padding: 48 }}>Loading Patient...</div>;
-  }
-
-  if (!patient) {
-    return <div style={{ padding: 48 }}>Patient Not Found</div>;
-  }
-
+  // *** FIX: FUNCTION DEFINITION MOVED TO CORRECT SCOPE ***
   const handleFormChange = e => {
     const { name, value, type, checked } = e.target;
     setForm(f => ({ ...f, [name]: type === 'checkbox' ? checked : value }));
   };
 
-  // 👇️ UPDATED TREATMENT SUBMISSION LOGIC (Firestore update)
+  // NEW: Function to handle Status Update (Ongoing <-> Done)
+  const handleStatusToggle = async (treatmentIndex, currentStatus) => {
+      if (isUpdatingStatus || !patient || !patient.treatments) return;
+      
+      setIsUpdatingStatus(true);
+      
+      try {
+          // 1. Clone the current treatments array
+          const updatedTreatments = [...patient.treatments];
+          
+          // 2. Toggle the 'done' status of the specific treatment item
+          const newStatus = !currentStatus;
+          updatedTreatments[treatmentIndex].done = newStatus;
+
+          // 3. Update the document in Firestore
+          const patientDocRef = doc(db, "patients", id); 
+          await updateDoc(patientDocRef, {
+              treatments: updatedTreatments,
+              updated: new Date().toISOString().split('T')[0] // Update last updated date
+          });
+
+          // 4. Update selectedTreatment state immediately if this item was selected
+          if (selectedTreatment === patient.treatments[treatmentIndex]) {
+              setSelectedTreatment(updatedTreatments[treatmentIndex]);
+          }
+
+          // 5. Update local state
+          setPatient(p => ({
+              ...p,
+              treatments: updatedTreatments
+          }));
+
+
+      } catch (error) {
+          console.error("Error toggling treatment status:", error);
+          alert("Failed to update status.");
+      } finally {
+          setIsUpdatingStatus(false);
+      }
+  };
+
+
+  // UPDATED TREATMENT SUBMISSION LOGIC 
   const handleTreatmentSubmit = async e => {
     e.preventDefault();
     if (!form.condition || !form.procedure || !form.dentist || treatTeeth.length === 0) {
@@ -158,7 +186,6 @@ export default function PatientProfile() {
       return;
     }
     
-    // Create new treatment object
     const newTreat = {
       ...form,
       teeth: [...treatTeeth],
@@ -166,21 +193,17 @@ export default function PatientProfile() {
     };
 
     try {
-        // Prepare the new list of treatments
         const updatedTreatments = [newTreat, ...(patient.treatments || [])];
-        
-        // Reference to the patient document
         const patientDocRef = doc(db, "patients", id); 
         
-        // Update the document in Firestore
         await updateDoc(patientDocRef, {
             treatments: updatedTreatments,
-            odontogram: [...treatTeeth], // Update the current odontogram/teeth treated
-            updated: new Date().toISOString().split('T')[0] // Update the last updated date
+            odontogram: [...treatTeeth], 
+            updated: new Date().toISOString().split('T')[0] 
         });
 
-        // Re-fetch patient data to update the local state with the new treatments
-        await getPatient(id); 
+        // Update local state and reset form
+        setPatient(p => ({ ...p, treatments: updatedTreatments }));
 
         setSubmitMsg("Treatment added!");
         setTreatTeeth([]);
@@ -193,45 +216,88 @@ export default function PatientProfile() {
     setTimeout(() => setSubmitMsg(''), 1400);
   };
 
-  // ---- rendering ----
+
+  if (loading) {
+    return <div style={{ padding: 48 }}>Loading Patient...</div>;
+  }
+
+  if (!patient) {
+    return <div style={{ padding: 48 }}>Patient Not Found</div>;
+  }
+
+  // MODIFIED RenderTreatmentsTimeline for interactivity
   const RenderTreatmentsTimeline = () => (
     <div style={{ marginTop: 12 }}>
       {(patient.treatments && patient.treatments.length > 0) ? (
-        patient.treatments.map((t, i) => (
-          <div 
-            onClick={() => setSelectedTreatment(t)}
-            style={{ 
-              background: selectedTreatment === t ? '#e3f2fd' : '#fff', 
-              borderRadius: 8, 
-              boxShadow:'0 1px 9px #ebedf1', 
-              padding: 20, 
-              marginBottom: 18, 
-              display:'flex', 
-              gap:18,
-              cursor: 'pointer',
-              border: selectedTreatment === t ? '2px solid #2452a2' : '2px solid transparent',
-              transition: 'all 0.2s ease'
-            }} 
-            key={i}
-          >
-            <div style={{ minWidth: 58, textAlign:'center', color:'#4a587d', fontWeight:700, fontSize:17, marginTop: 4 }}>
-              <div style={{fontSize:18}}>{t.teeth.join(', ')}</div>
-              <span style={{fontWeight:500, color:'#888',fontSize:11}}>
-                { t.teeth.length === 1 ? 'Tooth' : 'Teeth' }
-              </span>
-            </div>
-            <div style={{flex:1}}>
-              <div style={{ display:'flex', gap:32, marginBottom:4 }}>
-                <span><b>Date:</b> {t.date}</span>
-                <span><b>Condition:</b> {t.condition}</span>
-                <span><b>Treatment:</b> {t.procedure}</span>
-                <span><b>Dentist:</b> {t.dentist}</span>
-                <span><b>Status:</b> {t.done ? <span style={{color:'#25994e'}}>Done</span> : <span style={{color:'#d96a2f'}}>Ongoing</span>}</span>
+        patient.treatments.map((t, i) => {
+          const statusText = t.done ? 'Done' : 'Ongoing';
+          const statusColor = t.done ? '#25994e' : '#d96a2f';
+          
+          return (
+            <div 
+              onClick={() => setSelectedTreatment(t)}
+              style={{ 
+                background: selectedTreatment === t ? '#e3f2fd' : '#fff', 
+                borderRadius: 8, 
+                boxShadow:'0 1px 9px #ebedf1', 
+                padding: 20, 
+                marginBottom: 18, 
+                display:'flex', 
+                gap:18,
+                cursor: 'pointer',
+                border: selectedTreatment === t ? '2px solid #2452a2' : '2px solid transparent',
+                transition: 'all 0.2s ease'
+              }} 
+              key={i}
+            >
+              <div style={{ minWidth: 58, textAlign:'center', color:'#4a587d', fontWeight:700, fontSize:17, marginTop: 4 }}>
+                <div style={{fontSize:18}}>{t.teeth.join(', ')}</div>
+                <span style={{fontWeight:500, color:'#888',fontSize:11}}>
+                  { t.teeth.length === 1 ? 'Tooth' : 'Teeth' }
+                </span>
               </div>
-              <div style={{fontSize:14, margin: '8px 0'}}>{t.notes}</div>
+              <div style={{flex:1}}>
+                <div style={{ display:'flex', gap:32, marginBottom:4 }}>
+                  <span><b>Date:</b> {t.date}</span>
+                  <span><b>Condition:</b> {t.condition}</span>
+                  <span><b>Treatment:</b> {t.procedure}</span>
+                  <span><b>Dentist:</b> {t.dentist}</span>
+                  
+                  {/* MODIFIED: Status is now a clickable button */}
+                  <span>
+                    <b>Status:</b> 
+                    <button 
+                      onClick={(e) => {
+                          e.stopPropagation(); // Prevent toggling selection when clicking status
+                          // We need to pass the actual index of the item in the list
+                          const originalIndex = patient.treatments.findIndex(item => item === t);
+                          if (originalIndex !== -1) {
+                              handleStatusToggle(originalIndex, t.done); 
+                          }
+                      }}
+                      disabled={isUpdatingStatus}
+                      style={{
+                          background: statusColor,
+                          color: 'white',
+                          border: 'none',
+                          padding: '4px 8px',
+                          borderRadius: 4,
+                          marginLeft: 8,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          fontSize: 12,
+                          opacity: isUpdatingStatus ? 0.6 : 1
+                      }}
+                    >
+                      {statusText}
+                    </button>
+                  </span>
+                </div>
+                <div style={{fontSize:14, margin: '8px 0'}}>{t.notes}</div>
+              </div>
             </div>
-          </div>
-        ))
+          );
+        })
         ) : (
           <div style={{ color: '#999', marginTop: 18 }}>No treatments yet.</div>
         )
@@ -311,7 +377,7 @@ export default function PatientProfile() {
             <div style={{ color: '#555', marginTop: 4 }}>{patient.contactInfo || patient.phone_num}</div>
           </div>
           <div style={{ flex: 1 }} />
-          <button className="btn-primary">Create Appointment</button>
+          {/* REMOVED: Create Appointment Button */}
         </div>
         <div style={{ display: "flex", gap: 20, marginTop: 36, borderBottom: '2px solid #eee' }}>
           {TABS.map(({ key, label }) => (

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { db } from "../../firebase"; 
-import { collection, getDocs, query, where, doc, getDoc, orderBy, limit, Timestamp } from 'firebase/firestore'; 
+import { collection, getDocs, query, where, doc, getDoc, orderBy, limit } from 'firebase/firestore'; 
 
 import "./MainDashboard.css";
 import "./Layout.css";
@@ -182,6 +182,7 @@ const MainDashboard = () => {
         const snap = await getDoc(patientRef);
         if (snap.exists()) {
             const data = snap.data();
+            // Use the comprehensive name logic here too, just in case
             return getBestPatientName({ ...data, id: patientID }); 
         }
     } catch (e) {
@@ -191,36 +192,47 @@ const MainDashboard = () => {
   }, []);
 
 
+  // FIX: Fetches Recent Appointments (Activity) instead of Recent Patients
   const getRecentPatients = useCallback(async () => {
     try {
-      // Query the patients collection, ordering by the 'updated' field 
+      // 1. Query appointments sorted by last update time (most recent activity)
       const q = query(
-        patientsCollectionRef, 
-        orderBy("updated", "desc"), 
-        limit(5)
+        appointmentsCollectionRef,
+        orderBy("updatedAt", "desc"), // Using 'updatedAt' from appointment record
+        limit(10) // Fetch more than 5 to deduplicate client-side
       );
       
       const snapshot = await getDocs(q);
+      const rawAppts = snapshot.docs.map(doc => doc.data());
       
-      const patients = snapshot.docs.map(doc => {
-          const data = doc.data();
-
-          const fullName = getBestPatientName({ ...data, id: doc.id });
-
-          const displayDate = data.updated || data.createdAt;
-
-          return {
-              id: doc.id,
-              name: fullName, 
-              date: displayDate 
-          };
-      });
+      const recentPatientsMap = {};
       
-      setRecentPatients(patients);
-      return patients;
+      for (const appt of rawAppts) {
+          // Use patientFullName from appointment record (most reliable source shown)
+          const name = appt.patientFullName || 'Name N/A'; 
+          
+          // Use appointment ID as a unique key for the activity log
+          const activityId = appt.id || appt.patientId;
+          
+          // Deduplicate by name, only keep the newest entry for that patient
+          if (name !== 'Name N/A' && !recentPatientsMap[name]) {
+              recentPatientsMap[name] = {
+                  id: activityId,
+                  name: name,
+                  // Use the update/create date of the appointment
+                  date: appt.updatedAt || appt.createdAt || new Date().toISOString().slice(0, 10),
+              };
+          }
+      }
+
+      const finalRecentList = Object.values(recentPatientsMap)
+          .slice(0, 5); // Limit to top 5 unique patients
+
+      setRecentPatients(finalRecentList);
+      return finalRecentList;
 
     } catch (error) {
-      console.error("Error fetching recent patients:", error);
+      console.error("Error fetching recent activity for patients:", error);
       return [];
     }
   }, []);
@@ -247,10 +259,12 @@ const MainDashboard = () => {
           return 0;
       });
       
-      const apptsWithNames = appts.map((appt) => {
-          const name = appt.patientFullName || getPatientFullName(appt.patientId);
-          return { ...appt, patientFullName: name };
-      });
+      const apptsWithNames = await Promise.all(appts.map(async (appt) => {
+          // Use patientFullName directly from appointment record if available
+          if (appt.patientFullName) return appt; 
+          const fullName = await getPatientFullName(appt.patientId);
+          return { ...appt, patientFullName: fullName };
+      }));
       
       setTodaysAppointments(apptsWithNames);
       return apptsWithNames.length;
@@ -259,7 +273,7 @@ const MainDashboard = () => {
       console.error("Error fetching today's appointments:", error);
       return 0;
     }
-  }, [todayISO]);
+  }, [todayISO, getPatientFullName]);
 
 
   const getPatientCounts = useCallback(async () => {
@@ -487,6 +501,7 @@ const MainDashboard = () => {
                         <div className="avatar small" />
                         <div className="item-meta">
                             <div className="item-title">{p.name || 'Name Unknown'}</div> 
+                            {/* Display formatted date */}
                             <div className="item-sub">{formatDateForDisplay(p.date)}</div> 
                         </div>
                         <button className="chev">›</button>
@@ -625,6 +640,7 @@ const MainDashboard = () => {
           <AddingPatientModal onClose={() => setShowAddingPatient(false)} />
         )}
       </main>
+      
     </div>
   );
 };

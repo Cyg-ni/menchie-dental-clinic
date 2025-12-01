@@ -5,7 +5,7 @@ import "./ScheduleDashboard.css";
 import ReportsModal from "./ReportsModal.jsx";
 
 // ===============================================
-// 1. FIREBASE SETUP & IMPORTS (Self-Contained)
+// 1. FIREBASE SETUP & IMPORTS
 // ===============================================
 import { initializeApp } from "firebase/app";
 import { 
@@ -19,7 +19,6 @@ import {
 } from 'firebase/firestore'; 
 
 const firebaseConfig = {
-  // NOTE: REPLACE WITH YOUR ACTUAL CONFIGURATION
   apiKey: "AIzaSyCS-olCQRpJZGcYSGWG7CZ8PIpV-wBNaOE",
   authDomain: "menchie-dental-clinic.firebaseapp.com",
   projectId: "menchie-dental-clinic",
@@ -43,17 +42,16 @@ function appointmentsSnapshotListener(callback) {
     callback(data);
   });
 }
-// ===============================================
 
 
 // 2. SERVICE DURATIONS MAPPING (In Minutes)
 const SERVICE_DURATIONS = {
-    'Routine Check-up & Cleaning': 60,   
-    'Teeth Whitening (Cosmetic)': 90,    
-    'Dental Implants Consultation': 120, 
-    'Emergency Visit (Pain/Injury)': 60, 
-    'Orthodontics Consultation': 60,     
-    'Other / Not Sure': 30               
+    'Routine Check-up & Cleaning': 90,   
+    'Teeth Whitening (Cosmetic)': 120,    
+    'Dental Implants Consultation': 150, 
+    'Emergency Visit (Pain/Injury)': 90, 
+    'Orthodontics Consultation': 90,     
+    'Other / Not Sure': 60               
 };
 
 // Helper function to format total seconds into M:SS or X hr Y mins
@@ -270,8 +268,8 @@ const ScheduleDashboard = () => {
     // 1. Filter and sort appointments
     const currentDayAppointments = appointments
         .filter(app => 
-            // Only include scheduled/requested appointments AND those not yet served
-            (app.status?.isScheduled === 'Scheduled' || app.status?.isScheduled === 'Appointment Requested') &&
+            // FIX: Only include appointments that are strictly scheduled (approved) AND not yet served
+            (app.status?.isScheduled === 'Scheduled') && 
             app.status?.isComplete !== 'Serving' && 
             app.status?.isComplete !== 'Complete' &&
             app.scheduledDate === selectedDate
@@ -359,15 +357,12 @@ const ScheduleDashboard = () => {
     try {
       const apptRef = doc(db, "appointments", apptId);
       
-      // Update the status in Firestore: Changing isComplete to 'Serving' removes it from the waitingList filter
-      // NOTE: We don't use Timestamp here as we need the local date time object in AppointmentsModal
       await updateDoc(apptRef, {
         'status.isComplete': 'Serving', 
-        // We might want to add a check-in time here for accurate analytics if implemented later
+        updatedAt: Timestamp.fromDate(new Date()),
       });
 
       console.log(`Patient ${nextPatient.name} marked as serving.`);
-      // UI will update automatically due to real-time listener
 
     } catch (error) {
       console.error("Error setting patient as serving:", error);
@@ -376,7 +371,14 @@ const ScheduleDashboard = () => {
   };
 
 
-  // --- Reports and Calendar Logic (Unchanged) ---
+  // --- Reports and Calendar Logic (Filter fix applied here too) ---
+  
+  // FIX: Create a memoized list of only scheduled appointments for reports/calendar shading
+  const scheduledAppointments = useMemo(() => {
+      return appointments.filter(app => app.status?.isScheduled === 'Scheduled');
+  }, [appointments]);
+
+
   const serviceCategories = [
     { label: "Check-up & Cleaning", key: "Routine Check-up & Cleaning", color: "#8EE08E", kind: "cleaning" },
     { label: "Teeth Whitening", key: "Teeth Whitening (Cosmetic)", color: "#FFA64D", kind: "exams" },
@@ -388,7 +390,8 @@ const ScheduleDashboard = () => {
   
   const dailyAppointmentCounts = useMemo(() => {
     const counts = {};
-    const appointmentsOnSelectedDay = appointments.filter(app => app.scheduledDate === selectedDate);
+    // USE scheduledAppointments here
+    const appointmentsOnSelectedDay = scheduledAppointments.filter(app => app.scheduledDate === selectedDate);
     serviceCategories.forEach(cat => { counts[cat.key] = 0; });
     appointmentsOnSelectedDay.forEach(app => {
         const service = app.serviceType;
@@ -399,7 +402,7 @@ const ScheduleDashboard = () => {
         }
     });
     return counts;
-  }, [appointments, selectedDate]);
+  }, [scheduledAppointments, selectedDate]);
 
 
   const startOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
@@ -407,7 +410,8 @@ const ScheduleDashboard = () => {
 
   const appointmentMap = useMemo(() => {
     const map = {};
-    appointments.forEach(app => {
+    // USE scheduledAppointments here for calendar shading
+    scheduledAppointments.forEach(app => {
         const dateStr = app.scheduledDate; 
         if (dateStr) {
             const dateParts = dateStr.split('-');
@@ -421,7 +425,7 @@ const ScheduleDashboard = () => {
         }
     });
     return map;
-  }, [appointments, viewDate]);
+  }, [scheduledAppointments, viewDate]);
 
 
   const weeks = [];
@@ -443,7 +447,7 @@ const ScheduleDashboard = () => {
     year: "numeric",
   });
 
-  const displayNotifications = appointments.slice(0, 4).map(app => ({
+  const displayNotifications = scheduledAppointments.slice(0, 4).map(app => ({
       title: `${app.serviceType} Scheduled`,
       time: app.scheduledTime || 'N/A', 
       date: app.scheduledDate,
@@ -655,7 +659,8 @@ const ScheduleDashboard = () => {
         </section>
 
         {showReports && <ReportsModal onClose={() => setShowReports(false)}
-        appointments={appointments}
+        // Pass only scheduled appointments to the Reports Modal
+        appointments={scheduledAppointments}
         />}
 
       </main>
