@@ -17,8 +17,6 @@ import {
     Timestamp 
 } from 'firebase/firestore'; 
 
-// *** REPLACE THIS CONFIG WITH YOUR ACTUAL PROJECT CONFIGURATION ***
-// (Assuming you placed your real config here from the last step)
 const firebaseConfig = {
   apiKey: "AIzaSyCS-olCQRpJZGcYSGWG7CZ8PIpV-wBNaOE",
   authDomain: "menchie-dental-clinic.firebaseapp.com",
@@ -176,12 +174,19 @@ const AppointmentsModal = ({ onClose, onUpdate }) => {
                                     {/* Right side: Actions */}
                                     <div className="req-actions">
                                         <button className="approve" title="Approve" onClick={() => handleApprove(appt.id)}>
-                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="5">
                                                 <path d="M20 6L9 17l-5-5"/>
                                             </svg>
                                         </button>
                                         <button className="reject" title="Reject" onClick={() => handleDecline(appt.id)}>
-                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#d0d0d0" strokeWidth="2">
+                                            <svg 
+                                                width="36" 
+                                                height="36" 
+                                                viewBox="0 0 24 24" 
+                                                fill="none" 
+                                                stroke="#726c6cff" 
+                                                strokeWidth="7"
+                                            >
                                                 <line x1="18" y1="6" x2="6" y2="18"/>
                                                 <line x1="6" y1="6" x2="18" y2="18"/>
                                             </svg>
