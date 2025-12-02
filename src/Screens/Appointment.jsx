@@ -1,9 +1,9 @@
 // src/Screens/Appointment.jsx
 
-import React, { useState, useEffect } from 'react'; // Added useEffect
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { db } from '../firebase-config'; 
-import { collection, addDoc, Timestamp, query, where, getDocs } from 'firebase/firestore'; 
+import { db } from '../firebase-config';
+import { collection, addDoc, Timestamp, query, where, getDocs } from 'firebase/firestore';
 
 // --- SVG Components (Unchanged) ---
 const BookOpen = (props) => (
@@ -24,10 +24,10 @@ const CalendarIcon = (props) => (
 );
 
 const ExternalLogo = ({ size = 'w-6 h-6', className = '' }) => (
-  <img 
-    src="https://cdn-icons-png.flaticon.com/512/103/103386.png" 
-    alt="Dental Clinic Logo" 
-    className={`${size} ${className}`} 
+  <img
+    src="https://cdn-icons-png.flaticon.com/512/103/103386.png"
+    alt="Dental Clinic Logo"
+    className={`${size} ${className}`}
     onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/24x24/f5f5f5/a0aec0?text=Logo" }}
   />
 );
@@ -43,7 +43,7 @@ const serviceOptions = [
 
 // 1. DEFINE YOUR CLINIC'S FIXED TIME SLOTS
 const TIME_SLOTS = [
-    "08:30", "09:45", "11:00", "13:00", 
+    "08:30", "09:45", "11:00", "13:00",
     "14:30", "15:45", "17:00",
 ];
 
@@ -59,30 +59,33 @@ const Appointment = () => {
     time: '', // Initialize empty to force user to pick a slot
     message: ''
   });
-  
-  const [loading, setLoading] = useState(false); 
+
+  const [loading, setLoading] = useState(false);
   const [submitStatus, setSubmitStatus] = useState(null);
-  
+
   // 2. NEW STATE FOR TAKEN TIMES
-  const [takenTimes, setTakenTimes] = useState([]); 
+  const [takenTimes, setTakenTimes] = useState([]);
   const [fetchingTimes, setFetchingTimes] = useState(false);
+
+  // NEW STATE FOR FULL NAME VALIDATION
+  const [fullNameError, setFullNameError] = useState('');
 
   // --- 3. FETCH TAKEN TIMES WHEN DATE CHANGES ---
   useEffect(() => {
     const fetchBookedSlots = async () => {
         setFetchingTimes(true);
         // Reset the selected time if the date changes (to avoid keeping a taken time selected)
-        setFormData(prev => ({ ...prev, time: '' })); 
+        setFormData(prev => ({ ...prev, time: '' }));
         setTakenTimes([]); // Reset taken times array
 
         try {
             // Query: Get all docs where scheduledDate == Selected Date
             const q = query(
-                appointmentsCollectionRef, 
+                appointmentsCollectionRef,
                 where("scheduledDate", "==", formData.date)
             );
             const querySnapshot = await getDocs(q);
-            
+
             // Extract the 'scheduledTime' from each document
             const booked = querySnapshot.docs.map(doc => doc.data().scheduledTime);
             setTakenTimes(booked);
@@ -99,6 +102,20 @@ const Appointment = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+
+    // ** FULL NAME VALIDATION LOGIC **
+    if (name === 'fullName') {
+      // Regex allows letters, spaces, hyphens, and apostrophes. Denies numbers and other special characters.
+      const nameRegex = /^[A-Za-z\s'-]*$/; 
+
+      if (!nameRegex.test(value)) {
+        setFullNameError('Name cannot contain numbers or most special characters.');
+      } else {
+        setFullNameError(''); // Clear error if input is valid
+      }
+    }
+    // ** END FULL NAME VALIDATION LOGIC **
+
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
@@ -109,42 +126,46 @@ const Appointment = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
+    // Re-check validation before submission
+    if (fullNameError || !formData.fullName) {
+        setSubmitStatus({ type: 'error', message: 'Please correct the errors in the form (Full Name is required and must be valid).' });
+        return;
+    }
+
     // Safety check: ensure time is selected
     if (!formData.time) {
-        setSubmitStatus({ type: 'error', message: 'Please select a time slot.' });
-        return;
+      setSubmitStatus({ type: 'error', message: 'Please select a time slot.' });
+      return;
     }
 
     setLoading(true);
     setSubmitStatus(null);
-    
+
     try {
         // Double check availability (just in case someone booked while user was filling form)
-        // Note: You could reuse the checkAvailability function here if you kept it, 
-        // but checking takenTimes usually suffices for small apps.
         if (takenTimes.includes(formData.time)) {
-             setSubmitStatus({ 
-                type: 'error', 
-                message: `This time slot is no longer available. Please choose another.` 
-            });
-            setLoading(false);
-            return;
+             setSubmitStatus({
+                 type: 'error',
+                 message: `This time slot is no longer available. Please choose another.`
+             });
+             setLoading(false);
+             return;
         }
 
         const appointmentData = {
-            clientName: `/patients/P-TEMP-${Math.random().toString(36).substring(7)}`, 
-            createdAt: Timestamp.fromDate(new Date()), 
-            dateTime: Timestamp.fromDate(new Date(`${formData.date}T${formData.time}:00`)), 
-            
+            clientName: `/patients/P-TEMP-${Math.random().toString(36).substring(7)}`,
+            createdAt: Timestamp.fromDate(new Date()),
+            dateTime: Timestamp.fromDate(new Date(`${formData.date}T${formData.time}:00`)),
+
             // Searchable fields
             scheduledDate: formData.date,
             scheduledTime: formData.time,
 
-            dentistId: "/user/U-1", 
-            patientId: `/patients/P-1`, 
+            dentistId: "/user/U-1",
+            patientId: `/patients/P-1`,
             serviceType: formData.service,
-            treatmentName: "Full Dental Exam", 
+            treatmentName: "Full Dental Exam",
             status: {
                 isComplete: "Pending",
                 isPending: "Approval Pending",
@@ -156,12 +177,12 @@ const Appointment = () => {
         };
 
         const docRef = await addDoc(appointmentsCollectionRef, appointmentData);
-        
-        setSubmitStatus({ 
-            type: 'success', 
-            message: `Appointment requested successfully! Tracking ID: ${docRef.id}` 
+
+        setSubmitStatus({
+            type: 'success',
+            message: `Appointment requested successfully! Tracking ID: ${docRef.id}`
         });
-        
+
         // Refresh the taken times list immediately so the UI updates
         setTakenTimes(prev => [...prev, formData.time]);
 
@@ -176,9 +197,9 @@ const Appointment = () => {
 
     } catch (error) {
         console.error("Submission failed:", error);
-        setSubmitStatus({ 
-            type: 'error', 
-            message: `Submission failed: ${error.message}.` 
+        setSubmitStatus({
+            type: 'error',
+            message: `Submission failed: ${error.message}.`
         });
     } finally {
         setLoading(false);
@@ -217,13 +238,13 @@ const Appointment = () => {
                 Secure your visit with Menchie's Dental Clinic in three simple steps.
             </p>
         </div>
-        
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
           <div className="bg-white p-6 sm:p-10 rounded-2xl shadow-xl border border-gray-100">
             <h2 className="text-2xl font-bold text-gray-800 mb-6">Patient Information</h2>
-            
+
             <form onSubmit={handleSubmit} className="space-y-6">
-              
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div>
                     <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
@@ -234,9 +255,16 @@ const Appointment = () => {
                       value={formData.fullName}
                       onChange={handleChange}
                       required
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 transition duration-150"
+                      // ** UPDATED: Conditional styling for error **
+                      className={`w-full px-4 py-2 border rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 ${
+                        fullNameError ? 'border-red-500 focus:border-red-500' : 'border-gray-300'
+                      }`}
                       placeholder="Type your full name"
                     />
+                    {/* ** NEW: Error message display ** */}
+                    {fullNameError && (
+                        <p className="mt-1 text-sm text-red-600">{fullNameError}</p>
+                    )}
                   </div>
                   <div>
                     <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
@@ -270,7 +298,7 @@ const Appointment = () => {
                       ))}
                     </select>
                   </div>
-                  
+
                   {/* Date Input */}
                   <div>
                     <label htmlFor="date" className="block text-sm font-medium text-gray-700 mb-1">Schedule a date</label>
@@ -282,26 +310,26 @@ const Appointment = () => {
                             value={formData.date}
                             onChange={handleChange}
                             required
-                            min={new Date().toISOString().split('T')[0]} 
+                            min={new Date().toISOString().split('T')[0]}
                             className="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 appearance-none"
                         />
                         <CalendarIcon className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none"/>
                     </div>
                   </div>
               </div>
-              
+
               {/* --- 4. NEW TIME SLOT GRID UI --- */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Available Time Slots 
+                    Available Time Slots
                     {fetchingTimes && <span className="text-gray-400 ml-2 text-xs font-normal">(Checking...)</span>}
                 </label>
-                
+
                 <div className="grid grid-cols-3 gap-3">
                     {TIME_SLOTS.map((slot) => {
                         const isTaken = takenTimes.includes(slot);
                         const isSelected = formData.time === slot;
-                        
+
                         return (
                             <button
                                 key={slot}
@@ -310,8 +338,8 @@ const Appointment = () => {
                                 onClick={() => handleTimeSelect(slot)}
                                 className={`
                                     py-2 px-2 rounded-lg text-sm font-semibold transition-all duration-200 border
-                                    ${isTaken 
-                                        ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed line-through decoration-gray-400' 
+                                    ${isTaken
+                                        ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed line-through decoration-gray-400'
                                         : isSelected
                                             ? 'bg-indigo-600 text-white border-indigo-600 shadow-md transform scale-105'
                                             : 'bg-white text-gray-700 border-gray-300 hover:border-indigo-400 hover:text-indigo-600'
@@ -339,7 +367,7 @@ const Appointment = () => {
                       placeholder="Please include any specific details or concerns..."
                   ></textarea>
               </div>
-              
+
               {submitStatus && (
                   <div className={`p-4 rounded-xl text-center font-medium ${
                       submitStatus.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
@@ -350,9 +378,9 @@ const Appointment = () => {
 
               <button
                   type="submit"
-                  disabled={loading || submitStatus?.type === 'success' || !formData.time}
+                  disabled={loading || submitStatus?.type === 'success' || !formData.time || !!fullNameError} // Added !!fullNameError check
                   className={`w-full flex items-center justify-center px-6 py-3 font-semibold rounded-xl shadow-lg transition duration-200 text-lg ${
-                      loading || submitStatus?.type === 'success' || !formData.time
+                      loading || submitStatus?.type === 'success' || !formData.time || !!fullNameError
                       ? 'bg-indigo-300 cursor-not-allowed'
                       : 'bg-indigo-600 text-white hover:bg-indigo-700'
                   }`}
@@ -374,9 +402,9 @@ const Appointment = () => {
               </button>
             </form>
           </div>
-          
+
           <div className="hidden lg:block relative">
-            <img 
+            <img
               src="https://media.istockphoto.com/id/1311280344/photo/asian-dentist-explaining-tooth-x-rays-to-a-patient-with-digital-tablet-asian-young-attractive.jpg?s=612x612&w=0&k=20&c=eHIfwTNNrsbgdz3RwudbKhdGd9WM7EaeIdzcuktL5xE="
               alt="Dentist explaining tooth x-rays to a patient with digital tablet"
               className="w-full h-full object-cover rounded-2xl shadow-2xl border-4 border-white"
@@ -385,7 +413,7 @@ const Appointment = () => {
           </div>
         </div>
       </main>
-      
+
       <footer className="w-full py-4 mt-16 text-center text-gray-500 text-sm border-t border-gray-200 bg-white">
         &copy; {new Date().getFullYear()} Menchie's Dental Clinic. All Rights Reserved.
       </footer>
