@@ -1,3 +1,6 @@
+/* =========================================
+   EXISTING CSS (UNTOUCHED)
+   ========================================= */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -59,11 +62,11 @@
 .req-name { 
   font-weight: 700;
    color: #333333; 
-   font-size: 12px; 
+   font-size: 15px; 
   }
 
 .req-note { 
-  font-size: 12px;
+  font-size: 16px;
    color: #4a4a4a;
    }
 
@@ -80,28 +83,181 @@
   align-items: center;
   justify-content: center; 
 }
+
 .req-actions .approve { 
-  width: 56px;
-  height: 56px;
-  background: #5b5b5b; 
-  border: none; 
-  border-radius: 10px; 
-  display: flex; 
-  align-items: center; 
-  justify-content: center; 
-  cursor: pointer; 
+ width: 64px; /* INCREASED SIZE */
+ height: 64px; /* INCREASED SIZE */
+ background: #5b5b5b; 
+ border: none; 
+ border-radius: 10px; /* Needs semicolon */
+ display: flex; /* Needs semicolon */
+ align-items: center; /* Needs semicolon */
+ justify-content: center; /* Needs semicolon */
+ cursor: pointer; /* Needs semicolon */
 }
 
 .req-actions .reject { 
-  width: 56px; 
-  height: 56px; 
-  background: #ffffff; 
-  border: 3px solid #d0d0d0; 
-  border-radius: 50%; 
-  display: flex; 
-  align-items: center; 
-  justify-content: center; 
-  cursor: pointer; 
+ width: 64px; /* INCREASED SIZE */
+height: 64px; /* INCREASED SIZE */
+background: #ffffff; 
+ border: 3px solid #4d4b4b; 
+ border-radius: 50%; /* Needs semicolon */
+display: flex; /* Needs semicolon */
+ align-items: center; /* Needs semicolon */
+ justify-content: center; /* Needs semicolon */
+ cursor: pointer; /* Needs semicolon */
 }
 
+/* =========================================
+   NEW CALENDAR CSS (APPENDED BELOW)
+   ========================================= */
 
+/* 1. Layout: Split Modal Body into Columns */
+.modal-body.modal-grid {
+    display: grid;
+    /* Requests take 55%, Calendar takes 45% (prevents squishing) */
+    grid-template-columns: 1.2fr 1fr; 
+    gap: 24px;
+    align-items: start;
+}
+
+/* Ensure the requests list scrolls if it gets too long, 
+   so it doesn't push the calendar out of view */
+.requests-panel {
+    max-height: 500px;
+    overflow-y: auto;
+    padding-right: 5px; /* Space for scrollbar */
+}
+
+/* 2. Calendar Wrapper */
+.calendar-panel {
+    background: #fff;
+    padding-left: 10px; /* Visual separation */
+}
+
+.calendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.calendar-header h3 {
+    font-size: 16px;
+    font-weight: 700;
+    margin: 0;
+    color: #333;
+}
+
+.nav-btn {
+    background: transparent;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    width: 28px;
+    height: 28px;
+    cursor: pointer;
+    color: #555;
+    transition: 0.2s;
+}
+
+.nav-btn:hover {
+    background: #f5f5f5;
+    border-color: #bbb;
+}
+
+/* 3. The Date Grid */
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr); /* Exactly 7 columns */
+    gap: 6px; /* Space between days */
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.calendar-weekday {
+    font-size: 12px;
+    color: #888;
+    font-weight: 600;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+}
+
+.calendar-day {
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    color: #333;
+}
+
+.calendar-day:hover:not(.empty):not(.fully-booked) {
+    background-color: #f0f0f0;
+}
+
+.calendar-day.selected {
+    background-color: #333;
+    color: #fff;
+    font-weight: bold;
+}
+
+.calendar-day.today {
+    border: 1px solid #333;
+}
+
+/* GRAY OUT ENTIRE DAY (If React applies 'fully-booked' class) */
+.calendar-day.fully-booked {
+    background-color: #f5f5f5;
+    color: #d1d1d1;
+    pointer-events: none; /* Make unclickable */
+    text-decoration: line-through;
+}
+
+/* 4. Time Slots Section */
+.time-slots-view {
+    border-top: 1px solid #eee;
+    padding-top: 15px;
+}
+
+.time-slots-header {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    color: #333;
+}
+
+.slots-grid {
+    display: flex;
+    flex-wrap: wrap; /* CRITICAL: Allows pills to flow to next line */
+    gap: 8px; /* Space between pills */
+}
+
+.time-slot {
+    padding: 8px 14px;
+    border: 1px solid #ddd;
+    border-radius: 20px; /* Pill shape */
+    font-size: 13px;
+    font-weight: 500;
+    color: #333;
+    background: #fff;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.time-slot.available:hover {
+    border-color: #333;
+    background: #fafafa;
+}
+
+/* GRAY OUT FILLED TIMESTAMP */
+.time-slot.booked {
+    background-color: #eeeeee;
+    color: #aaaaaa;
+    border-color: #eeeeee;
+    pointer-events: none; /* Make unclickable */
+    text-decoration: line-through;
+    cursor: default;
+}
