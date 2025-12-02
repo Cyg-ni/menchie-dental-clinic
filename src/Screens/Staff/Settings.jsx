@@ -214,7 +214,7 @@ const Settings = () => {
 
         <div className="brand-left">
           <div className="brand-logo" />
-          <div className="brand-name">Menchie's Dental Clinic</div>
+          <div className="brand-name">Dr. Menchie Amor Dangla Dental Clinic</div>
         </div>
 
         <div className="user">
@@ -403,7 +403,6 @@ const Settings = () => {
                 checked={settings.notifications.push}
                 onChange={(value) => updateSetting("notifications", "push", value)}
               />
-              {/* Removed Daily digest and Critical alerts override */}
             </div>
           </article>
 
@@ -438,10 +437,6 @@ const Settings = () => {
               />
             </div>
           </article>
-
-          {/* Removed Security Controls section */}
-
-          {/* Removed Integrations & Data section */}
 
           <article className="settings-card logout-card">
             <header className="card-head">

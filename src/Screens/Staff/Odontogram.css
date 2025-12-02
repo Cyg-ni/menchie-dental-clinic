@@ -1,3 +1,4 @@
+/* --- ODONTOGRAM CONTAINER & LAYOUT --- */
 .odontogram-grid {
   margin: 0 auto;
   background: transparent;
@@ -34,32 +35,69 @@
   font-size: 10px;
   color: #263455;
   font-weight: 500;
-  transition: border 0.15s, background 0.14s;
+  transition: border 0.15s, background 0.14s, transform 0.1s;
 }
-/* (Deciduous placeholders removed) */
-.odontogram-tooth.selected .tooth-square {
-  border: 1.4px solid #2196f3;
-  background: #e3f1ff;
-  color: #1969bc;
-  font-weight: 700;
-}
-/* Treatment record highlight */
-.odontogram-tooth.shaded .tooth-square {
-  background: #e6ffd8;
-  border-color: #6dc157;
-}
-.odontogram-tooth.shaded.done .tooth-square {
-  background: #d2f5e4;
-  border-color: #2bb97d;
-}
-.odontogram-tooth.shaded.ongoing .tooth-square {
-  background: #ffe7d6;
-  border-color: #f49046;
-}
+
+/* --- INTERACTIVE STATES --- */
+
+/* Hover effect for clickable teeth */
 .odontogram-tooth:hover .tooth-square {
   background: #f0f8ff;
   border-color: #46a3f2;
+  transform: scale(1.05); /* Slightly enlarge on hover */
 }
+/* Visual cue for when a marking tool is active */
+.odontogram-tooth.state-selectable:hover .tooth-square {
+    box-shadow: 0 0 5px rgba(36, 82, 162, 0.5);
+}
+
+
+/* --- TOOTH STATES (PERMANENT AND TEMPORARY) --- */
+
+/* State: Missing */
+.odontogram-tooth.tooth-missing .tooth-square {
+    background-color: #f0f0f0; 
+    border: 1px dashed #999;
+    opacity: 0.4;
+    cursor: default;
+}
+.odontogram-tooth.tooth-missing:hover .tooth-square {
+    transform: none; /* Disable hover effect for missing teeth */
+}
+
+/* State: Issue (Marked for permanent problem) */
+.odontogram-tooth.tooth-issue .tooth-square {
+    border: 2px solid #d23c3c; /* Red border */
+    background-color: #fef0f0; /* Light red fill */
+}
+
+/* State: Treated (previously restored/filled) */
+.odontogram-tooth.tooth-treated .tooth-square {
+    background: #d2f5e4; /* Light green/teal background */
+    border-color: #2bb97d;
+}
+
+/* State: Selected (Active selection for treatment) */
+.odontogram-tooth.tooth-selected .tooth-square {
+  border: 2px solid #2452a2 !important; /* Use important to override other border styles */
+  background: #e3f1ff !important;
+  color: #1969bc;
+  font-weight: 700;
+  box-shadow: 0 0 5px rgba(33, 150, 243, 0.5);
+}
+
+/* Disabled state (for missing teeth when a non-missing tool is active) */
+.tooth-square[disabled] {
+    cursor: default;
+    opacity: 1; /* Keep visibility to show state */
+}
+.odontogram-tooth:hover .tooth-square[disabled] {
+    background-color: #f0f0f0; /* Ensure no hover color change */
+    border: 1px dashed #999;
+}
+
+
+/* --- LABEL AND BUTTON --- */
 .tooth-label {
   font-size: 10px;
   color: #27399e;
@@ -88,6 +126,8 @@
   transform: translateY(0);
   box-shadow: 0 4px 10px rgba(63, 142, 252, 0.25);
 }
+
+/* --- 3D MODAL --- */
 .odontogram-modal-backdrop {
   position: fixed;
   inset: 0;

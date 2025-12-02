@@ -5,7 +5,7 @@ import "./ScheduleDashboard.css";
 import ReportsModal from "./ReportsModal.jsx";
 
 // ===============================================
-// 1. FIREBASE SETUP & IMPORTS
+// 1. FIREBASE SETUP & IMPORTS (Self-Contained)
 // ===============================================
 import { initializeApp } from "firebase/app";
 import { 
@@ -19,6 +19,7 @@ import {
 } from 'firebase/firestore'; 
 
 const firebaseConfig = {
+  // NOTE: REPLACE WITH YOUR ACTUAL CONFIGURATION
   apiKey: "AIzaSyCS-olCQRpJZGcYSGWG7CZ8PIpV-wBNaOE",
   authDomain: "menchie-dental-clinic.firebaseapp.com",
   projectId: "menchie-dental-clinic",
@@ -42,17 +43,28 @@ function appointmentsSnapshotListener(callback) {
     callback(data);
   });
 }
+// ===============================================
 
 
-// 2. SERVICE DURATIONS MAPPING (In Minutes)
+// 2. SERVICE DEFINITIONS
 const SERVICE_DURATIONS = {
-    'Routine Check-up & Cleaning': 90,   
-    'Teeth Whitening (Cosmetic)': 120,    
-    'Dental Implants Consultation': 150, 
-    'Emergency Visit (Pain/Injury)': 90, 
-    'Orthodontics Consultation': 90,     
-    'Other / Not Sure': 60               
+    'Routine Check-up & Cleaning': 60,   
+    'Teeth Whitening (Cosmetic)': 90,    
+    'Dental Implants Consultation': 120, 
+    'Emergency Visit (Pain/Injury)': 60, 
+    'Orthodontics Consultation': 60,     
+    'Other / Not Sure': 30               
 };
+
+const SERVICE_COLOR_MAP = {
+    'Routine Check-up & Cleaning': 'rep-green',
+    'Teeth Whitening (Cosmetic)': 'rep-orange',
+    'Dental Implants Consultation': 'rep-blue',
+    'Emergency Visit (Pain/Injury)': 'rep-red',
+    'Orthodontics Consultation': 'rep-orange',
+    'Other / Not Sure': 'rep-gray', 
+};
+
 
 // Helper function to format total seconds into M:SS or X hr Y mins
 const formatSecondsToQueueTime = (totalSeconds) => {
@@ -260,6 +272,22 @@ const ScheduleDashboard = () => {
     }
   }, []); 
 
+  // --- Serving Patient Tracker ---
+  const servingPatient = useMemo(() => {
+      // Find the one appointment that is currently marked as 'Serving'
+      const serving = appointments.find(app => app.status?.isComplete === 'Serving');
+      if (serving) {
+          return {
+              id: serving.id,
+              name: serving.patientFullName || 'Patient',
+              service: serving.serviceType,
+              scheduledTime: formatMilitaryTo12Hour(serving.scheduledTime)
+          };
+      }
+      return null;
+  }, [appointments]);
+
+
   // --- Waiting Room Logic (Live Countdown Calculation) ---
   const waitingList = useMemo(() => {
     
@@ -268,8 +296,8 @@ const ScheduleDashboard = () => {
     // 1. Filter and sort appointments
     const currentDayAppointments = appointments
         .filter(app => 
-            // FIX: Only include appointments that are strictly scheduled (approved) AND not yet served
-            (app.status?.isScheduled === 'Scheduled') && 
+            // Only include scheduled/requested appointments AND those not yet served
+            (app.status?.isScheduled === 'Scheduled' || app.status?.isScheduled === 'Appointment Requested') &&
             app.status?.isComplete !== 'Serving' && 
             app.status?.isComplete !== 'Complete' &&
             app.scheduledDate === selectedDate
@@ -346,16 +374,24 @@ const ScheduleDashboard = () => {
   // --- New: Handler to move patient to Serving status ---
   const handleStartServing = async () => {
     const waitingListPatients = waitingList;
+    if (servingPatient) {
+        alert(`${servingPatient.name} is already being served. Release them first.`);
+        return;
+    }
+    
     if (waitingListPatients.length === 0) {
       alert("Waiting room is empty.");
       return;
     }
 
     const nextPatient = waitingListPatients[0];
-    const apptId = nextPatient.id;
+    // Find the full appointment object in the main appointments list to get the ID
+    const nextAppointmentObject = appointments.find(a => a.id === nextPatient.id);
+
+    if (!nextAppointmentObject) return;
 
     try {
-      const apptRef = doc(db, "appointments", apptId);
+      const apptRef = doc(db, "appointments", nextAppointmentObject.id);
       
       await updateDoc(apptRef, {
         'status.isComplete': 'Serving', 
@@ -369,11 +405,33 @@ const ScheduleDashboard = () => {
       alert("Failed to call patient. Check Firebase permissions.");
     }
   };
-
-
-  // --- Reports and Calendar Logic (Filter fix applied here too) ---
   
-  // FIX: Create a memoized list of only scheduled appointments for reports/calendar shading
+  // --- New: Handler to release patient from Serving status ---
+  const handleReleasePatient = async () => {
+      if (!servingPatient) {
+          alert("No patient is currently being served.");
+          return;
+      }
+      
+      try {
+          const apptRef = doc(db, "appointments", servingPatient.id);
+          
+          await updateDoc(apptRef, {
+            'status.isComplete': 'Complete', // Mark as complete
+            updatedAt: Timestamp.fromDate(new Date()),
+          });
+
+          console.log(`Patient ${servingPatient.name} marked as complete.`);
+      } catch (error) {
+          console.error("Error releasing patient:", error);
+          alert("Failed to release patient. Check Firebase permissions.");
+      }
+  };
+
+
+  // --- Reports and Calendar Logic ---
+  
+  // Create a memoized list of only scheduled appointments for reports/calendar shading
   const scheduledAppointments = useMemo(() => {
       return appointments.filter(app => app.status?.isScheduled === 'Scheduled');
   }, [appointments]);
@@ -390,7 +448,6 @@ const ScheduleDashboard = () => {
   
   const dailyAppointmentCounts = useMemo(() => {
     const counts = {};
-    // USE scheduledAppointments here
     const appointmentsOnSelectedDay = scheduledAppointments.filter(app => app.scheduledDate === selectedDate);
     serviceCategories.forEach(cat => { counts[cat.key] = 0; });
     appointmentsOnSelectedDay.forEach(app => {
@@ -408,9 +465,11 @@ const ScheduleDashboard = () => {
   const startOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
   const startWeekDay = startOfMonth.getDay();
 
+  // FIX: Appointment Map uses SERVICE_COLOR_MAP
   const appointmentMap = useMemo(() => {
     const map = {};
-    // USE scheduledAppointments here for calendar shading
+    
+    const appointmentsByDay = {};
     scheduledAppointments.forEach(app => {
         const dateStr = app.scheduledDate; 
         if (dateStr) {
@@ -420,10 +479,27 @@ const ScheduleDashboard = () => {
             const day = Number(dateParts[2]);
 
             if (year === viewDate.getFullYear() && month === viewDate.getMonth()) {
-                map[day] = 'rep-blue'; 
+                if (!appointmentsByDay[day]) {
+                    appointmentsByDay[day] = [];
+                }
+                appointmentsByDay[day].push(app);
             }
         }
     });
+
+    Object.keys(appointmentsByDay).forEach(day => {
+        const dayAppts = appointmentsByDay[day];
+        
+        dayAppts.sort((a, b) => {
+            if ((a.scheduledTime || '00:00') < (b.scheduledTime || '00:00')) return -1;
+            if ((a.scheduledTime || '00:00') > (b.scheduledTime || '00:00')) return 1;
+            return 0;
+        });
+
+        const earliestService = dayAppts[0].serviceType || 'Other / Not Sure';
+        map[day] = SERVICE_COLOR_MAP[earliestService] || 'rep-blue'; 
+    });
+    
     return map;
   }, [scheduledAppointments, viewDate]);
 
@@ -449,7 +525,7 @@ const ScheduleDashboard = () => {
 
   const displayNotifications = scheduledAppointments.slice(0, 4).map(app => ({
       title: `${app.serviceType} Scheduled`,
-      time: app.scheduledTime || 'N/A', 
+      time: formatMilitaryTo12Hour(app.scheduledTime),
       date: app.scheduledDate,
   }));
   
@@ -475,7 +551,7 @@ const ScheduleDashboard = () => {
 
         <div className="brand-left">
           <div className="brand-logo" />
-          <div className="brand-name">Menchie's Dental Clinic</div>
+          <div className="brand-name">Dr. Menchie Amor Dangla Dental Clinic</div>
         </div>
 
         <div className="user">
@@ -548,6 +624,8 @@ const ScheduleDashboard = () => {
                     if (!cell.inMonth) classes.push("dim");
                     
                     const dayNumber = cell.date.getDate();
+                    
+                    // FIX: Use the calculated appointmentMap color class
                     if (cell.inMonth && appointmentMap[dayNumber]) classes.push(appointmentMap[dayNumber]);
                     
                     const cellDateStr = formatDate(cell.date);
@@ -648,10 +726,30 @@ const ScheduleDashboard = () => {
             <section className="card serving-card">
               <div className="section-head"><div>Serving Now</div></div>
               <div className="serving-body">
-                <div className="serving-text">Click Start to begin calling patients</div>
-                <button className="start-btn" onClick={handleStartServing}>
-                    Start
-                </button>
+                
+                {servingPatient ? (
+                    <>
+                        <div className="serving-text">Serving: <b>{servingPatient.name}</b></div>
+                        <div className="serving-details">{servingPatient.service} at {servingPatient.scheduledTime}</div>
+                        <button className="start-btn release-btn" onClick={handleReleasePatient}>
+                            Release & Complete
+                        </button>
+                    </>
+                ) : (
+                    <>
+                        <div className="serving-text">
+                            {/* Determine the next patient to display */}
+                            {waiting.length > 0 ? 
+                                <span>Next: <b>{waiting[0].name}</b></span> : 
+                                <span>Queue is empty.</span>
+                            }
+                        </div>
+                        <button className="start-btn" onClick={handleStartServing} disabled={waiting.length === 0}>
+                            Start
+                        </button>
+                    </>
+                )}
+                
               </div>
             </section>
 
@@ -659,7 +757,6 @@ const ScheduleDashboard = () => {
         </section>
 
         {showReports && <ReportsModal onClose={() => setShowReports(false)}
-        // Pass only scheduled appointments to the Reports Modal
         appointments={scheduledAppointments}
         />}
 

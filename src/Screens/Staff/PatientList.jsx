@@ -332,7 +332,7 @@ export default function PatientList() {
                 </button>
                     <div className="brand-left">
                         <div className="brand-logo" />
-                        <div className="brand-name">jisong's Dental Clinic</div>
+                        <div className="brand-name">Dr. Menchie Amor Dangla Dental Clinic</div>
                     </div>
                     <div className="user">
                         <div className="avatar" />
