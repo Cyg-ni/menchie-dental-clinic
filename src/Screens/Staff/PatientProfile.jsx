@@ -627,28 +627,37 @@ export default function PatientProfile() {
             {/* --- NEXT TREATMENT DETAILS FORM --- */}
             <form style={{ flex: 1, background: '#f8f9fa', borderRadius: 8, minHeight: 280, padding: 20 }} onSubmit={handleTreatmentSubmit}>
               <div style={{ fontWeight: 600, fontSize: 18, marginBottom: 16 }}>Next Treatment Details</div>
-              <div className="form-group">
-                <label htmlFor="condition">Condition <span style={{color:'#d54', fontWeight:600}}>*</span></label>
-                <input 
-                    id="condition" 
-                    name="condition" 
-                    value={form.condition} 
-                    onChange={handleFormChange} 
-                    onFocus={() => setCurrentTool('treat')}
-                    required 
-                />
-              </div>
-              <div className="form-group">
-                <label htmlFor="procedure">Treatment <span style={{color:'#d54', fontWeight:600}}>*</span></label>
-                <input 
-                    id="procedure" 
-                    name="procedure" 
-                    value={form.procedure} 
-                    onChange={handleFormChange} 
-                    onFocus={() => setCurrentTool('treat')}
-                    required 
-                />
-              </div>
+                <div className="form-group">
+                    <label htmlFor="condition">Condition <span style={{color:'#d54', fontWeight:600}}>*</span></label>
+                    <input 
+                        id="condition" 
+                        name="condition" 
+                        value={form.condition} 
+                        onChange={handleFormChange} 
+                        onFocus={() => setCurrentTool('treat')}
+                        required 
+                    />
+                </div>
+                <div className="form-group">
+                    <label htmlFor="procedure">Treatment <span style={{color:'#d54', fontWeight:600}}>*</span></label>
+                    {/* --- EDITED: Replaced <input> with <select> --- */}
+                    <select 
+                        id="procedure" 
+                        name="procedure" 
+                        value={form.procedure} 
+                        onChange={handleFormChange} 
+                        onFocus={() => setCurrentTool('treat')}
+                        required 
+                    >
+                        <option value="">Others</option> {/* Placeholder/default option */}
+                        <option value="tooth cleaning">Tooth Cleaning</option>
+                        <option value="tooth removal">Tooth Removal</option>
+                        <option value="apply braces">Apply Braces</option>
+                        <option value="teeth whitening">Teeth Whitening</option>
+                        <option value="brace adjustment">Brace Adjustment</option>
+                    </select>
+                    {/* ----------------------------------------------- */}
+                </div>
               {/* Dentist field removed */}
               <div className="form-group">
                 <label htmlFor="notes">Treatment Notes</label>
