@@ -1,43 +1,40 @@
-// Odontogram.jsx
 import React from "react";
 import "./Odontogram.css";
-// NOTE: Make sure the path to TeethModelViewer.jsx is correct
 import TeethModelViewer from "../../components/TeethModelViewer.jsx"; 
 
-// Permanent Dentition (FDI Two-Digit System)
 const upperPermanentLeft  = [18, 17, 16, 15, 14, 13, 12, 11];
 const upperPermanentRight = [21, 22, 23, 24, 25, 26, 27, 28]; 
 const lowerPermanentLeft  = [48, 47, 46, 45, 44, 43, 42, 41];
 const lowerPermanentRight = [31, 32, 33, 34, 35, 36, 37, 38]; 
-
 const maxLenL = 8, maxLenR = 8; 
 
 // Map state keys to CSS classes 
 const STATE_CLASSES = {
     'missing': 'tooth-missing',
     'issue': 'tooth-issue',
-    'treated': 'tooth-treated', // Treated/Done from past history
-    'selected': 'tooth-selected', // Current selection for treatment
+    'treated': 'tooth-treated', 
+    'selected': 'tooth-selected', 
     'healthy': ''
 };
-
 
 function renderHalfRow(teeth, selectedTeeth, onTreatmentSelect, toothStates, onStateChange, currentTool, maxLen = 8) {
   
   const handleToothAction = (toothId) => {
-    const isMissing = toothStates[toothId] === 'missing';
+    // Determine the permanent state
+    const currentState = toothStates[toothId];
+    const isMissing = currentState === 'missing';
 
+    // If tooth is missing, prevent actions UNLESS we are in 'missing' tool to toggle it back
     if (isMissing && currentTool !== 'missing') {
-        // Cannot select/mark issue on a missing tooth (unless trying to unset the missing state)
         return; 
     }
 
     if (currentTool === 'treat') {
-        // Tool is 'treat': Handle selection for form submission
+        // Selection Mode
         onTreatmentSelect(toothId);
     } 
     else if (onStateChange) {
-        // Tool is 'missing' or 'issue': Trigger permanent state change
+        // State Changing Mode (Mark Issue / Mark Missing)
         onStateChange(toothId, currentTool);
     }
   };
@@ -52,18 +49,18 @@ function renderHalfRow(teeth, selectedTeeth, onTreatmentSelect, toothStates, onS
         const permanentState = toothStates[num] || 'healthy';
         const isMissing = permanentState === 'missing';
         
+        // Base class
         let classes = "odontogram-tooth";
         
-        // 1. Apply permanent state class (missing, issue, treated)
+        // 1. Permanent State Class (Red, Grey, Green)
         classes += ` ${STATE_CLASSES[permanentState]}`;
         
-        // 2. Apply selection class (used for highlighting teeth selected for the *current* form submission)
+        // 2. Selection Class (Blue Border)
         if (isSelectedForTreatment) {
              classes += ` ${STATE_CLASSES.selected}`;
         }
         
-        // 3. Add visual cue for marking tools (when currentTool is not 'treat')
-        // We only show the state-selectable cursor on non-missing teeth
+        // 3. Cursor Interaction
         if (currentTool !== 'treat' && !isMissing) {
              classes += ' state-selectable';
         }
@@ -74,7 +71,6 @@ function renderHalfRow(teeth, selectedTeeth, onTreatmentSelect, toothStates, onS
               type="button"
               className="tooth-square"
               onClick={() => handleToothAction(num)} 
-              // Disable if the tooth is permanently missing AND we are not trying to toggle the missing state
               disabled={isMissing && currentTool !== 'missing'}
             />
             <div className="tooth-label">{num}</div>
@@ -141,7 +137,6 @@ export default function Odontogram({
               </button>
             </div>
             <div className="odontogram-modal-body">
-              {/* NOTE: Passing required props to TeethModelViewer */}
               <TeethModelViewer selectedTeeth={selectedTeeth} toothStates={toothStates} />
             </div>
             <div className="odontogram-modal-footer">

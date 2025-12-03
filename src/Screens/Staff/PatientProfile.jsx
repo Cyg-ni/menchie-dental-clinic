@@ -13,7 +13,6 @@ const appointmentsCollectionRef = collection(db, "appointments");
 
 
 const Icon = ({ name }) => {
-// ... (Icon definition remains the same)
   switch (name) {
     case "dashboard":
       return (
@@ -136,7 +135,9 @@ export default function PatientProfile() {
 
   // Odontogram / Treatment states
   const [treatTeeth, setTreatTeeth] = useState([]);
-  const [currentTool, setCurrentTool] = useState('issue'); // Default tool is now 'issue'
+  
+  // Default tool is 'treat'
+  const [currentTool, setCurrentTool] = useState('treat'); 
   const [toothStates, setToothStates] = useState({}); // PERMANENT STATE TRACKER
 
   const [form, setForm] = useState({
@@ -193,7 +194,6 @@ export default function PatientProfile() {
   // --- Data Fetching ---
 
   const getPatient = useCallback(async (patientId) => {
-    // ... (Patient fetching logic remains the same)
     if (!patientId) { setLoading(false); return; }
     if (!isUpdatingStatus) setLoading(true); 
     
@@ -215,7 +215,6 @@ export default function PatientProfile() {
 
 
   const getAppointmentHistory = useCallback(async (patientId) => {
-    // ... (Appointment history fetching logic remains the same)
     if (!patientId) return;
     
     const patientIdQueryValue = `/patients/${patientId}`; 
@@ -253,14 +252,11 @@ export default function PatientProfile() {
   
   // --- Odontogram Permanent State Change Handler ---
   const handlePermanentToothStateChange = async (toothId, tool) => {
-      // ... (logic remains the same)
       let newState;
       const currentState = toothStates[toothId];
       
       if (tool === 'missing') {
           newState = currentState === 'missing' ? 'healthy' : 'missing';
-      } else if (tool === 'issue') {
-          newState = currentState === 'issue' ? 'healthy' : 'issue';
       } else {
           return; 
       }
@@ -273,6 +269,15 @@ export default function PatientProfile() {
       }
       setToothStates(updatedStates);
 
+      // --- AUTO-SELECT LOGIC ---
+      if (newState === 'missing') {
+          setTreatTeeth(prev => {
+              if (!prev.includes(toothId)) return [...prev, toothId];
+              return prev;
+          });
+      }
+      // -----------------------
+
       try {
           const patientDocRef = doc(db, "patients", id); 
           await updateDoc(patientDocRef, {
@@ -284,13 +289,11 @@ export default function PatientProfile() {
           alert("Failed to update tooth state.");
       }
       
-      setTreatTeeth([]); 
       setCurrentTool(tool); 
   };
 
 
   const handleStatusToggle = async (treatmentIndex, currentStatus) => {
-      // ... (Status update logic remains the same) ...
       if (isUpdatingStatus || !patient || !patient.treatments) return;
       
       setIsUpdatingStatus(true);
@@ -324,11 +327,50 @@ export default function PatientProfile() {
       }
   };
 
+  // --- NEW: DELETE TREATMENT HANDLER ---
+  const handleDeleteTreatment = async (index, treatment) => {
+      if (!window.confirm("Are you sure you want to delete this treatment record?")) return;
+
+      if (isUpdatingStatus || !patient || !patient.treatments) return;
+      setIsUpdatingStatus(true);
+
+      try {
+          // Create a copy of the array
+          const updatedTreatments = [...patient.treatments];
+          // Remove the item at the specific index
+          updatedTreatments.splice(index, 1);
+
+          // Update Firestore
+          const patientDocRef = doc(db, "patients", id);
+          await updateDoc(patientDocRef, {
+              treatments: updatedTreatments,
+              updated: new Date().toISOString().split('T')[0]
+          });
+
+          // Update Local State
+          setPatient(p => ({
+              ...p,
+              treatments: updatedTreatments
+          }));
+          
+          // If the deleted item was selected, deselect it
+          if (selectedTreatment === treatment) {
+              setSelectedTreatment(null);
+          }
+
+      } catch (error) {
+          console.error("Error deleting treatment:", error);
+          alert("Failed to delete treatment.");
+      } finally {
+          setIsUpdatingStatus(false);
+      }
+  };
+  // --------------------------------------
+
 
   const handleTreatmentSubmit = async e => {
     e.preventDefault();
     
-    // CRITICAL FIX 1: Validate ONLY if in 'treat' mode
     if (currentTool !== 'treat' || treatTeeth.length === 0 || !form.condition || !form.procedure) { 
         if (currentTool !== 'treat') {
             setSubmitMsg("Please switch to 'Select for Treatment' mode and select teeth to save a note.");
@@ -386,7 +428,21 @@ export default function PatientProfile() {
     return <div style={{ padding: 48 }}>Patient Not Found</div>;
   }
 
-  // MODIFIED RenderTreatmentsTimeline for interactivity and removing Dentist
+  // --- HELPER FOR TOOTH BADGE COLORS ---
+  const getToothBadgeStyle = (toothNum) => {
+    // Check the Permanent State of the tooth to decide color
+    const currentState = patient.currentToothState ? patient.currentToothState[toothNum] : null;
+
+    if (currentState === 'missing') {
+        return { background: '#f5f5f5', color: '#666', border: '1px solid #ccc' }; // Grey
+    }
+    if (currentState === 'treated') {
+        return { background: '#e8f5e9', color: '#2e7d32', border: '1px solid #388e3c' }; // Green
+    }
+    // Default / Healthy / Selected for Treatment -> Blue-ish
+    return { background: '#e3f2fd', color: '#1565c0', border: '1px solid #90caf9' }; 
+  };
+
   const RenderTreatmentsTimeline = () => (
     <div style={{ marginTop: 12 }}>
       {(patient.treatments && patient.treatments.length > 0) ? (
@@ -396,7 +452,6 @@ export default function PatientProfile() {
           
           return (
             <div 
-              // FIX: Set selectedTreatment to this specific treatment object when clicked
               onClick={() => setSelectedTreatment(t)} 
               style={{ 
                 background: selectedTreatment === t ? '#e3f2fd' : '#fff', 
@@ -412,9 +467,25 @@ export default function PatientProfile() {
               }} 
               key={i}
             >
-              <div style={{ minWidth: 58, textAlign:'center', color:'#4a587d', fontWeight:700, fontSize:17, marginTop: 4 }}>
-                <div style={{fontSize:18}}>{t.teeth.join(', ')}</div>
-                <span style={{fontWeight:500, color:'#888',fontSize:11}}>
+              <div style={{ minWidth: 65, textAlign:'center', color:'#4a587d', fontWeight:700, fontSize:17, marginTop: 4 }}>
+                {/* Teeth Badges with Dynamic Colors */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, justifyContent: 'center' }}>
+                    {t.teeth.map(toothNum => (
+                        <div 
+                            key={toothNum} 
+                            style={{
+                                fontSize: 13, 
+                                padding: '2px 6px', 
+                                borderRadius: 4, 
+                                ...getToothBadgeStyle(toothNum)
+                            }}
+                        >
+                            {toothNum}
+                        </div>
+                    ))}
+                </div>
+
+                <span style={{fontWeight:500, color:'#888',fontSize:11, display:'block', marginTop: 4}}>
                   { t.teeth.length === 1 ? 'Tooth' : 'Teeth' }
                 </span>
               </div>
@@ -424,8 +495,8 @@ export default function PatientProfile() {
                   <span><b>Condition:</b> {t.condition}</span>
                   <span><b>Treatment:</b> {t.procedure}</span>
                   
-                  {/* Status Button */}
-                  <span>
+                  {/* Status Button and Delete Button */}
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <b>Status:</b> 
                     <button 
                       onClick={(e) => {
@@ -442,7 +513,6 @@ export default function PatientProfile() {
                           border: 'none',
                           padding: '4px 8px',
                           borderRadius: 4,
-                          marginLeft: 8,
                           fontWeight: 600,
                           cursor: 'pointer',
                           fontSize: 12,
@@ -450,6 +520,31 @@ export default function PatientProfile() {
                       }}
                     >
                       {statusText}
+                    </button>
+                    
+                    {/* Delete Button */}
+                    <button 
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            // Pass the *current* index from map if array order matches
+                            // But safest to find index again or use the loop index if array hasn't mutated
+                            const originalIndex = patient.treatments.findIndex(item => item === t);
+                            if (originalIndex !== -1) handleDeleteTreatment(originalIndex, t);
+                        }}
+                        disabled={isUpdatingStatus}
+                        title="Delete Record"
+                        style={{
+                            background: '#fff',
+                            border: '1px solid #ffcccc',
+                            color: '#d32f2f',
+                            padding: '3px 8px',
+                            borderRadius: 4,
+                            cursor: 'pointer',
+                            fontSize: 12,
+                            fontWeight: 600
+                        }}
+                    >
+                        ✕
                     </button>
                   </span>
                 </div>
@@ -480,7 +575,7 @@ export default function PatientProfile() {
       
           <div className="brand-left">
             <div className="brand-logo" />
-            <div className="brand-name">Menchie's Dental Clinic</div>
+            <div className="brand-name">Dr. Menchie Amor Dangla Dental Clinic</div>
           </div>
           <div className="user">
             <div className="avatar" />
@@ -568,7 +663,6 @@ export default function PatientProfile() {
                   Odontogram ({currentTool === 'treat' ? 'Select Teeth to Treat' : 'Mark Tooth State'})
               </div>
               
-              {/* Tool Selection */}
               <div style={{ marginBottom: 15, display: 'flex', gap: 10, fontSize: 13, justifyContent: 'space-around' }}>
                   {/* Mark Missing Button */}
                   <button 
@@ -582,18 +676,9 @@ export default function PatientProfile() {
                   >
                       Mark Missing
                   </button>
-                  {/* Mark Issue Button */}
-                  <button 
-                      type="button" 
-                      onClick={() => setCurrentTool('issue')} 
-                      style={{ 
-                          background: currentTool === 'issue' ? '#e3f2fd' : '#fff', 
-                          border: currentTool === 'issue' ? '1px solid #2452a2' : '1px solid #ddd', 
-                          padding: '5px 10px', borderRadius: 5, cursor: 'pointer', fontWeight: 600
-                      }}
-                  >
-                      Mark Issue
-                  </button>
+                  
+                  {/* Mark Issue Button - REMOVED */}
+                  
                   {/* Select for Treatment Button */}
                   <button 
                       type="button" 
@@ -612,7 +697,6 @@ export default function PatientProfile() {
                   </button>
               </div>
 
-              {/* Odontogram Component */}
               <Odontogram 
                   selectedTeeth={treatTeeth} 
                   onSelectionChange={setTreatTeeth} 
@@ -628,7 +712,6 @@ export default function PatientProfile() {
             <form style={{ flex: 1, background: '#f8f9fa', borderRadius: 8, minHeight: 280, padding: 20 }} onSubmit={handleTreatmentSubmit}>
               <div className="form-group">
                 <label htmlFor="condition">Condition <span style={{color:'#d54', fontWeight:600}}>*</span></label>
-                {/* --- EDITED: Replaced <input> with <select> for Condition --- */}
                 <select 
                     id="condition" 
                     name="condition" 
@@ -637,16 +720,14 @@ export default function PatientProfile() {
                     onFocus={() => setCurrentTool('treat')}
                     required 
                 >
-                    <option value="">Select a condition</option> {/* Placeholder/default option */}
+                    <option value="">Select a condition</option>
                     <option value="tooth decay">Tooth Decay</option>
                     <option value="tooth cavity">Tooth Cavity</option>
                     <option value="stained teeth">Stained Teeth</option>
                 </select>
-                {/* ------------------------------------------------------------- */}
             </div>
                 <div className="form-group">
                     <label htmlFor="procedure">Treatment <span style={{color:'#d54', fontWeight:600}}>*</span></label>
-                    {/* --- EDITED: Replaced <input> with <select> --- */}
                     <select 
                         id="procedure" 
                         name="procedure" 
@@ -655,15 +736,12 @@ export default function PatientProfile() {
                         onFocus={() => setCurrentTool('treat')}
                         required 
                     >
-                        <option value="">Select Treatment</option> {/* Placeholder/default option */}
+                        <option value="">Select Treatment</option>
                         <option value="tooth cleaning">Tooth Cleaning</option>
                         <option value="tooth removal">Tooth Removal</option>
                         <option value="teeth whitening">Teeth Whitening</option>
-                        <option value="brace adjustment">Brace Adjustment</option>
                     </select>
-                    {/* ----------------------------------------------- */}
                 </div>
-              {/* Dentist field removed */}
               <div className="form-group">
                 <label htmlFor="notes">Treatment Notes</label>
                 <textarea 
@@ -698,25 +776,15 @@ export default function PatientProfile() {
             {(() => {
               let shadedStatus = {};
               
-              // 1. Permanent State (Missing, Issue, Treated)
               const permanentState = patient.currentToothState || {};
               Object.entries(permanentState).forEach(([tooth, status]) => {
-                  if (status === 'missing' || status === 'issue' || status === 'treated') {
+                  // CHANGED: Removed 'issue' from inclusion since we stopped supporting it visually
+                  if (status === 'missing' || status === 'treated') {
                       shadedStatus[tooth] = status;
                   }
               });
 
-              // 2. Determine Timeline Selection Overlay
               const timelineSelectedTeeth = selectedTreatment?.teeth || [];
-              const treatmentSelectionStatus = {};
-              
-              // This is used to pass the selected treatment set to the 3D viewer
-              if (selectedTreatment) {
-                  timelineSelectedTeeth.forEach(tooth => {
-                      // Use 'selected' class for timeline highlight
-                      treatmentSelectionStatus[tooth] = 'selected'; 
-                  });
-              }
               
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 15, background: "#fff", borderRadius: 10, boxShadow: "0 2px 24px #eee", padding: 22, maxWidth: '100%', overflowX: 'auto' }}>
@@ -724,16 +792,14 @@ export default function PatientProfile() {
                     Odontogram (Permanent Record)
                   </div>
                   
-                  {/* Odontogram in Medical Tab: Uses Permanent State + Selected Timeline Highlight */}
                   <Odontogram 
-                    selectedTeeth={timelineSelectedTeeth} // Teeth actively selected in the timeline
+                    selectedTeeth={timelineSelectedTeeth} 
                     selectable={false} 
-                    toothStates={shadedStatus} // Permanent/Ongoing status
-                    currentTool={'none'} // Disable any tool interaction
+                    toothStates={shadedStatus} 
+                    currentTool={'none'} 
                     onSelectionChange={()=>{}} 
                   />
                   
-                  {/* 3D Model Modal (for Medical Record) */}
                   {form.isModelOpen && (
                       <div className="odontogram-modal-backdrop" onClick={() => setForm(f => ({ ...f, isModelOpen: false }))} role="presentation">
                           <div className="odontogram-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
@@ -744,12 +810,7 @@ export default function PatientProfile() {
                                   </button>
                               </div>
                               <div className="odontogram-modal-body">
-                                  <TeethModelViewer 
-                                      // Pass permanent state for missing/issue/treated colors
-                                      toothStates={shadedStatus}
-                                      // Pass the timeline selection set separately for Blue highlight
-                                      selectedTeeth={timelineSelectedTeeth}
-                                  />
+                                  {/* Ensure TeethModelViewer is defined or imported if used here */}
                               </div>
                               <div className="odontogram-modal-footer">
                                   <button type="button" className="modal-close-secondary" onClick={() => setForm(f => ({ ...f, isModelOpen: false }))}>
@@ -793,16 +854,60 @@ export default function PatientProfile() {
           </div>
         )}
         {tab === "info" && (
-          <div style={{ marginTop: 30, background: '#fff', borderRadius: 8, padding: 32, maxWidth: 560, boxShadow: '0 2px 24px #f1f1f1'}}>
-            <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 16}}>General Information</div>
-            <div><b>Name:</b> {patient.name || 'N/A'}</div>
-            <div><b>Contact Number:</b> {patient.phone_num || <span style={{color:'#888'}}>N/A</span>}</div>
-            <div><b>Email/Contact Info:</b> {patient.contactInfo || <span style={{color:'#888'}}>N/A</span>}</div>
-            <div><b>Address:</b> {patient.address || <span style={{color:'#888'}}>N/A</span>}</div>
-            <div><b>Gender:</b> {patient.gender || <span style={{color:'#888'}}>N/A</span>}</div>
-            <div><b>Age:</b> {patient.age || <span style={{color:'#888'}}>N/A</span>}</div>
-            <div><b>Send Confirmation:</b> {patient.sendConfirmation ? "Yes" : "No"}</div> 
-            <div><b>Last Updated:</b> {patient.updated || 'N/A'}</div>
+          <div style={{ marginTop: 30, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+            
+            {/* General Information Column */}
+            <div style={{ background: '#fff', borderRadius: 8, padding: 32, boxShadow: '0 2px 24px #f1f1f1' }}>
+              <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 16, borderBottom: '1px solid #eee', paddingBottom: 10 }}>General Information</div>
+              <div style={{ display: 'grid', gap: 12 }}>
+                 <div><b>Name:</b> {patient.name || 'N/A'}</div>
+                 <div><b>Contact Number:</b> {patient.phone_num || <span style={{color:'#888'}}>N/A</span>}</div>
+                 <div><b>Email/Contact Info:</b> {patient.contactInfo || <span style={{color:'#888'}}>N/A</span>}</div>
+                 <div><b>Address:</b> {patient.address || <span style={{color:'#888'}}>N/A</span>}</div>
+                 <div><b>Gender:</b> {patient.gender || <span style={{color:'#888'}}>N/A</span>}</div>
+                 <div><b>Age:</b> {patient.age || <span style={{color:'#888'}}>N/A</span>}</div>
+                 <div><b>Marital Status:</b> {patient.status || <span style={{color:'#888'}}>N/A</span>}</div>
+                 <div><b>Occupation:</b> {patient.occupation || <span style={{color:'#888'}}>N/A</span>}</div>
+                 <div><b>Send Confirmation:</b> {patient.sendConfirmation ? "Yes" : "No"}</div> 
+                 <div><b>Last Updated:</b> {patient.updated || 'N/A'}</div>
+              </div>
+            </div>
+
+            {/* Medical Details Column */}
+            <div style={{ background: '#fff', borderRadius: 8, padding: 32, boxShadow: '0 2px 24px #f1f1f1' }}>
+              <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 16, borderBottom: '1px solid #eee', paddingBottom: 10 }}>Medical Details</div>
+              <div style={{ display: 'grid', gap: 12 }}>
+                 {/* Allergies */}
+                 <div>
+                    <b>Allergies:</b> {
+                        (patient.medicalHistory?.Allergies && patient.medicalHistory.Allergies.length > 0)
+                        ? <span style={{color: '#d9534f', fontWeight: 600}}>{patient.medicalHistory.Allergies.join(', ')}</span>
+                        : <span style={{color:'#888'}}>None</span>
+                    }
+                 </div>
+                 {/* Condition Notes */}
+                 <div>
+                    <b>Condition Notes:</b> {patient.medicalHistory?.conditionNotes || <span style={{color:'#888'}}>N/A</span>}
+                 </div>
+                 {/* Current Medications */}
+                 <div>
+                    <b>Current Meds:</b> {
+                     (patient.medicalHistory?.currentMedications && patient.medicalHistory.currentMedications.length > 0)
+                     ? patient.medicalHistory.currentMedications.join(', ')
+                     : <span style={{color:'#888'}}>N/A</span>
+                    }
+                 </div>
+                 {/* Pregnancy Status */}
+                 <div>
+                    <b>Is Pregnant:</b> {patient.isPregnant ? <span style={{color: '#d9534f', fontWeight: 600}}>Yes</span> : "No"}
+                 </div>
+                 {/* Smoking Status */}
+                 <div>
+                    <b>Smoker:</b> {patient.smokingStatus ? <span style={{color: '#d9534f', fontWeight: 600}}>Yes</span> : "No"}
+                 </div>
+              </div>
+            </div>
+
           </div>
         )}
         </div>
