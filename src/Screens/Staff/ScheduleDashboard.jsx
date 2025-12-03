@@ -679,7 +679,6 @@ const ScheduleDashboard = () => {
             <section className="card notifications-card">
               <div className="section-head">
                 <div>Notifications</div>
-                <div className="see-all">View All</div>
               </div>
 
               <div className="notifs">
@@ -756,9 +755,13 @@ const ScheduleDashboard = () => {
           </div>
         </section>
 
-        {showReports && <ReportsModal onClose={() => setShowReports(false)}
-        appointments={scheduledAppointments}
-        />}
+        {showReports && 
+            <ReportsModal 
+                onClose={() => setShowReports(false)}
+                appointments={scheduledAppointments}
+                displayDate={viewDate}
+            />
+        }
 
       </main>
     </div>

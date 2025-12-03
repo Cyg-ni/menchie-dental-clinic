@@ -31,6 +31,14 @@ const parseName = (fullName) => {
 
 // Utility function to generate the initial form state
 const getInitialFormData = (patient) => {
+    
+    // Medical History fields for initialization
+    const medicalHistory = patient?.medicalHistory || NEW_PATIENT_TEMPLATE.medicalHistory;
+    
+    // Convert arrays back into single comma-separated strings for input fields
+    const allergiesArray = medicalHistory.Allergies || [];
+    const currentMedsArray = medicalHistory.currentMedications || [];
+
     return {
         // ID is crucial for editing, but not part of the form fields
         id: patient?.id || null, 
@@ -45,7 +53,12 @@ const getInitialFormData = (patient) => {
         gender: patient?.gender || "", 
         occupation: patient?.occupation || "", 
         status: patient?.status || "", // Marital Status
-        complaint: patient?.complaint || "", // Chief Complaint
+        
+        // --- NEW/UPDATED MEDICAL FIELDS ---
+        allergies: allergiesArray.join(', ') || "", 
+        conditionNotes: medicalHistory.conditionNotes || "", // NEW FIELD
+        currentMedications: currentMedsArray.join(', ') || "", // NEW FIELD
+        // ----------------------------------
         
         // Checkboxes: use existing value (??) or default
         sendConfirmation: patient?.sendConfirmation ?? true, 
@@ -68,8 +81,7 @@ const AddingPatientModal = ({ onClose, onSuccess, patientToEdit }) => {
     const [imagePreview, setImagePreview] = useState(patientToEdit?.image || null);
     const isEditing = !!patientToEdit;
 
-    // 🌟 FIX FOR EDIT: Use useEffect to re-initialize state when patientToEdit changes 🌟
-    // This ensures the form pre-fills correctly when switching from Add (null) to Edit (object)
+    // FIX FOR EDIT: Use useEffect to re-initialize state when patientToEdit changes
     useEffect(() => {
         const initialData = getInitialFormData(patientToEdit);
         setFormData(initialData);
@@ -106,10 +118,18 @@ const AddingPatientModal = ({ onClose, onSuccess, patientToEdit }) => {
             return;
         }
 
+        // Prepare the arrays for saving
+        const newAllergiesArray = formData.allergies 
+            ? formData.allergies.split(',').map(s => s.trim()).filter(s => s.length > 0)
+            : [];
+            
+        const newMedsArray = formData.currentMedications 
+            ? formData.currentMedications.split(',').map(s => s.trim()).filter(s => s.length > 0)
+            : [];
+            
         // 1. Prepare data for Firestore
         const dataToSave = {
-            // For editing, spread the original patientToEdit to preserve complex fields (like medicalHistory)
-            // For adding, spread NEW_PATIENT_TEMPLATE
+            // Spread existing data first
             ...(isEditing ? patientToEdit : NEW_PATIENT_TEMPLATE), 
             
             // Map form state to DB field names
@@ -122,11 +142,19 @@ const AddingPatientModal = ({ onClose, onSuccess, patientToEdit }) => {
             gender: formData.gender || "N/A",
             occupation: formData.occupation || "N/A",
             status: formData.status || "N/A",
-            complaint: formData.complaint || "N/A",
             isPregnant: formData.isPregnant,
             smokingStatus: formData.smokingStatus,
             image: formData.image || null,
-            updated: new Date().toISOString().slice(0, 10), // Update timestamp
+            updated: new Date().toISOString().slice(0, 10), 
+
+            // --- UPDATED MEDICAL HISTORY ---
+            medicalHistory: {
+                ...(isEditing ? patientToEdit.medicalHistory : NEW_PATIENT_TEMPLATE.medicalHistory),
+                Allergies: newAllergiesArray, // Save the parsed array
+                conditionNotes: formData.conditionNotes || "", // Save Condition Notes
+                currentMedications: newMedsArray, // Save Current Medications array
+            },
+            // --------------------------
         };
 
         try {
@@ -137,7 +165,9 @@ const AddingPatientModal = ({ onClose, onSuccess, patientToEdit }) => {
                 alert(`Patient ${dataToSave.name} successfully updated!`);
             } else {
                 // ADD NEW PATIENT
-                await addDoc(patientsCollectionRef, dataToSave);
+                // Ensure we don't accidentally save the 'id' field if it was null
+                const { id, ...saveData } = dataToSave; 
+                await addDoc(patientsCollectionRef, saveData);
                 alert(`Patient ${dataToSave.name} successfully added!`);
             }
             
@@ -286,18 +316,46 @@ const AddingPatientModal = ({ onClose, onSuccess, patientToEdit }) => {
                                     />
                                 </div>
 
+                                {/* --- 3. MEDICAL HISTORY INPUTS --- */}
+                                
                                 <div className="form-group">
-                                    <label htmlFor="complaint">Chief Complaint</label>
+                                    <label htmlFor="allergies">Allergies</label>
                                     <input
                                         type="text"
-                                        id="complaint"
-                                        name="complaint"
-                                        value={formData.complaint}
+                                        id="allergies"
+                                        name="allergies"
+                                        value={formData.allergies}
+                                        onChange={handleInputChange}
+                                        placeholder="e.g., Penicillin, Peanuts"
+                                    />
+                                </div>
+
+                                <div className="form-group">
+                                    <label htmlFor="conditionNotes">Condition Notes</label>
+                                    <input
+                                        type="text"
+                                        id="conditionNotes"
+                                        name="conditionNotes"
+                                        value={formData.conditionNotes}
                                         onChange={handleInputChange}
                                     />
                                 </div>
                                 
-                                {/* --- 3. Checkboxes (Medical/Confirmation) --- */}
+                                <div className="form-group">
+                                    <label htmlFor="currentMedications">Current Meds</label>
+                                    <input
+                                        type="text"
+                                        id="currentMedications"
+                                        name="currentMedications"
+                                        value={formData.currentMedications}
+                                        onChange={handleInputChange}
+                                        placeholder="Separate meds with commas"
+                                    />
+                                </div>
+                                
+                                {/* ----------------------- */}
+                                
+                                {/* --- 4. Checkboxes (Medical/Confirmation) --- */}
 
                                 <div className="form-group checkbox-group">
                                     <label className="checkbox-label">
@@ -335,7 +393,7 @@ const AddingPatientModal = ({ onClose, onSuccess, patientToEdit }) => {
                                     </label>
                                 </div>
 
-                                {/* --- 4. Actions --- */}
+                                {/* --- 5. Actions --- */}
                                 <div className="form-actions">
                                     <button type="submit" className="btn-primary">
                                         {isEditing ? 'Save Changes' : 'Add User'}
@@ -353,7 +411,7 @@ const AddingPatientModal = ({ onClose, onSuccess, patientToEdit }) => {
 
                         <div className="divider"></div>
 
-                        {/* --- 5. Patient Picture Section --- */}
+                        {/* --- 6. Patient Picture Section --- */}
                         <section className="patient-picture-section">
                             <div className="section-title">Patient Picture</div>
                             <div className="image-upload-area">

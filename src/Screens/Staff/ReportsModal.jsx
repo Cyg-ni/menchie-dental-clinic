@@ -56,8 +56,33 @@ const Category = ({ title, appointments, color }) => (
 );
 
 
-const ReportsModal = ({ onClose, appointments = [] }) => {
+// ACCEPT displayDate PROP
+const ReportsModal = ({ onClose, appointments = [], displayDate }) => {
     
+    // Use the passed displayDate instead of new Date()
+    const targetDate = displayDate || new Date(); // Fallback to current date
+    const targetYear = targetDate.getFullYear();
+    const targetMonth = targetDate.getMonth() + 1; // 1-indexed month for comparison
+    
+    // Get the month name for the modal title
+    const monthName = targetDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+    // 1. Filter appointments to only include those in the target month
+    const filteredAppointments = React.useMemo(() => {
+        return appointments.filter(apt => {
+            const dateStr = apt.scheduledDate; // Format: YYYY-MM-DD
+            if (!dateStr) return false;
+
+            const parts = dateStr.split('-');
+            if (parts.length < 3) return false;
+            
+            const year = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10);
+            
+            return year === targetYear && month === targetMonth;
+        });
+    }, [appointments, targetYear, targetMonth]); // Dependency cleanup
+
     // 2. Define how service types map to the four display categories
     const serviceCategories = {
         'Dental Exams': ['Teeth Whitening (Cosmetic)', 'Orthodontics Consultation'],
@@ -66,7 +91,7 @@ const ReportsModal = ({ onClose, appointments = [] }) => {
         'Tooth Cleaning': ['Routine Check-up & Cleaning'],
     };
 
-    // 3. Group and process appointments
+    // 3. Group and process the filtered appointments
     const groupedAppointments = React.useMemo(() => {
         const groups = {
             'Dental Exams': [],
@@ -83,15 +108,15 @@ const ReportsModal = ({ onClose, appointments = [] }) => {
             });
         });
 
-        appointments.forEach(apt => {
+        // Iterate over the filtered list
+        filteredAppointments.forEach(apt => {
             const serviceType = apt.serviceType;
             const groupTitle = reverseLookup[serviceType];
             
             if (groupTitle) {
                 groups[groupTitle].push(apt);
             } else {
-                // If a service isn't explicitly mapped, push it to Consultations
-                // (Assuming Consultations acts as the catch-all based on the tile structure)
+                // Fallback to Consultations
                 groups['Consultations'].push(apt);
             }
         });
@@ -109,14 +134,15 @@ const ReportsModal = ({ onClose, appointments = [] }) => {
         });
 
         return groups;
-    }, [appointments]);
+    }, [filteredAppointments]);
 
 
   return (
     <div className="modal-overlay" role="dialog" aria-modal="true">
       <div className="modal">
         <div className="modal-header">
-          <div className="modal-title">Reports (All Scheduled Appointments)</div>
+          {/* Updated Title */}
+          <div className="modal-title">Reports (Scheduled Appointments for {monthName})</div>
           <button className="modal-close" aria-label="Close" onClick={onClose}>×</button>
         </div>
         <div className="modal-body">
