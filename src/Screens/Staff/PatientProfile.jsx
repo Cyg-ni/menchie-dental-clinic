@@ -640,9 +640,7 @@ export default function PatientProfile() {
                     <option value="">Select a condition</option> {/* Placeholder/default option */}
                     <option value="tooth decay">Tooth Decay</option>
                     <option value="tooth cavity">Tooth Cavity</option>
-                    <option value="crooked teeth">Crooked Teeth</option>
                     <option value="stained teeth">Stained Teeth</option>
-                    <option value="loose brace bracket">Loose Brace Bracket</option>
                 </select>
                 {/* ------------------------------------------------------------- */}
             </div>
@@ -660,7 +658,6 @@ export default function PatientProfile() {
                         <option value="">Select Treatment</option> {/* Placeholder/default option */}
                         <option value="tooth cleaning">Tooth Cleaning</option>
                         <option value="tooth removal">Tooth Removal</option>
-                        <option value="apply braces">Apply Braces</option>
                         <option value="teeth whitening">Teeth Whitening</option>
                         <option value="brace adjustment">Brace Adjustment</option>
                     </select>
