@@ -1,93 +1,129 @@
-// TeethModelViewer.jsx (Complete Code)
 import React from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 
-// ASSUMPTION: You move the files to 'public/models/'
-const TEETH_MODEL_PATH = "/models/Teeth.obj";
+// Paths to external assets
+const TEETH_MODEL_PATH = "/models/Teeth.obj"; 
 const TEETH_TEXTURE_PATH = "/models/AlysonTeeth.png"; 
 
 export default function TeethModelViewer({ 
   className = "", 
   selectedTeeth = [],
-  toothStates = {} // Use toothStates map 
+  toothStates = {} 
 }) {
   const mountRef = React.useRef(null);
   const [status, setStatus] = React.useState("loading");
-  const toothMeshMapRef = React.useRef({}); // { toothId: THREE.Mesh[] }
+  const toothMeshMapRef = React.useRef({}); 
   const sceneRef = React.useRef(null);
 
-  // Define Colors for 3D rendering
+  // --- COLORS ---
   const COLOR_DEFAULT = new THREE.Color(0xffffff);
-  const COLOR_SELECTED_TREAT = new THREE.Color(0x2452a2); // Dark Blue for Selected/Treatment
-  const COLOR_ISSUE = new THREE.Color(0xd23c3c); // Red for Issue/Problem
-  const COLOR_TREATED = new THREE.Color(0xd2f5e4); // Soft treated color
+  const COLOR_SELECTED_TREAT = new THREE.Color(0x2452a2); // Blue
+  const COLOR_ISSUE = new THREE.Color(0xd23c3c); // Red
+  const COLOR_TREATED = new THREE.Color(0xd2f5e4); // Green
+
+  // --- HELPER: Create Fallback Geometry if OBJ missing ---
+  const createFallbackModel = () => {
+      const group = new THREE.Group();
+      const material = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 });
+      const geometry = new THREE.BoxGeometry(2.5, 3.5, 2.5); // Simple block tooth
+
+      const addTooth = (id, x, y, z, rotY) => {
+          const mesh = new THREE.Mesh(geometry, material.clone());
+          mesh.name = `Tooth_${id}`; 
+          mesh.position.set(x, y, z);
+          mesh.rotation.y = rotY;
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          group.add(mesh);
+      };
+
+      const quadrants = [
+          { start: 11, dir: 1, y: 2.5, xMod: -1 }, 
+          { start: 21, dir: 1, y: 2.5, xMod: 1 },  
+          { start: 41, dir: 1, y: -2.5, xMod: -1 },
+          { start: 31, dir: 1, y: -2.5, xMod: 1 }, 
+      ];
+
+      quadrants.forEach(q => {
+          for(let i=0; i<8; i++) {
+              const toothNum = q.start + (i * q.dir); 
+              const offset = 1.5 + (i * 2.8); 
+              const curvature = (i * i) * 0.15; 
+              
+              const x = offset * q.xMod;
+              const z = curvature;
+              const rot = i * 0.15 * -q.xMod; 
+
+              addTooth(toothNum, x, q.y, z, rot);
+          }
+      });
+
+      return group;
+  };
 
   React.useEffect(() => {
     const mountNode = mountRef.current;
     if (!mountNode) return undefined;
+    
+    let isMounted = true;
 
-    const sizes = {
-      width: mountNode.clientWidth || 640,
-      height: mountNode.clientHeight || 360,
-    };
+    // 1. Scene Setup
+    const width = mountNode.clientWidth || 640;
+    const height = mountNode.clientHeight || 360;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x030712);
+    scene.background = new THREE.Color(0x0e121b); 
     sceneRef.current = scene;
 
-    const camera = new THREE.PerspectiveCamera(45, sizes.width / sizes.height, 0.1, 1000);
+    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+    // Initial position (will be updated by loader)
+    camera.position.set(0, 0, 50); 
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.setSize(sizes.width, sizes.height);
+    renderer.setSize(width, height);
     mountNode.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.enableZoom = true;
-    controls.zoomSpeed = 1.2;
-    controls.rotateSpeed = 0.9;
 
-    const ambient = new THREE.AmbientLight(0xffffff, 0.65);
+    // Lights
+    const ambient = new THREE.AmbientLight(0xffffff, 0.6);
     scene.add(ambient);
-    const keyLight = new THREE.DirectionalLight(0xffffff, 1.0);
-    keyLight.position.set(80, 120, 60);
-    scene.add(keyLight);
-    const fillLight = new THREE.DirectionalLight(0xb5c7ff, 0.6);
-    fillLight.position.set(-60, 80, -40);
-    scene.add(fillLight);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(50, 50, 50);
+    scene.add(dirLight);
 
     const loader = new OBJLoader();
     const textureLoader = new THREE.TextureLoader();
     
-    const texture = textureLoader.load(TEETH_TEXTURE_PATH); 
+    // Attempt texture load (non-critical)
+    const texture = textureLoader.load(TEETH_TEXTURE_PATH, undefined, undefined, () => {});
 
-    let model = null;
-    let resizeObserver = null;
-    let windowResizeHandler = null;
+    // Common function to process the loaded/generated object
+    const processModel = (object, isFallback = false) => {
+        if (!isMounted) return;
 
-    loader.load(
-      TEETH_MODEL_PATH, 
-      (object) => {
         const toothMeshMap = { all: [] };
+        
         object.traverse((child) => {
           if (child.isMesh) {
-            const baseMaterial = new THREE.MeshStandardMaterial({
-              color: 0xffffff,
-              map: texture,
-              roughness: 0.5,
-              metalness: 0.05,
-            });
-            child.material = baseMaterial;
-            child.castShadow = true;
-            child.receiveShadow = true;
-
+            if (!isFallback) {
+                child.material = new THREE.MeshStandardMaterial({
+                    color: 0xffffff,
+                    map: texture,
+                    roughness: 0.5,
+                    metalness: 0.1,
+                });
+            }
+            
             const name = (child.name || "").toLowerCase();
-            const match = name.match(/(tooth[_-]?|\b)(\d{2,3})\b/);
-            if (match && match[2]) {
-              const id = match[2];
+            const match = name.match(/(?:tooth[_-]?|^)(\d{2})/);
+            
+            if (match && match[1]) {
+              const id = match[1];
               if (!toothMeshMap[id]) toothMeshMap[id] = [];
               toothMeshMap[id].push(child);
             } else {
@@ -96,147 +132,112 @@ export default function TeethModelViewer({
           }
         });
         toothMeshMapRef.current = toothMeshMap;
+
+        // Auto Scale & Center
+        const box = new THREE.Box3().setFromObject(object);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
         
-        const boundingBox = new THREE.Box3().setFromObject(object);
-        const center = boundingBox.getCenter(new THREE.Vector3());
-        const size = boundingBox.getSize(new THREE.Vector3());
-        const maxAxis = Math.max(size.x, size.y, size.z) || 1;
+        object.position.sub(center); // Center at 0,0,0
+        
+        // --- ZOOM FIX HERE ---
+        // Calculate optimal camera distance
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const fov = camera.fov * (Math.PI / 180);
+        
+        // Use a smaller multiplier (e.g., 0.8 or 1.0) to zoom in closer. 
+        // Previously it might have been 1.5 or 2.0.
+        let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
+        cameraZ *= 1.2; // 1.2 provides a nice fit without cutting off edges
 
-        const desiredSize = 40; 
-        const scaleFactor = desiredSize / maxAxis;
-        object.scale.setScalar(scaleFactor);
-
-        const scaledBox = new THREE.Box3().setFromObject(object);
-        const scaledCenter = scaledBox.getCenter(new THREE.Vector3());
-        const sphere = scaledBox.getBoundingSphere(new THREE.Sphere());
-
-        object.position.sub(scaledCenter);
-
-        const radius = sphere.radius || desiredSize / 2;
-        const fov = THREE.MathUtils.degToRad(camera.fov);
-        const distance = radius / Math.sin(fov / 2);
-        camera.position.set(0, 0, distance * 1.2);
-        camera.near = Math.max(distance / 100, 0.1);
-        camera.far = distance * 10;
+        camera.position.set(0, 0, cameraZ);
         camera.updateProjectionMatrix();
-
-        controls.minDistance = distance * 0.4;
-        controls.maxDistance = distance * 3;
-
-        model = object;
-        scene.add(object);
+        
+        // Update controls to orbit around center properly
         controls.target.set(0, 0, 0);
         controls.update();
+        
+        scene.add(object);
         setStatus("ready");
-      },
-      undefined,
-      (error) => {
-        console.error("Failed to load teeth OBJ model:", error);
-        setStatus("error");
-      },
+    };
+
+    // Attempt to load OBJ
+    loader.load(
+        TEETH_MODEL_PATH,
+        (obj) => { processModel(obj, false); },
+        undefined,
+        (err) => {
+            console.warn("OBJ Load failed, using fallback geometry.", err);
+            const fallbackObj = createFallbackModel();
+            processModel(fallbackObj, true);
+        }
     );
 
-    if (typeof ResizeObserver !== "undefined") {
-      resizeObserver = new ResizeObserver((entries) => {
-        const { contentRect } = entries[0];
-        const width = contentRect.width || sizes.width;
-        const height = contentRect.height || sizes.height;
-        camera.aspect = width / height;
-        camera.updateProjectionMatrix();
-        renderer.setSize(width, height);
-      });
-      resizeObserver.observe(mountNode);
-    } else {
-      windowResizeHandler = () => {
-        const width = mountNode.clientWidth || sizes.width;
-        const height = mountNode.clientHeight || sizes.height;
-        camera.aspect = width / height;
-        camera.updateProjectionMatrix();
-        renderer.setSize(width, height);
-      };
-      window.addEventListener("resize", windowResizeHandler);
-    }
-
-    let animationFrameId = null;
+    // Animation Loop
+    let frameId;
     const animate = () => {
-      animationFrameId = requestAnimationFrame(animate);
-      controls.update();
-      renderer.render(scene, camera);
+        frameId = requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
     };
     animate();
 
+    // Resize Handler
+    const handleResize = () => {
+        if(!mountNode) return;
+        const w = mountNode.clientWidth;
+        const h = mountNode.clientHeight;
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, h);
+    };
+    window.addEventListener('resize', handleResize);
+
     return () => {
-      if (animationFrameId) cancelAnimationFrame(animationFrameId);
-      if (resizeObserver) {
-        resizeObserver.disconnect();
-      }
-      if (windowResizeHandler) {
-        window.removeEventListener("resize", windowResizeHandler);
-      }
-      controls.dispose();
-      renderer.dispose();
-      mountNode.replaceChildren();
+        isMounted = false;
+        cancelAnimationFrame(frameId);
+        window.removeEventListener('resize', handleResize);
+        controls.dispose();
+        renderer.dispose();
+        if(mountNode) mountNode.innerHTML = '';
     };
   }, []);
 
-  // Update highlighting whenever selected teeth or shaded teeth change
+  // --- COLOR UPDATER ---
   React.useEffect(() => {
+    if (status !== 'ready') return;
     const map = toothMeshMapRef.current;
-    if (!map || Object.keys(map).length === 0 || status !== 'ready') {
-      return;
-    }
 
-    // Function to safely iterate meshes for a given tooth ID
-    const processMeshes = (id, callback) => {
-        const possibleIds = [String(id), String(id).padStart(3, '0'), String(id).padStart(2, '0')];
-        for (const checkId of possibleIds) {
-            if (map[checkId] && Array.isArray(map[checkId])) {
-                map[checkId].forEach(callback);
-                return true;
-            }
-        }
-        return false;
-    };
-    
-    // 1. Reset all teeth materials (visibility true, default color)
-    Object.keys(map).forEach((key) => {
-        if (Array.isArray(map[key])) {
-            map[key].forEach((mesh) => {
-                if (!mesh.material) return;
-                mesh.visible = true; // Default visible
-                mesh.material.color = COLOR_DEFAULT;
-                mesh.material.emissive = new THREE.Color(0x000000);
-                mesh.material.emissiveIntensity = 0;
-            });
-        }
+    const getMeshes = (id) => map[String(id)] || [];
+
+    // 1. Reset All
+    Object.values(map).flat().forEach(mesh => {
+        mesh.visible = true;
+        mesh.material.color.set(COLOR_DEFAULT);
+        mesh.material.emissive.setHex(0x000000);
     });
 
-    // 2. Apply permanent states (Missing / Issue / Treated)
-    Object.entries(toothStates).forEach(([toothIdStr, state]) => {
-        const toothId = Number(toothIdStr);
-        
-        processMeshes(toothId, (mesh) => {
+    // 2. Apply States
+    Object.entries(toothStates).forEach(([id, state]) => {
+        getMeshes(id).forEach(mesh => {
             if (state === 'missing') {
-                mesh.visible = false; // Hide the mesh
+                mesh.visible = false; 
             } else if (state === 'issue') {
-                mesh.material.color = COLOR_ISSUE; // Red
-                mesh.material.emissive = COLOR_ISSUE;
-                mesh.material.emissiveIntensity = 0.2;
+                mesh.material.color.set(COLOR_ISSUE);
+                mesh.material.emissive.set(COLOR_ISSUE);
+                mesh.material.emissiveIntensity = 0.3;
             } else if (state === 'treated') {
-                // Use a soft green/white for treated teeth
-                mesh.material.color = COLOR_TREATED;
-                mesh.material.emissive = new THREE.Color(0xaaaaaa);
-                mesh.material.emissiveIntensity = 0.1;
+                mesh.material.color.set(COLOR_TREATED);
             }
         });
     });
 
-    // 3. Apply temporary selection/treatment status (Blue)
-    selectedTeeth.forEach((t) => {
-        processMeshes(t, (mesh) => {
-            // Apply blue coloring (overrides previous colors)
-            mesh.material.color = COLOR_SELECTED_TREAT;
-            mesh.material.emissive = COLOR_SELECTED_TREAT;
+    // 3. Apply Selection
+    selectedTeeth.forEach(id => {
+        getMeshes(id).forEach(mesh => {
+            mesh.visible = true; 
+            mesh.material.color.set(COLOR_SELECTED_TREAT);
+            mesh.material.emissive.set(COLOR_SELECTED_TREAT);
             mesh.material.emissiveIntensity = 0.4;
         });
     });
@@ -244,13 +245,13 @@ export default function TeethModelViewer({
   }, [selectedTeeth, toothStates, status]);
 
   return (
-    <div className={`teeth-viewer ${className}`.trim()}>
-      {status !== "ready" && (
-        <div className={`teeth-viewer-overlay ${status}`}>
-          {status === "loading" ? "Loading 3D model…" : "Unable to load model"}
+    <div className={`teeth-viewer ${className}`} style={{ width: '100%', height: '100%', position: 'relative' }}>
+      {status === "loading" && (
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', background: 'rgba(0,0,0,0.5)' }}>
+          Loading Model...
         </div>
       )}
-      <div className="teeth-viewer-canvas" ref={mountRef} />
+      <div style={{ width: '100%', height: '100%' }} ref={mountRef} />
     </div>
   );
 }
