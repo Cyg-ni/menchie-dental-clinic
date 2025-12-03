@@ -546,13 +546,13 @@ export default function PatientProfile() {
               <div className="form-group">
                 <label htmlFor="condition">Condition <span style={{color:'#d54', fontWeight:600}}>*</span></label>
                 <select id="condition" name="condition" value={form.condition} onChange={handleFormChange} onFocus={() => setCurrentTool('treat')} required >
-                    <option value="">Select a condition</option> <option value="tooth decay">Tooth Decay</option> <option value="tooth cavity">Tooth Cavity</option> <option value="stained teeth">Stained Teeth</option> <option value="loose brace bracket">Loose Brace Bracket</option>
+                    <option value="">Select a condition</option> <option value="tooth decay">Tooth Decay</option> <option value="tooth cavity">Tooth Cavity</option> <option value="stained teeth">Stained Teeth</option>
                 </select>
               </div>
               <div className="form-group">
                 <label htmlFor="procedure">Treatment <span style={{color:'#d54', fontWeight:600}}>*</span></label>
                 <select id="procedure" name="procedure" value={form.procedure} onChange={handleFormChange} onFocus={() => setCurrentTool('treat')} required >
-                    <option value="">Select Treatment</option> <option value="tooth cleaning">Tooth Cleaning</option> <option value="tooth removal">Tooth Removal</option> <option value="teeth whitening">Teeth Whitening</option> <option value="apply braces">Apply Braces</option> <option value="brace adjustment">Brace Adjustment</option>
+                    <option value="">Select Treatment</option> <option value="tooth cleaning">Tooth Cleaning</option> <option value="tooth removal">Tooth Removal</option> <option value="teeth whitening">Teeth Whitening</option>
                 </select>
               </div>
               <div className="form-group">
