@@ -8,13 +8,19 @@ const TEETH_MODEL_PATH = "/models/Teeth.obj";
 const TEETH_TEXTURE_PATH = "/models/AlysonTeeth.png"; 
 
 // --- ANIMATION CONSTANTS ---
-const REMOVAL_DURATION = 2.0; // Time in seconds for the removal animation
+const REMOVAL_DURATION = 10.0; 
+const REMOVAL_DISTANCE = 20; 
+// NEW CONSTANT: Duration for the one-way whitening animation
+const WHITENING_DURATION = 5.0; // 5 seconds to go from stained to white
 
-// --- DUMMY TREATMENT/CONDITION DATA ---
+// --- Easing Function for Slow Start (Ease-In Cubic - Unchanged) ---
+const easeCubicIn = (t) => t * t * t;
+
+// --- DUMMY TREATMENT/CONDITION DATA (Unchanged) ---
 const getOngoingTreatmentForTooth = (toothNum) => {
     const timelineData = {
         42: { condition: 'stained teeth', treatment: 'teeth whitening' }, 
-        41: { condition: 'tooth decay', treatment: 'tooth removal' }, // Tooth to be removed
+        41: { condition: 'tooth decay', treatment: 'tooth removal' },
         33: { condition: 'tooth decay', treatment: 'Tooth Removal' },
         34: { condition: 'tooth decay', treatment: 'Tooth Removal' },
         35: { condition: 'tooth decay', treatment: 'Tooth Removal' },
@@ -41,7 +47,7 @@ export default function TeethModelViewer({
   const sceneRef = React.useRef(null);
   const clockRef = React.useRef(new THREE.Clock()); 
 
-  // --- COLORS ---
+  // --- COLORS (Unchanged) ---
   const COLOR_DEFAULT = new THREE.Color(0xffffff);
   const COLOR_SELECTED_TREAT = new THREE.Color(0x2452a2); 
   const COLOR_TREATED = new THREE.Color(0x89c994);
@@ -55,12 +61,11 @@ export default function TeethModelViewer({
   // --- ANIMATION TRACKING ---
   const pulsingMeshesRef = React.useRef([]);
   const whiteningMeshesRef = React.useRef([]);
-  // NEW: Ref for tracking teeth currently being removed
   const toothRemovalMeshesRef = React.useRef([]); 
 
-  // --- INITIALIZATION EFFECT (Model and Scene Setup) ---
+  // --- INITIALIZATION EFFECT (Model and Scene Setup - Unchanged) ---
   React.useEffect(() => {
-    // Scene, Camera, Renderer Setup (omitted for brevity)
+    // Setup logic for Scene, Camera, Renderer, Controls, Lights, and Asset Loading...
     const mountNode = mountRef.current;
     if (!mountNode) return undefined;
     let isMounted = true;
@@ -90,7 +95,6 @@ export default function TeethModelViewer({
         metalness: 0.1,
     });
     
-    // Load Geometry
     objLoader.load(TEETH_MODEL_PATH, (object) => { 
         if (!isMounted) return;
         const toothMeshMap = { all: [] };
@@ -110,7 +114,8 @@ export default function TeethModelViewer({
           }
         });
         toothMeshMapRef.current = toothMeshMap;
-        // Auto Scale & Center (omitted for brevity)
+        
+        // Scaling and Camera Setup
         const box = new THREE.Box3().setFromObject(object);
         const center = box.getCenter(new THREE.Vector3());
         object.position.sub(center); 
@@ -139,42 +144,62 @@ export default function TeethModelViewer({
         const elapsedTime = clockRef.current.getElapsedTime();
         const sinePulse = (Math.sin(elapsedTime * 3) + 1) / 2; 
 
-        // 1. STANDARD PULSING ANIMATION
+        // 1. STANDARD PULSING ANIMATION (Unchanged)
         pulsingMeshesRef.current.forEach(mesh => {
-            // ... (pulsing animation logic as before)
             if (!mesh.userData.pulseColor1 || !mesh.userData.pulseColor2) return;
             mesh.material.color.copy(mesh.userData.pulseColor1);
             mesh.material.color.lerp(mesh.userData.pulseColor2, sinePulse * 0.5); 
             mesh.material.emissiveIntensity = 0.3 + sinePulse * 0.2;
         });
         
-        // 2. TEETH WHITENING ANIMATION
-        const cycleTime = 10;
-        const whiteningProgress = (Math.sin((elapsedTime / cycleTime) * Math.PI * 2) + 1) / 2; 
-        
+        // 2. TEETH WHITENING ANIMATION (UPDATED to one-way progression)
         whiteningMeshesRef.current.forEach(mesh => {
-            // ... (whitening animation logic as before)
+            if (!mesh.userData.whiteningStartTime) {
+                // Initialize start time if needed
+                mesh.userData.whiteningStartTime = elapsedTime;
+            }
+            
+            const startTime = mesh.userData.whiteningStartTime;
+            // Calculate linear progress, clamping it at 1.0
+            const progress = Math.min(1, (elapsedTime - startTime) / WHITENING_DURATION);
+            
             const startColor = mesh.userData.whiteningStartColor;
             const endColor = mesh.userData.whiteningEndColor;
+
+            // Lerp the color using the one-way progress
             mesh.material.color.copy(startColor);
-            mesh.material.color.lerp(endColor, whiteningProgress); 
-            mesh.material.emissiveIntensity = 0.1 + sinePulse * 0.05;
+            mesh.material.color.lerp(endColor, progress); 
+            
+            // Set a static emissive glow for whitening visibility (no pulsing)
+            mesh.material.emissiveIntensity = 0.1;
+
+            if (progress === 1) {
+                // If whitening is complete, remove it from the animation list 
+                // to prevent constant calculation. It retains the final color.
+                mesh.userData.whiteningCompleted = true;
+            }
         });
 
-        // 3. NEW: TEETH REMOVAL ANIMATION (Move up and out)
+        // Cleanup: Remove completed whitening meshes from the tracking list
+        if (whiteningMeshesRef.current.some(m => m.userData.whiteningCompleted)) {
+            whiteningMeshesRef.current = whiteningMeshesRef.current.filter(
+                mesh => !mesh.userData.whiteningCompleted
+            );
+        }
+
+        // 3. TEETH REMOVAL ANIMATION (Unchanged from last slow version)
         toothRemovalMeshesRef.current.forEach(mesh => {
             const startTime = mesh.userData.removalStartTime;
-            const progress = Math.min(1, (elapsedTime - startTime) / REMOVAL_DURATION);
+            const linearProgress = Math.min(1, (elapsedTime - startTime) / REMOVAL_DURATION);
 
-            if (progress < 1) {
-                // Raise it up (Y+) and slightly forward (Z+)
-                // Using its original position as the base offset (since position is relative to model center)
-                mesh.position.set(0, progress * 10, progress * 5); 
-                // Scale down for a fading effect
-                const scale = 1 - progress * 0.5;
+            if (linearProgress < 1) {
+                const easedProgress = easeCubicIn(linearProgress); 
+                
+                mesh.position.set(0, easedProgress * REMOVAL_DISTANCE, easedProgress * (REMOVAL_DISTANCE / 4)); 
+                
+                const scale = 1 - easedProgress * 0.5;
                 mesh.scale.set(scale, scale, scale);
             } else {
-                // Animation complete, hide the mesh permanently
                 mesh.visible = false;
                 mesh.userData.removalCompleted = true; 
             }
@@ -204,40 +229,41 @@ export default function TeethModelViewer({
     };
   }, []); 
 
-  // --- STATE/COLOR UPDATER EFFECT (Updated Logic for Removal) ---
+  // --- STATE/COLOR UPDATER EFFECT (Updated Whitening Setup) ---
   React.useEffect(() => {
     if (status !== 'ready') return;
     const map = toothMeshMapRef.current;
     
     // 1. Reset all non-permanent animation flags and lists
     pulsingMeshesRef.current = []; 
-    whiteningMeshesRef.current = [];
-    // IMPORTANT: Do NOT clear toothRemovalMeshesRef.current here,
-    // as it holds meshes mid-animation. The logic below will re-add them if needed.
+    // Do not clear whiteningMeshesRef.current or toothRemovalMeshesRef.current here 
+    // if the viewMode remains 'treatment', as they may hold active animations.
 
     const getMeshes = (id) => map[String(id)] || [];
 
-    // Reset All Visuals & clear removal flags
+    // Reset All Visuals & clear removal/whitening flags
     Object.values(map).flat().forEach(mesh => {
         mesh.visible = true;
-        // Reset position and scale to original state (important for removal anim reset)
         mesh.position.set(0, 0, 0);
         mesh.scale.set(1, 1, 1);
         
-        // Reset colors
         mesh.material.color.copy(mesh.userData.originalColor || COLOR_DEFAULT);
         mesh.material.emissive.setHex(0x000000); 
         mesh.material.emissiveIntensity = 0;
         
-        // Reset animation flags, but keep removalCompleted if it was set
-        mesh.userData.isWhitening = false;
         mesh.userData.isBeingRemoved = false;
-        // mesh.userData.removalStartTime is managed in the removal tracking below
+        // Reset these if the mesh is NOT currently in the tracking list
+        if (!whiteningMeshesRef.current.includes(mesh) && !mesh.userData.removalCompleted) {
+            mesh.userData.isWhitening = false;
+            mesh.userData.whiteningStartTime = undefined;
+            mesh.userData.whiteningCompleted = false;
+        }
     });
 
-    // Helper functions (setVisuals and setupWhitening, unchanged)
+    // Helper functions (setVisuals and setupWhitening)
     const setVisuals = (mesh, color, pulse = false, pulseColor2 = null) => {
-        if (mesh.userData.isWhitening || mesh.userData.isBeingRemoved) return; 
+        // Prevent visual overwrite if already mid-whitening or mid-removal
+        if (mesh.userData.isWhitening || mesh.userData.isBeingRemoved || mesh.userData.removalCompleted) return; 
         
         mesh.material.color.set(color);
         mesh.material.emissive.set(color);
@@ -251,10 +277,17 @@ export default function TeethModelViewer({
     };
     
     const setupWhitening = (mesh) => {
-        mesh.userData.whiteningStartColor = COLOR_STAINED_BASE.clone();
-        mesh.userData.whiteningEndColor = COLOR_WHITENING_TARGET.clone();
-        mesh.userData.isWhitening = true;
-        whiteningMeshesRef.current.push(mesh);
+        // Only initialize if not already tracked or completed
+        if (!whiteningMeshesRef.current.includes(mesh) && !mesh.userData.whiteningCompleted) {
+            mesh.userData.whiteningStartColor = COLOR_STAINED_BASE.clone();
+            mesh.userData.whiteningEndColor = COLOR_WHITENING_TARGET.clone();
+            mesh.userData.isWhitening = true;
+            // Importantly, we don't set start time here, it's set in the animate loop
+            whiteningMeshesRef.current.push(mesh);
+        } else if (mesh.userData.whiteningCompleted) {
+             // If completed, set to final white state immediately
+            mesh.material.color.copy(COLOR_WHITENING_TARGET);
+        }
     };
 
     // Collect all relevant tooth IDs
@@ -264,7 +297,6 @@ export default function TeethModelViewer({
         ...selectedTeeth.map(String)
     ]);
     
-    // Set for keeping track of meshes that are NOT in a removal animation but SHOULD be
     const meshesToAnimateRemoval = [];
 
     allToothIds.forEach(id => {
@@ -277,8 +309,7 @@ export default function TeethModelViewer({
 
         meshes.forEach(mesh => {
             
-            // --- LOGIC SWITCH ---
-            
+            // --- LOGIC SWITCH (Whitening and Removal logic updated) ---
             if (viewMode === 'status') {
                 if (state === 'missing') {
                     mesh.visible = false;
@@ -289,9 +320,7 @@ export default function TeethModelViewer({
                 } else if (state === 'issue') {
                     setVisuals(mesh, COLOR_ISSUE);
                 } 
-            } 
-            
-            else if (viewMode === 'condition') {
+            } else if (viewMode === 'condition') {
                 const condition = (record.condition || '').toLowerCase();
                 if (condition === 'missing') {
                     mesh.visible = false;
@@ -304,27 +333,22 @@ export default function TeethModelViewer({
                 } else {
                     setVisuals(mesh, COLOR_DIM);
                 }
-            } 
-            
-            else if (viewMode === 'treatment') {
+            } else if (viewMode === 'treatment') {
                 const treatment = (record.treatment || '').toLowerCase();
                 const isRemovalTreatment = treatment.includes('removal');
 
                 if (state === 'missing') {
-                    // Permanently missing teeth are hidden instantly
                     mesh.visible = false;
                 } else if (isRemovalTreatment) {
-                    // Start Removal Animation logic
                     if (mesh.userData.removalCompleted) {
-                        mesh.visible = false; // Stay hidden if animation is done
+                        mesh.visible = false;
                     } else if (toothRemovalMeshesRef.current.includes(mesh)) {
-                        // Already mid-animation, do nothing
+                        // Mid-removal animation
                     } else {
-                        // Start the animation
                         meshesToAnimateRemoval.push(mesh);
                     }
                 } else if (treatment.includes('whitening')) {
-                    setupWhitening(mesh);
+                    setupWhitening(mesh); // Handles checking if already completed/in progress
                 } else if (treatment && treatment !== 'null') {
                     setVisuals(mesh, COLOR_SELECTED_TREAT);
                 } else {
@@ -341,21 +365,34 @@ export default function TeethModelViewer({
         toothRemovalMeshesRef.current.push(mesh);
     });
 
-    // Remove any meshes from the removal tracking list that are no longer marked for removal
-    // (e.g., if user switches away from 'treatment' mode)
+    // Clean up removal tracking list (for meshes no longer needing removal)
     toothRemovalMeshesRef.current = toothRemovalMeshesRef.current.filter(mesh => {
         const id = mesh.parent.name.match(/(\d{2})/)?.[1];
         const record = getOngoingTreatmentForTooth(parseInt(id));
         const treatment = (record.treatment || '').toLowerCase();
         
-        // Keep the mesh in the list only if it's currently marked for removal OR the animation is not complete
         if (treatment.includes('removal') || !mesh.userData.removalCompleted) {
             return true;
         } else {
-            // If the mesh is no longer being treated for removal AND the animation is complete, remove it
             return false;
         }
     });
+
+    // Clean up whitening tracking list (for meshes no longer needing whitening)
+    whiteningMeshesRef.current = whiteningMeshesRef.current.filter(mesh => {
+        const id = mesh.parent.name.match(/(\d{2})/)?.[1];
+        const record = getOngoingTreatmentForTooth(parseInt(id));
+        const treatment = (record.treatment || '').toLowerCase();
+        
+        if (treatment.includes('whitening') || !mesh.userData.whiteningCompleted) {
+            return true;
+        } else {
+            // If whitening treatment is gone, reset its completed state so it can be re-whitened later.
+            mesh.userData.whiteningCompleted = false;
+            return false;
+        }
+    });
+
 
   }, [selectedTeeth, toothStates, status, viewMode]);
 

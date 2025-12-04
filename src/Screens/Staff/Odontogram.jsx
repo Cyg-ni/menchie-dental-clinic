@@ -20,7 +20,7 @@ const STATE_CLASSES = {
 /**
  * Helper function to render the specific 3D-ready visual layers
  * based on the permanent state (condition) or the selected tool (treatment/issue marking).
- * This structure enables CSS-based 3D animations (translateZ, keyframes).
+ * (This function is identical to the previous version but included for completeness.)
  */
 const getToothInnerContent = (state, isSelectedForTreatment) => {
     // 1. Base Layer (The tooth itself)
@@ -28,28 +28,32 @@ const getToothInnerContent = (state, isSelectedForTreatment) => {
 
     // 2. Condition Layers (Permanent/Recorded Issues)
     let conditionVisual = null;
+    // Normalize state key to match the CSS classes created earlier (e.g., 'tooth decay' -> 'decay')
     const normalizedState = state.toLowerCase().replace(/\s/g, ''); 
 
-    if (normalizedState === 'decay' || normalizedState === 'toothdecay' || normalizedState === 'issue') {
+    if (normalizedState === 'decay' || normalizedState === 'toothdecay') {
         conditionVisual = <div className="condition-layer condition-decay" />;
     } else if (normalizedState === 'cavity' || normalizedState === 'toothcavity') {
         conditionVisual = <div className="condition-layer condition-cavity" />;
     } else if (normalizedState === 'stained' || normalizedState === 'stainedteeth') {
         conditionVisual = <div className="condition-layer condition-stained" />;
     } else if (normalizedState === 'missing') {
+        // This is primarily styled by the parent .tooth-square animation
         conditionVisual = <div className="condition-layer condition-missing-cross">X</div>;
     }
 
     // 3. Treatment Layer (Active/Transient Visuals)
     let treatmentVisual = null;
     if (isSelectedForTreatment) {
-        // Active selection glow/pop-out
         treatmentVisual = <div className="treatment-layer treatment-selected" />;
     }
     
+    // Check for specific treatment visuals if the state is recorded as a treatment
     if (normalizedState === 'whitening' || normalizedState === 'teethwhitening') {
         treatmentVisual = <div className="treatment-layer condition-whitening" />;
     }
+    // Add logic for 'cleaning' or 'treated' visualizations here if needed...
+
 
     return (
         // .tooth-3d-scene is the critical wrapper for perspective and 3D transform style
@@ -65,20 +69,24 @@ const getToothInnerContent = (state, isSelectedForTreatment) => {
 function renderHalfRow(teeth, selectedTeeth, onTreatmentSelect, toothStates, onStateChange, currentTool, maxLen = 8) {
   
   const handleToothAction = (toothId) => {
+    // Determine the permanent state
     const currentState = toothStates[toothId];
     const isMissing = currentState === 'missing';
 
+    // If tooth is missing, prevent actions UNLESS we are in 'missing' tool to toggle it back
     if (isMissing && currentTool !== 'missing') {
         return; 
     }
 
     if (currentTool === 'treat') {
+        // Selection Mode
         onTreatmentSelect(toothId);
     } 
     else if (onStateChange) {
+        // State Changing Mode (Mark Issue / Mark Missing)
         let newState = currentTool;
         if (currentTool === 'issue') {
-            // Toggle between decay and healthy if 'issue' tool is selected
+            // Default generic 'issue' tool click to marking 'decay'
             newState = (currentState === 'healthy' || currentState === 'treated') ? 'decay' : 'healthy'; 
         }
         onStateChange(toothId, newState);
@@ -86,24 +94,32 @@ function renderHalfRow(teeth, selectedTeeth, onTreatmentSelect, toothStates, onS
   };
 
   return (
+    // Note: 'odontogram-row' class handles the main flex layout and gap
     <div className="odontogram-row"> 
+      {/* Spacer to align molars/premolars on the outside */}
       {Array(maxLen - teeth.length).fill(0).map((_, i) => (
+        // The width of the spacer is based on the tooth size (20px) + gap (3px)
         <div key={`spacer-${i}`} style={{ width: 23 }} /> 
       ))}
       {teeth.map((num) => {
         const isSelectedForTreatment = selectedTeeth.includes(num);
+        // Normalize state key to allow for different casing/spacing (e.g., 'Tooth Cavity' -> 'toothcavity')
         const permanentState = (toothStates[num] || 'healthy').toLowerCase().replace(/\s/g, ''); 
         const isMissing = permanentState === 'missing';
         
+        // Wrapper class controls overall pointer/layout behavior
         let wrapperClasses = "odontogram-tooth";
         if (currentTool !== 'treat' && !isMissing) {
              wrapperClasses += ' state-selectable';
         }
         
+        // Add the permanent state class to the wrapper for complex styling (like missing X)
         wrapperClasses += ` ${STATE_CLASSES[permanentState] || 'tooth-healthy'}`;
         
+        // Button classes (Visuals & Animations)
         let buttonClasses = "tooth-square";
         
+        // 1. Add the selection class to the button
         if (isSelectedForTreatment) {
              buttonClasses += ` ${STATE_CLASSES.selected}`;
         }
@@ -115,9 +131,10 @@ function renderHalfRow(teeth, selectedTeeth, onTreatmentSelect, toothStates, onS
               className={buttonClasses}
               onClick={() => handleToothAction(num)} 
               disabled={isMissing && currentTool !== 'missing'}
-              data-state={permanentState} 
+              data-state={permanentState} // Helper for CSS
               data-selected={isSelectedForTreatment}
             >
+              {/* NEW: Inject the 3D layered content */}
               {getToothInnerContent(permanentState, isSelectedForTreatment)}
             </button>
             <div className="tooth-label">{num}</div>
@@ -138,8 +155,8 @@ export default function Odontogram({
 }) {
     // State to manage modal visibility
     const [isModelOpen, setIsModelOpen] = React.useState(false);
-    // NEW State to manage what the 3D model is showing: 'status', 'condition', 'treatment'
-    const [modalViewMode, setModalViewMode] = React.useState('status'); 
+    // NEW State to manage what the 3D model is showing
+    const [modalViewMode, setModalViewMode] = React.useState('status'); // 'status', 'condition', 'treatment'
 
     // This handler is only used if currentTool === 'treat'
     const handleTreatmentSelect = (num) => {
@@ -157,7 +174,7 @@ export default function Odontogram({
         setIsModelOpen(true);
     };
     
-    // Helper to determine the button's active class for styling
+    // Helper to determine the button's active class
     const getActiveButtonClass = (mode) => {
         return `action-btn ${mode}-btn ${modalViewMode === mode ? 'active-view' : ''}`;
     };
@@ -194,15 +211,15 @@ export default function Odontogram({
                     <h3>3D Teeth Visualization ({modalViewMode.toUpperCase()})</h3>
                   </div>
                   <div className="odontogram-modal-body">
-                    {/* Pass the new view mode to the 3D Viewer for filtering/highlighting */}
+                    {/* Pass the new view mode to the 3D Viewer */}
                     <TeethModelViewer 
                         selectedTeeth={selectedTeeth} 
                         toothStates={toothStates} 
-                        viewMode={modalViewMode} 
+                        viewMode={modalViewMode} // <-- NEW PROP
                     />
                   </div>
                   <div className="odontogram-modal-footer">
-                        {/* Status Button FIX */}
+                        {/* FIX 1: Status Button with onClick handler and active class */}
                     <button 
                             type="button" 
                             className={getActiveButtonClass('status')}
@@ -210,7 +227,7 @@ export default function Odontogram({
                         >
                             Status
                         </button>
-                        {/* Condition Button FIX */}
+                        {/* FIX 2: Condition Button with onClick handler and active class */}
                     <button 
                             type="button" 
                             className={getActiveButtonClass('condition')}
@@ -218,7 +235,7 @@ export default function Odontogram({
                         >
                             Condition
                         </button>
-                        {/* Treatment Button FIX */}
+                        {/* FIX 3: Treatment Button with onClick handler and active class */}
                     <button 
                             type="button" 
                             className={getActiveButtonClass('treatment')}
