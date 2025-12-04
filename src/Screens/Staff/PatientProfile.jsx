@@ -233,12 +233,12 @@ export default function PatientProfile() {
       const updatedStates = { ...toothStates };
       if (newState === 'healthy') {
           delete updatedStates[toothId];
+          setTreatTeeth(prev => prev.filter(t => t !== toothId)); 
       } else {
           updatedStates[toothId] = newState;
       }
       setToothStates(updatedStates);
 
-      // Auto-select if missing (so it can be saved to timeline)
       if (newState === 'missing') {
           setTreatTeeth(prev => {
               if (!prev.includes(toothId)) return [...prev, toothId];
@@ -252,6 +252,12 @@ export default function PatientProfile() {
               currentToothState: updatedStates,
               updated: new Date().toISOString().split('T')[0]
           });
+
+          setPatient(prev => ({
+              ...prev,
+              currentToothState: updatedStates
+          }));
+
       } catch (error) {
           console.error("Error updating tooth state:", error);
           alert("Failed to update tooth state.");
@@ -573,18 +579,31 @@ export default function PatientProfile() {
           <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
             {(() => {
               let shadedStatus = {};
-              const permanentState = patient.currentToothState || {};
-              Object.entries(permanentState).forEach(([tooth, status]) => {
-                  // Only show Missing and Treated in the medical record visual
-                  if (status === 'missing' || status === 'treated') {
-                      shadedStatus[tooth] = status;
-                  }
-              });
+              let sectionTitle = "Odontogram (Permanent Record)";
+
+              // ✨ FIX: Context-Aware Odontogram
+              // If a specific past treatment is selected, show details for THAT treatment only.
+              if (selectedTreatment) {
+                  sectionTitle = "Odontogram (Treatment Detail)";
+                  const cond = selectedTreatment.condition || '';
+                  selectedTreatment.teeth.forEach(t => {
+                      shadedStatus[t] = cond;
+                  });
+              } else {
+                  // Default: Show the current permanent state (Global record)
+                  const permanentState = patient.currentToothState || {};
+                  Object.entries(permanentState).forEach(([tooth, status]) => {
+                      if (status === 'missing' || status === 'treated') {
+                          shadedStatus[tooth] = status;
+                      }
+                  });
+              }
+              
               const timelineSelectedTeeth = selectedTreatment?.teeth || [];
               
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 15, background: "#fff", borderRadius: 10, boxShadow: "0 2px 24px #eee", padding: 22, maxWidth: '100%', overflowX: 'auto' }}>
-                  <div style={{ fontWeight: 700, color: '#223245', fontSize: 18 }}> Odontogram (Permanent Record) </div>
+                  <div style={{ fontWeight: 700, color: '#223245', fontSize: 18 }}> {sectionTitle} </div>
                   <Odontogram selectedTeeth={timelineSelectedTeeth} selectable={false} toothStates={shadedStatus} currentTool={'none'} onSelectionChange={()=>{}} />
                   
                   {form.isModelOpen && (
