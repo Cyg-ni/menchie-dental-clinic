@@ -64,6 +64,21 @@
   flex-direction: column;
 }
 
+.profile-detail {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 14px;
+  color: #555;
+  line-height: 1.5;
+}
+
+.profile-detail b {
+  font-weight: 600;
+  color: #333;
+  min-width: 110px;
+}
+
 .section-title {
   font-weight: 700;
   color: #333333;

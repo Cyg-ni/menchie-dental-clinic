@@ -442,7 +442,7 @@ const ScheduleDashboard = () => {
     { label: "Teeth Whitening", key: "Teeth Whitening (Cosmetic)", color: "#FFA64D", kind: "exams" },
     { label: "Dental Implants", key: "Dental Implants Consultation", color: "#77D2FF", kind: "consultations" },
     { label: "Emergency Visit", key: "Emergency Visit (Pain/Injury)", color: "#FF6B6B", kind: "surgeries" },
-    { label: "Orthodontics Consult", key: "Orthodontics Consultation", color: "#FFC3A0", kind: "exams" },
+    { label: "Orthodontics Consult", key: "Orthodontics Consultation", color: "#A78BFA", kind: "exams" },
     { label: "Other / Not Sure", key: "Other / Not Sure", color: "#D3D3D3", kind: "consultations" },
   ];
   
@@ -465,8 +465,8 @@ const ScheduleDashboard = () => {
   const startOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
   const startWeekDay = startOfMonth.getDay();
 
-  // FIX: Appointment Map uses SERVICE_COLOR_MAP
-  const appointmentMap = useMemo(() => {
+  // Updated: Appointment Map tracks all unique service types for each day
+  const appointmentColorMap = useMemo(() => {
     const map = {};
     
     const appointmentsByDay = {};
@@ -490,18 +490,20 @@ const ScheduleDashboard = () => {
     Object.keys(appointmentsByDay).forEach(day => {
         const dayAppts = appointmentsByDay[day];
         
-        dayAppts.sort((a, b) => {
-            if ((a.scheduledTime || '00:00') < (b.scheduledTime || '00:00')) return -1;
-            if ((a.scheduledTime || '00:00') > (b.scheduledTime || '00:00')) return 1;
-            return 0;
+        // Get unique service types for this day
+        const uniqueServices = [...new Set(dayAppts.map(a => a.serviceType || 'Other / Not Sure'))];
+        
+        // Get colors for each unique service
+        const serviceColors = uniqueServices.map(service => {
+            const category = serviceCategories.find(cat => cat.key === service);
+            return category ? category.color : '#D3D3D3';
         });
-
-        const earliestService = dayAppts[0].serviceType || 'Other / Not Sure';
-        map[day] = SERVICE_COLOR_MAP[earliestService] || 'rep-blue'; 
+        
+        map[day] = serviceColors;
     });
     
     return map;
-  }, [scheduledAppointments, viewDate]);
+  }, [scheduledAppointments, viewDate, serviceCategories]);
 
 
   const weeks = [];
@@ -624,18 +626,30 @@ const ScheduleDashboard = () => {
                     if (!cell.inMonth) classes.push("dim");
                     
                     const dayNumber = cell.date.getDate();
-                    
-                    // FIX: Use the calculated appointmentMap color class
-                    if (cell.inMonth && appointmentMap[dayNumber]) classes.push(appointmentMap[dayNumber]);
-                    
                     const cellDateStr = formatDate(cell.date);
                     
                     if (cellDateStr === todayISO) classes.push('today'); 
                     if (cellDateStr === selectedDate) classes.push('selected-day');
 
+                    // Get colors for this day
+                    const dayColors = cell.inMonth && appointmentColorMap[dayNumber] ? appointmentColorMap[dayNumber] : [];
+                    
+                    // Create gradient background if multiple colors
+                    let dayStyle = {};
+                    if (dayColors.length > 0) {
+                      if (dayColors.length === 1) {
+                        dayStyle.background = dayColors[0] + '40'; // Add transparency
+                      } else {
+                        // Create a repeating linear gradient for multiple colors
+                        const gradientColors = dayColors.map((color, idx) => `${color}60 ${(idx / dayColors.length) * 100}%, ${color}60 ${((idx + 1) / dayColors.length) * 100}%`).join(', ');
+                        dayStyle.background = `linear-gradient(45deg, ${gradientColors})`;
+                      }
+                    }
+
                     return (
                       <div 
                         className={classes.join(" ")} 
+                        style={dayStyle}
                         key={`${wi}-${di}`}
                         onClick={() => {
                           if (cell.inMonth) {

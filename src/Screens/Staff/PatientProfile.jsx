@@ -437,11 +437,11 @@ export default function PatientProfile() {
                   { t.teeth.length === 1 ? 'Tooth' : 'Teeth' }
                 </span>
               </div>
-              <div style={{flex:1}}>
-                <div style={{ display:'flex', gap:32, marginBottom:4 }}>
-                  <span><b>Date:</b> {t.date}</span>
-                  <span><b>Condition:</b> {t.condition}</span>
-                  <span><b>Treatment:</b> {t.procedure}</span>
+              <div style={{flex:1, color: '#333'}}>
+                <div style={{ display:'flex', gap:32, marginBottom:4, color: '#555' }}>
+                  <span><b style={{color: '#333'}}>Date:</b> {t.date}</span>
+                  <span><b style={{color: '#333'}}>Condition:</b> {t.condition}</span>
+                  <span><b style={{color: '#333'}}>Treatment:</b> {t.procedure}</span>
                   
                   <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <b>Status:</b> 
@@ -490,7 +490,7 @@ export default function PatientProfile() {
                     </button>
                   </span>
                 </div>
-                <div style={{fontSize:14, margin: '8px 0'}}>{t.notes}</div>
+                <div style={{fontSize:14, margin: '8px 0', color: '#555'}}>{t.notes}</div>
               </div>
             </div>
           );
@@ -524,7 +524,7 @@ export default function PatientProfile() {
         <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
           <button onClick={() => navigate("/patient-list")} className="btn-secondary" style={{ marginRight: 36 }}>⟵ Back to List</button>
           {patient.image ? ( <img src={patient.image} alt="profile" style={{ width: 76, height: 76, borderRadius: 50, border: '2px solid #ebebeb', objectFit: 'cover' }}/> ) : imagePlaceholder}
-          <div> <h2 style={{ margin: 0 }}>{patient.name || 'N/A'}</h2> <div style={{ color: '#555', marginTop: 4 }}>{patient.contactInfo || patient.phone_num}</div> </div>
+          <div> <h2 style={{ margin: 0, color: '#333' }}>{patient.name || 'N/A'}</h2> <div style={{ color: '#555', marginTop: 4 }}>{patient.contactInfo || patient.phone_num}</div> </div>
           <div style={{ flex: 1 }} />
         </div>
         <div style={{ display: "flex", gap: 20, marginTop: 36, borderBottom: '2px solid #eee' }}>
@@ -542,7 +542,7 @@ export default function PatientProfile() {
                   Odontogram (Select Teeth to Treat)
               </div>
               <div style={{ marginBottom: 15, display: 'flex', gap: 10, fontSize: 13, justifyContent: 'space-around' }}>
-                  <button type="button" onClick={() => setCurrentTool('missing')} style={{ background: currentTool === 'missing' ? '#e3f2fd' : '#fff', border: currentTool === 'missing' ? '1px solid #2452a2' : '1px solid #ddd', padding: '5px 10px', borderRadius: 5, cursor: 'pointer', fontWeight: 600 }}> Mark Missing </button>
+                  <button type="button" onClick={() => setCurrentTool('missing')} style={{ background: currentTool === 'missing' ? '#e3f2fd' : '#fff', border: currentTool === 'missing' ? '1px solid #2452a2' : '1px solid #ddd', padding: '5px 10px', borderRadius: 5, cursor: 'pointer', fontWeight: 600, color: '#333' }}> Mark Missing </button>
                   <button type="button" onClick={() => setCurrentTool('treat')} style={{ background: currentTool === 'treat' ? '#2452a2' : '#f0f0f0', border: '1px solid #ddd', padding: '5px 10px', borderRadius: 5, cursor: 'pointer', color: currentTool === 'treat' ? 'white' : '#333', fontWeight: 600 }}> Select for Treatment </button>
               </div>
               <Odontogram selectedTeeth={treatTeeth} onSelectionChange={setTreatTeeth} toothStates={toothStates} onStateChange={handlePermanentToothStateChange} currentTool={currentTool} selectable={currentTool === 'treat'} />
@@ -550,23 +550,23 @@ export default function PatientProfile() {
             
             <form style={{ flex: 1, background: '#f8f9fa', borderRadius: 8, minHeight: 280, padding: 20 }} onSubmit={handleTreatmentSubmit}>
               <div className="form-group">
-                <label htmlFor="condition">Condition <span style={{color:'#d54', fontWeight:600}}>*</span></label>
+                <label htmlFor="condition" style={{color: '#333'}}>Condition <span style={{color:'#d54', fontWeight:600}}>*</span></label>
                 <select id="condition" name="condition" value={form.condition} onChange={handleFormChange} onFocus={() => setCurrentTool('treat')} required >
                     <option value="">Select a condition</option> <option value="tooth decay">Tooth Decay</option> <option value="tooth cavity">Tooth Cavity</option> <option value="stained teeth">Stained Teeth</option>
                 </select>
               </div>
               <div className="form-group">
-                <label htmlFor="procedure">Treatment <span style={{color:'#d54', fontWeight:600}}>*</span></label>
+                <label htmlFor="procedure" style={{color: '#333'}}>Treatment <span style={{color:'#d54', fontWeight:600}}>*</span></label>
                 <select id="procedure" name="procedure" value={form.procedure} onChange={handleFormChange} onFocus={() => setCurrentTool('treat')} required >
                     <option value="">Select Treatment</option> <option value="tooth cleaning">Tooth Cleaning</option> <option value="tooth removal">Tooth Removal</option> <option value="teeth whitening">Teeth Whitening</option>
                 </select>
               </div>
               <div className="form-group">
-                <label htmlFor="notes">Treatment Notes</label>
+                <label htmlFor="notes" style={{color: '#333'}}>Treatment Notes</label>
                 <textarea id="notes" name="notes" value={form.notes} onChange={handleFormChange} onFocus={() => setCurrentTool('treat')} style={{ minHeight: 56 }} />  
               </div>
               <div className="form-group checkbox-group">
-                <label className="checkbox-label"> <input type="checkbox" name="done" checked={form.done} onChange={handleFormChange} /> Treatment Done </label>
+                <label className="checkbox-label" style={{color: '#333'}}> <input type="checkbox" name="done" checked={form.done} onChange={handleFormChange} /> Treatment Done </label>
               </div>
               {submitMsg && <div style={{fontWeight:600, color: submitMsg.includes('Fill') ? '#c23c33':'#21965a', marginTop:7}}>{submitMsg}</div>}
               <div className="form-actions" style={{marginTop:16}}> <button type="submit" className="btn-primary" disabled={currentTool !== 'treat'}>Save Treatment Note</button> </div>
@@ -636,12 +636,12 @@ export default function PatientProfile() {
         {tab === "info" && (
           <div style={{ marginTop: 30, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
             <div style={{ background: '#fff', borderRadius: 8, padding: 32, boxShadow: '0 2px 24px #f1f1f1' }}>
-              <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 16, borderBottom: '1px solid #eee', paddingBottom: 10 }}>General Information</div>
-              <div style={{ display: 'grid', gap: 12 }}> <div><b>Name:</b> {patient.name || 'N/A'}</div> <div><b>Contact Number:</b> {patient.phone_num || <span style={{color:'#888'}}>N/A</span>}</div> <div><b>Email/Contact Info:</b> {patient.contactInfo || <span style={{color:'#888'}}>N/A</span>}</div> <div><b>Address:</b> {patient.address || <span style={{color:'#888'}}>N/A</span>}</div> <div><b>Gender:</b> {patient.gender || <span style={{color:'#888'}}>N/A</span>}</div> <div><b>Age:</b> {patient.age || <span style={{color:'#888'}}>N/A</span>}</div> <div><b>Marital Status:</b> {patient.status || <span style={{color:'#888'}}>N/A</span>}</div> <div><b>Occupation:</b> {patient.occupation || <span style={{color:'#888'}}>N/A</span>}</div> <div><b>Send Confirmation:</b> {patient.sendConfirmation ? "Yes" : "No"}</div> <div><b>Last Updated:</b> {patient.updated || 'N/A'}</div> </div>
+              <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 16, borderBottom: '1px solid #eee', paddingBottom: 10, color: '#333' }}>General Information</div>
+              <div style={{ display: 'grid', gap: 12, color: '#555' }}> <div><b style={{color: '#333'}}>Name:</b> {patient.name || 'N/A'}</div> <div><b style={{color: '#333'}}>Contact Number:</b> {patient.phone_num || <span style={{color:'#888'}}>N/A</span>}</div> <div><b style={{color: '#333'}}>Email/Contact Info:</b> {patient.contactInfo || <span style={{color:'#888'}}>N/A</span>}</div> <div><b style={{color: '#333'}}>Address:</b> {patient.address || <span style={{color:'#888'}}>N/A</span>}</div> <div><b style={{color: '#333'}}>Gender:</b> {patient.gender || <span style={{color:'#888'}}>N/A</span>}</div> <div><b style={{color: '#333'}}>Age:</b> {patient.age || <span style={{color:'#888'}}>N/A</span>}</div> <div><b style={{color: '#333'}}>Marital Status:</b> {patient.status || <span style={{color:'#888'}}>N/A</span>}</div> <div><b style={{color: '#333'}}>Occupation:</b> {patient.occupation || <span style={{color:'#888'}}>N/A</span>}</div> <div><b style={{color: '#333'}}>Send Confirmation:</b> {patient.sendConfirmation ? "Yes" : "No"}</div> <div><b style={{color: '#333'}}>Last Updated:</b> {patient.updated || 'N/A'}</div> </div>
             </div>
             <div style={{ background: '#fff', borderRadius: 8, padding: 32, boxShadow: '0 2px 24px #f1f1f1' }}>
-              <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 16, borderBottom: '1px solid #eee', paddingBottom: 10 }}>Medical Details</div>
-              <div style={{ display: 'grid', gap: 12 }}> <div> <b>Allergies:</b> { (patient.medicalHistory?.Allergies && patient.medicalHistory.Allergies.length > 0) ? <span style={{color: '#d9534f', fontWeight: 600}}>{patient.medicalHistory.Allergies.join(', ')}</span> : <span style={{color:'#888'}}>None</span> } </div> <div> <b>Condition Notes:</b> {patient.medicalHistory?.conditionNotes || <span style={{color:'#888'}}>N/A</span>} </div> <div> <b>Current Meds:</b> { (patient.medicalHistory?.currentMedications && patient.medicalHistory.currentMedications.length > 0) ? patient.medicalHistory.currentMedications.join(', ') : <span style={{color:'#888'}}>N/A</span> } </div> <div> <b>Is Pregnant:</b> {patient.isPregnant ? <span style={{color: '#d9534f', fontWeight: 600}}>Yes</span> : "No"} </div> <div> <b>Smoker:</b> {patient.smokingStatus ? <span style={{color: '#d9534f', fontWeight: 600}}>Yes</span> : "No"} </div> </div>
+              <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 16, borderBottom: '1px solid #eee', paddingBottom: 10, color: '#333' }}>Medical Details</div>
+              <div style={{ display: 'grid', gap: 12, color: '#555' }}> <div> <b style={{color: '#333'}}>Allergies:</b> { (patient.medicalHistory?.Allergies && patient.medicalHistory.Allergies.length > 0) ? <span style={{color: '#d9534f', fontWeight: 600}}>{patient.medicalHistory.Allergies.join(', ')}</span> : <span style={{color:'#888'}}>None</span> } </div> <div> <b style={{color: '#333'}}>Condition Notes:</b> {patient.medicalHistory?.conditionNotes || <span style={{color:'#888'}}>N/A</span>} </div> <div> <b style={{color: '#333'}}>Current Meds:</b> { (patient.medicalHistory?.currentMedications && patient.medicalHistory.currentMedications.length > 0) ? patient.medicalHistory.currentMedications.join(', ') : <span style={{color:'#888'}}>N/A</span> } </div> <div> <b style={{color: '#333'}}>Is Pregnant:</b> {patient.isPregnant ? <span style={{color: '#d9534f', fontWeight: 600}}>Yes</span> : "No"} </div> <div> <b style={{color: '#333'}}>Smoker:</b> {patient.smokingStatus ? <span style={{color: '#d9534f', fontWeight: 600}}>Yes</span> : "No"} </div> </div>
             </div>
           </div>
         )}

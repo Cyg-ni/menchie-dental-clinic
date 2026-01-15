@@ -166,6 +166,13 @@
     transform: translateZ(5px);
 }
 
+/* Treatment: Tooth Selected for Treatment */
+.treatment-selected {
+    background-color: rgba(36, 82, 162, 0.3);
+    border: 2px solid #2452a2;
+    transform: translateZ(3px);
+}
+
 /* Treatment: Tooth Removal (Missing tooth, permanently applied) */
 .tooth-square.tooth-missing {
     /* Override the base tooth-square style for missing teeth */

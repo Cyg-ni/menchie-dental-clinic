@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
+﻿import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { db } from "../../firebase"; 
 import { collection, getDocs, query, where, doc, getDoc, orderBy, limit } from 'firebase/firestore'; 
@@ -512,13 +512,7 @@ const MainDashboard = () => {
 
           <div className="card hero">
             <div className="section-title">
-              <span className="muted">Good Morning,</span> Juana
-            </div>
-            <div className="hero-cards">
-              <div className="hero-card">
-                <Placeholder />
-                <button className="link">Edit Clinic Information</button>
-              </div>
+              <span className="muted">Good Morning,</span> <span style={{color: '#A78BFA'}}>Juana</span>
               <div className="hero-card">
                 <Placeholder />
                 <button className="link" onClick={() => setShowAddingPatient(true)}>
@@ -579,18 +573,13 @@ const MainDashboard = () => {
                 </div>
               )}
             </div>
-            <div className="card-footer-right">
-              <button className="btn ghost" onClick={() => navigate("/schedule")}>
-                More
-              </button>
-            </div>
-          </div>
+          </div>
 
-          {/* --- TOP TREATMENTS CARD --- */}
-          <div className="card treatments">
-            <div className="card-title with-icon">
-              <span>Top Services</span>
-            </div>
+          {/* --- TOP TREATMENTS CARD --- */}
+          <div className="card treatments">
+            <div className="card-title with-icon">
+              <span>Top Services</span>
+            </div>
             {loading && <div style={{padding: '10px', textAlign: 'center', color: '#888'}}>Loading services...</div>}
             
             {!loading && topServices.length === 0 && (
@@ -600,35 +589,37 @@ const MainDashboard = () => {
             {!loading && topServices.length > 0 && (
                 topServices.map(service => (
                     // Label shows the service name and the count (e.g., "Consultation (15)")
-                    <StatPill key={service.serviceName} label={`${service.serviceName} (${service.count})`} />
-                ))
+                    <StatPill key={service.serviceName} label={`${service.serviceName} (${service.count})`} />
+                ))
             )}
-          </div>
+          </div>
 
-          {/* --- TOTAL PATIENTS CARD --- */}
-          <div className="card totals">
-            <div className="card-title with-icon">
-              <span>Total Patients</span>
-            </div>
-            <div className="totals-content">
-              <div className="muted">This month</div>
+          {/* --- TOTAL PATIENTS CARD --- */}
+          <div className="card totals">
+            <div className="card-title with-icon">
+              <span>Total Patients</span>
+            </div>
+            <div className="totals-content">
+              <div>
+                <div className="muted">This month</div>
                 {loading ? (
                     <div className="big-num" style={{fontSize: '24px'}}>...</div>
                 ) : (
                     <div className="big-num">{patientCounts.month}</div>
                 )}
-              
-              <div className="muted">This year</div>
+              </div>
+              
+              <div>
+                <div className="muted">This year</div>
                 {loading ? (
                     <div className="big-num" style={{fontSize: '24px'}}>...</div>
                 ) : (
                     <div className="big-num">{patientCounts.year}</div>
                 )}
-            </div>
-          </div>
+              </div>            </div>
+          </div>
 
-        </section>
-
+        </section>
         {/* --- MODALS --- */}
         {showAppointmentsModal && (
           <AppointmentsModal 
