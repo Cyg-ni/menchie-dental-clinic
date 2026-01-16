@@ -62,7 +62,7 @@ const SERVICE_COLOR_MAP = {
     'Dental Implants Consultation': 'rep-blue',
     'Emergency Visit (Pain/Injury)': 'rep-red',
     'Orthodontics Consultation': 'rep-orange',
-    'Other / Not Sure': 'rep-gray', 
+    'Other / Not Sure': 'rep-maroon', 
 };
 
 
@@ -443,7 +443,7 @@ const ScheduleDashboard = () => {
     { label: "Dental Implants", key: "Dental Implants Consultation", color: "#77D2FF", kind: "consultations" },
     { label: "Emergency Visit", key: "Emergency Visit (Pain/Injury)", color: "#FF6B6B", kind: "surgeries" },
     { label: "Orthodontics Consult", key: "Orthodontics Consultation", color: "#A78BFA", kind: "exams" },
-    { label: "Other / Not Sure", key: "Other / Not Sure", color: "#D3D3D3", kind: "consultations" },
+    { label: "Other / Not Sure", key: "Other / Not Sure", color: "#800000", kind: "consultations" },
   ];
   
   const dailyAppointmentCounts = useMemo(() => {

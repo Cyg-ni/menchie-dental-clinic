@@ -7,6 +7,7 @@ import "./MainDashboard.css";
 import "./Layout.css";
 import AppointmentsModal from "./AppointmentsModal.jsx";
 import AddingPatientModal from "./AddingPatientModal.jsx";
+import logoImage from "./Images/logo.webp";
 
 // Define collection references
 const appointmentsCollectionRef = collection(db, "appointments");
@@ -437,7 +438,7 @@ const MainDashboard = () => {
         </button>
 
         <div className="brand-left">
-          <div className="brand-logo" />
+          <img src={logoImage} alt="Menchie's Dental Clinic Logo" className="brand-logo" />
           <div className="brand-name">Menchie's Dental Clinic</div>
         </div>
 
@@ -512,7 +513,7 @@ const MainDashboard = () => {
 
           <div className="card hero">
             <div className="section-title">
-              <span className="muted">Good Morning,</span> <span style={{color: '#A78BFA'}}>Juana</span>
+              <span style={{fontSize: '26px'}}className="muted">Good Morning,</span> <span style={{fontSize: '26px',color: '#A78BFA'}}>Juana</span>
               <div className="hero-card">
                 <Placeholder />
                 <button className="link" onClick={() => setShowAddingPatient(true)}>

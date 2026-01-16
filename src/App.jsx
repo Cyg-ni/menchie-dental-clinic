@@ -1,10 +1,12 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Login from "./Screens/Staff/Login.jsx";
+import SuperAdminLogin from "./Screens/Staff/SuperAdminLogin.jsx";
 import MainDashboard from "./Screens/Staff/MainDashboard.jsx";
 import ScheduleDashboard from "./Screens/Staff/ScheduleDashboard.jsx";
 import PatientList from "./Screens/Staff/PatientList.jsx";
 import PatientProfile from "./Screens/Staff/PatientProfile.jsx";
 import Settings from "./Screens/Staff/Settings.jsx";
+import SuperAdminDashboard from "./Screens/Staff/SuperAdminDashboard.jsx";
 
 
 function App() {
@@ -12,6 +14,7 @@ function App() {
     <Router>
       <Routes>
         <Route path="/" element={<Login />} />
+        <Route path="/super-admin-login" element={<SuperAdminLogin />} />
         <Route path="/dashboard" element={<MainDashboard />} />
         <Route path="/schedule" element={<ScheduleDashboard />} />
         
@@ -28,6 +31,9 @@ function App() {
         <Route path="/patient-profile/:id/odontogram" element={<PatientProfile />} />
         
         <Route path="/settings" element={<Settings />} />
+        
+        {/* Super Admin Dashboard - Account Management */}
+        <Route path="/super-admin" element={<SuperAdminDashboard />} />
         
       </Routes>
     </Router>

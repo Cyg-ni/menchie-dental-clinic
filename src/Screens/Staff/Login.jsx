@@ -1,15 +1,8 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Login.css"
+import logoImage from "./Images/logo.webp";
 
-const PlaceholderIcon = ({ className }) => (
-  <div className={`placeholder-icon-container ${className || ''}`}>
-    <svg width="55%" height="55%" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-      <path d="M10 90 L40 50 L60 70 L95 90 Z" fill="#bbbbbb" />
-      <circle cx="75" cy="35" r="12" fill="#bbbbbb" />
-    </svg>
-  </div>
-);
 
 const Login = () => {
     const navigate = useNavigate();
@@ -31,7 +24,7 @@ const Login = () => {
         <div className="login-container">
             <div className="login-card">
                 <header className="header">
-                  <PlaceholderIcon className="logo" />  
+                  <img src={logoImage} className="logo" alt="Menchie's Dental Clinic Logo" />  
                   <h1 className="title">Menchie's Dental Clinic</h1>
                   <h1 className="subtitle">Login</h1>
                 </header>
@@ -69,20 +62,16 @@ const Login = () => {
                     </a>
                 </div>
 
-                <section className="alt-logins-container">
-                    <div className="alt-login-option">
-                        <PlaceholderIcon className="alt-login-icon"/>
-                        <span className="alt-login-text">Google Login</span>
-                    </div>
-                    <div className="alt-login-option">
-                        <PlaceholderIcon className="alt-login-icon"/>
-                        <span className="alt-login-text">Email Login</span>
-                    </div>
-                    <div className="alt-login-option">
-                        <PlaceholderIcon className="alt-login-icon"/>
-                        <span className="alt-login-text">SMS Login</span>
-                    </div>
-                </section>
+                <div className="admin-login-section">
+                    <p className="admin-text">Are you a Super Admin?</p>
+                    <button 
+                      type="button" 
+                      className="admin-login-button"
+                      onClick={() => navigate("/super-admin-login")}
+                    >
+                        Super Admin Login
+                    </button>
+                </div>
             </div>
         </div>
     );

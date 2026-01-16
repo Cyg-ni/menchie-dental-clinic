@@ -132,34 +132,44 @@ body, html {
   text-decoration: underline;
 }
 
-.alt-logins-container {
-  display: flex;
-  justify-content: space-between;
-  width: 100%;
-  margin-top: 16px;
-}
-
-.alt-login-option {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-}
-
-.alt-login-text {
-  font-size: 12px;
-  color: #666666;
-}
-
-.placeholder-icon-container {
+.logo {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #f0f0f0;
+  background-color: #ffffff;
+}
+.admin-login-section {
+  width: 100%;
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid #dcdcdc;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
 }
 
-.alt-login-icon {
-  width: 80px;
-  height: 80px;
+.admin-text {
+  font-size: 12px;
+  color: #666666;
+  margin: 0;
+  font-weight: 500;
+}
+
+.admin-login-button {
+  width: 100%;
+  padding: 10px;
+  background-color: #2a5a6f;
+  color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  font-family: "Exo 2", sans-serif;
+}
+
+.admin-login-button:hover {
+  background-color: #1a3a4f;
 }

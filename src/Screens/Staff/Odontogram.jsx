@@ -22,7 +22,7 @@ const STATE_CLASSES = {
  * based on the permanent state (condition) or the selected tool (treatment/issue marking).
  * (This function is identical to the previous version but included for completeness.)
  */
-const getToothInnerContent = (state, isSelectedForTreatment) => {
+const getToothInnerContent = (state, isSelectedForTreatment, viewMode = null) => {
     // 1. Base Layer (The tooth itself)
     const baseVisual = <div className="tooth-base-shape"></div>;
 
@@ -35,6 +35,13 @@ const getToothInnerContent = (state, isSelectedForTreatment) => {
         conditionVisual = <div className="condition-layer condition-decay" />;
     } else if (normalizedState === 'cavity' || normalizedState === 'toothcavity') {
         conditionVisual = <div className="condition-layer condition-cavity" />;
+        // Add cavity line for cavity state
+        conditionVisual = (
+            <>
+                <div className="condition-layer condition-cavity" />
+                <div className="cavity-line" />
+            </>
+        );
     } else if (normalizedState === 'stained' || normalizedState === 'stainedteeth') {
         conditionVisual = <div className="condition-layer condition-stained" />;
     } else if (normalizedState === 'missing') {
@@ -66,7 +73,7 @@ const getToothInnerContent = (state, isSelectedForTreatment) => {
 };
 
 
-function renderHalfRow(teeth, selectedTeeth, onTreatmentSelect, toothStates, onStateChange, currentTool, maxLen = 8) {
+function renderHalfRow(teeth, selectedTeeth, onTreatmentSelect, toothStates, onStateChange, currentTool, maxLen = 8, viewMode = null) {
   
   const handleToothAction = (toothId) => {
     // Determine the permanent state
@@ -135,7 +142,7 @@ function renderHalfRow(teeth, selectedTeeth, onTreatmentSelect, toothStates, onS
               data-selected={isSelectedForTreatment}
             >
               {/* NEW: Inject the 3D layered content */}
-              {getToothInnerContent(permanentState, isSelectedForTreatment)}
+              {getToothInnerContent(permanentState, isSelectedForTreatment, viewMode)}
             </button>
             <div className="tooth-label">{num}</div>
           </div>
@@ -184,16 +191,16 @@ export default function Odontogram({
           
           {/* Upper Arch */}
           <div style={{ display: 'flex', justifyContent: 'center' }}>
-            {renderHalfRow(upperPermanentLeft, selectedTeeth, handleTreatmentSelect, toothStates, onStateChange, currentTool, maxLenL)}
+            {renderHalfRow(upperPermanentLeft, selectedTeeth, handleTreatmentSelect, toothStates, onStateChange, currentTool, maxLenL, isModelOpen ? modalViewMode : null)}
             <div style={{ width: 20 }} /> {/* Center gap */}
-            {renderHalfRow(upperPermanentRight, selectedTeeth, handleTreatmentSelect, toothStates, onStateChange, currentTool, maxLenL)} 
+            {renderHalfRow(upperPermanentRight, selectedTeeth, handleTreatmentSelect, toothStates, onStateChange, currentTool, maxLenL, isModelOpen ? modalViewMode : null)} 
           </div>
           
           {/* Lower Arch */}
           <div style={{ display: 'flex', justifyContent: 'center', marginTop: '20px' }}>
-            {renderHalfRow(lowerPermanentLeft, selectedTeeth, handleTreatmentSelect, toothStates, onStateChange, currentTool, maxLenL)}
+            {renderHalfRow(lowerPermanentLeft, selectedTeeth, handleTreatmentSelect, toothStates, onStateChange, currentTool, maxLenL, isModelOpen ? modalViewMode : null)}
             <div style={{ width: 20 }} /> {/* Center gap */}
-            {renderHalfRow(lowerPermanentRight, selectedTeeth, handleTreatmentSelect, toothStates, onStateChange, currentTool, maxLenL)}
+            {renderHalfRow(lowerPermanentRight, selectedTeeth, handleTreatmentSelect, toothStates, onStateChange, currentTool, maxLenL, isModelOpen ? modalViewMode : null)}
           </div>
           
           <button

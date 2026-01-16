@@ -111,7 +111,14 @@ export default function PatientProfile() {
   // Odontogram / Treatment States
   const [treatTeeth, setTreatTeeth] = useState([]);
   const [currentTool, setCurrentTool] = useState('treat'); 
-  const [toothStates, setToothStates] = useState({}); 
+  const [toothStates, setToothStates] = useState({
+    // Add test cavity teeth for demonstration
+    22: 'cavity',
+    23: 'cavity',
+    24: 'cavity',
+    25: 'cavity',
+    26: 'cavity'
+  }); 
 
   const [form, setForm] = useState({
     condition: '',
@@ -624,7 +631,7 @@ export default function PatientProfile() {
               );
             })()}
             <div style={{ flex: 1, background: '#f7f7f7', borderRadius: 8, minHeight: 280, padding: 20 }}>
-              <div style={{ fontWeight: 600, fontSize: 18, marginBottom: 18 }}>Treatment Record Timeline</div>
+              <div style={{ fontWeight: 600, fontSize: 18, marginBottom: 18, color: '#333' }}>Treatment Record Timeline</div>
               {selectedTreatment && ( <button onClick={() => setSelectedTreatment(null)} style={{ background: '#f0f0f0', border: '1px solid #ddd', padding: '8px 12px', borderRadius: 4, cursor: 'pointer', marginBottom: 12, fontSize: 14, fontWeight: 500, color: '#333' }}> ✕ Clear Selection </button> )}
               <RenderTreatmentsTimeline />
             </div>

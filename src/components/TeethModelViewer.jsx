@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
@@ -12,6 +12,8 @@ const REMOVAL_DURATION = 10.0;
 const REMOVAL_DISTANCE = 20; 
 // NEW CONSTANT: Duration for the one-way whitening animation
 const WHITENING_DURATION = 5.0; // 5 seconds to go from stained to white
+// NEW CONSTANT: Duration for cavity cleaning animation
+const CAVITY_CLEAN_DURATION = 4.0; // 4 seconds to clean the cavity
 
 // --- Easing Function for Slow Start (Ease-In Cubic - Unchanged) ---
 const easeCubicIn = (t) => t * t * t;
@@ -36,36 +38,35 @@ const getOngoingTreatmentForTooth = (toothNum) => {
 };
 
 export default function TeethModelViewer({ 
-  className = "", 
-  selectedTeeth = [],
-  toothStates = { '11': 'missing' }, 
-  viewMode = 'status' 
+  className = "", 
+  selectedTeeth = [],
+  toothStates = { '11': 'missing' }, 
+  viewMode = 'status' 
 }) {
-  const mountRef = React.useRef(null);
-  const [status, setStatus] = React.useState("loading");
-  const toothMeshMapRef = React.useRef({}); 
-  const sceneRef = React.useRef(null);
-  const clockRef = React.useRef(new THREE.Clock()); 
+  const mountRef = React.useRef(null);
+  const [status, setStatus] = React.useState("loading");
+  const toothMeshMapRef = React.useRef({}); 
+  const sceneRef = React.useRef(null);
+  const clockRef = React.useRef(new THREE.Clock()); 
 
-  // --- COLORS (Unchanged) ---
-  const COLOR_DEFAULT = new THREE.Color(0xffffff);
-  const COLOR_SELECTED_TREAT = new THREE.Color(0x2452a2); 
-  const COLOR_TREATED = new THREE.Color(0x89c994);
-  const COLOR_ISSUE = new THREE.Color(0xd23c3c);
-  const COLOR_DECAY = new THREE.Color(0x6b0000);
-  const COLOR_CAVITY = new THREE.Color(0x200000);
-  const COLOR_STAINED_BASE = new THREE.Color(0xa89000);
-  const COLOR_WHITENING_TARGET = new THREE.Color(0xf0ffff);
-  const COLOR_DIM = new THREE.Color(0x444444); 
-  
-  // --- ANIMATION TRACKING ---
-  const pulsingMeshesRef = React.useRef([]);
-  const whiteningMeshesRef = React.useRef([]);
-  const toothRemovalMeshesRef = React.useRef([]); 
+  // --- COLORS (Unchanged) ---
+  const COLOR_DEFAULT = new THREE.Color(0xffffff);
+  const COLOR_SELECTED_TREAT = new THREE.Color(0x2452a2); 
+  const COLOR_TREATED = new THREE.Color(0x89c994);
+  const COLOR_ISSUE = new THREE.Color(0xd23c3c);
+  const COLOR_DECAY = new THREE.Color(0x6b0000);
+  const COLOR_CAVITY = new THREE.Color(0xa89080); // Subtle cavity stain - appears at top
+  const COLOR_STAINED_BASE = new THREE.Color(0xa89000);
+  const COLOR_WHITENING_TARGET = new THREE.Color(0xf0ffff);
+  const COLOR_DIM = new THREE.Color(0x444444); 
+  
+  // --- ANIMATION TRACKING ---
+  const pulsingMeshesRef = React.useRef([]);
+  const whiteningMeshesRef = React.useRef([]);
+  const toothRemovalMeshesRef = React.useRef([]); 
+  const cavityCleaningMeshesRef = React.useRef([]);
 
-  // --- INITIALIZATION EFFECT (Model and Scene Setup - Unchanged) ---
-  React.useEffect(() => {
-    // Setup logic for Scene, Camera, Renderer, Controls, Lights, and Asset Loading...
+  React.useEffect(() => {
     const mountNode = mountRef.current;
     if (!mountNode) return undefined;
     let isMounted = true;
@@ -83,9 +84,9 @@ export default function TeethModelViewer({
     scene.add(new THREE.AmbientLight(0xffffff, 0.6));
     scene.add(new THREE.DirectionalLight(0xffffff, 0.8));
 
-    const textureLoader = new THREE.TextureLoader();
-    const objLoader = new OBJLoader();
-    const texture = textureLoader.load(TEETH_TEXTURE_PATH, undefined, undefined, (err) => {
+    const textureLoader = new THREE.TextureLoader();
+    const objLoader = new OBJLoader();
+    const texture = textureLoader.load(TEETH_TEXTURE_PATH, undefined, undefined, (err) => {
         console.warn("Texture load failed. Model will render in solid color.", err);
     });
     const sharedMaterial = new THREE.MeshStandardMaterial({
@@ -94,12 +95,12 @@ export default function TeethModelViewer({
         roughness: 0.5,
         metalness: 0.1,
     });
-    
-    objLoader.load(TEETH_MODEL_PATH, (object) => { 
-        if (!isMounted) return;
-        const toothMeshMap = { all: [] };
-        object.traverse((child) => {
-          if (child.isMesh) {
+    
+    objLoader.load(TEETH_MODEL_PATH, (object) => { 
+        if (!isMounted) return;
+        const toothMeshMap = { all: [] };
+        object.traverse((child) => {
+          if (child.isMesh) {
                 child.material = sharedMaterial.clone(); 
                 child.userData.originalColor = new THREE.Color(0xffffff); 
                 const name = (child.name || "").toLowerCase();
@@ -111,9 +112,9 @@ export default function TeethModelViewer({
                 } else {
                     toothMeshMap.all.push(child); 
                 }
-          }
-        });
-        toothMeshMapRef.current = toothMeshMap;
+          }
+        });
+        toothMeshMapRef.current = toothMeshMap;
         
         // Scaling and Camera Setup
         const box = new THREE.Box3().setFromObject(object);
@@ -129,17 +130,17 @@ export default function TeethModelViewer({
         controls.target.set(0, 0, 0);
         controls.update();
         scene.add(object);
-        setStatus("ready");
-    }, undefined, (err) => {
-        console.error("FATAL ERROR: Failed to load anatomical OBJ model.", err);
-        setStatus("error");
-    });
+        setStatus("ready");
+    }, undefined, (err) => {
+        console.error("FATAL ERROR: Failed to load anatomical OBJ model.", err);
+        setStatus("error");
+    });
 
-    // --- ANIMATION LOOP (Core Update) ---
-    let frameId;
-    const animate = () => {
-        frameId = requestAnimationFrame(animate);
-        controls.update();
+    // --- ANIMATION LOOP (Core Update) ---
+    let frameId;
+    const animate = () => {
+        frameId = requestAnimationFrame(animate);
+        controls.update();
         
         const elapsedTime = clockRef.current.getElapsedTime();
         const sinePulse = (Math.sin(elapsedTime * 3) + 1) / 2; 
@@ -212,9 +213,36 @@ export default function TeethModelViewer({
             );
         }
         
-        renderer.render(scene, camera);
-    };
-    animate();
+        // 4. CAVITY CLEANING ANIMATION (NEW - Gradually fade cavity color)
+        cavityCleaningMeshesRef.current.forEach(mesh => {
+            if (!mesh.userData.cavityCleanStartTime) {
+                mesh.userData.cavityCleanStartTime = elapsedTime;
+            }
+            
+            const startTime = mesh.userData.cavityCleanStartTime;
+            const progress = Math.min(1, (elapsedTime - startTime) / CAVITY_CLEAN_DURATION);
+            
+            const startColor = mesh.userData.cavityCleanStartColor;
+            const endColor = new THREE.Color(0xffffff); // Clean white tooth
+            
+            mesh.material.color.copy(startColor);
+            mesh.material.color.lerp(endColor, progress);
+            
+            if (progress === 1) {
+                mesh.userData.cavityCleanCompleted = true;
+            }
+        });
+        
+        // Cleanup: Remove completed cavity cleaning meshes from the tracking list
+        if (cavityCleaningMeshesRef.current.some(m => m.userData.cavityCleanCompleted)) {
+            cavityCleaningMeshesRef.current = cavityCleaningMeshesRef.current.filter(
+                mesh => !mesh.userData.cavityCleanCompleted
+            );
+        }
+        
+        renderer.render(scene, camera);
+    };
+    animate();
 
     // Cleanup (omitted for brevity)
     const handleResize = () => { /* ... resize logic ... */ };
@@ -227,90 +255,91 @@ export default function TeethModelViewer({
         renderer.dispose();
         if(mountNode) mountNode.innerHTML = '';
     };
-  }, []); 
+  }, []); 
 
-  // --- STATE/COLOR UPDATER EFFECT (Updated Whitening Setup) ---
-  React.useEffect(() => {
-    if (status !== 'ready') return;
-    const map = toothMeshMapRef.current;
+  // --- STATE/COLOR UPDATER EFFECT (Updated Whitening Setup) ---
+  React.useEffect(() => {
+    if (status !== 'ready') return;
+    const map = toothMeshMapRef.current;
     
     // 1. Reset all non-permanent animation flags and lists
     pulsingMeshesRef.current = []; 
-    // Do not clear whiteningMeshesRef.current or toothRemovalMeshesRef.current here 
-    // if the viewMode remains 'treatment', as they may hold active animations.
 
-    const getMeshes = (id) => map[String(id)] || [];
+    const getMeshes = (id) => map[String(id)] || [];
 
-    // Reset All Visuals & clear removal/whitening flags
-    Object.values(map).flat().forEach(mesh => {
-        mesh.visible = true;
-        mesh.position.set(0, 0, 0);
-        mesh.scale.set(1, 1, 1);
-        
-        mesh.material.color.copy(mesh.userData.originalColor || COLOR_DEFAULT);
-        mesh.material.emissive.setHex(0x000000); 
-        mesh.material.emissiveIntensity = 0;
-        
-        mesh.userData.isBeingRemoved = false;
-        // Reset these if the mesh is NOT currently in the tracking list
-        if (!whiteningMeshesRef.current.includes(mesh) && !mesh.userData.removalCompleted) {
-            mesh.userData.isWhitening = false;
-            mesh.userData.whiteningStartTime = undefined;
-            mesh.userData.whiteningCompleted = false;
-        }
-    });
+    // Reset All Visuals & clear removal/whitening flags
+    Object.values(map).flat().forEach(mesh => {
+      mesh.visible = true;
+      mesh.position.set(0, 0, 0);
+      mesh.scale.set(1, 1, 1);
+      
+      mesh.material.color.copy(mesh.userData.originalColor || COLOR_DEFAULT);
+      mesh.material.emissive.setHex(0x000000); 
+      mesh.material.emissiveIntensity = 0;
+      
+      mesh.userData.isBeingRemoved = false;
+      if (!whiteningMeshesRef.current.includes(mesh) && !mesh.userData.removalCompleted && !cavityCleaningMeshesRef.current.includes(mesh)) {
+        mesh.userData.isWhitening = false;
+        mesh.userData.whiteningStartTime = undefined;
+        mesh.userData.whiteningCompleted = false;
+        mesh.userData.isCavityClean = false;
+        mesh.userData.cavityCleanStartTime = undefined;
+        mesh.userData.cavityCleanCompleted = false;
+      }
+    });
 
-    // Helper functions (setVisuals and setupWhitening)
-    const setVisuals = (mesh, color, pulse = false, pulseColor2 = null) => {
-        // Prevent visual overwrite if already mid-whitening or mid-removal
-        if (mesh.userData.isWhitening || mesh.userData.isBeingRemoved || mesh.userData.removalCompleted) return; 
-        
-        mesh.material.color.set(color);
-        mesh.material.emissive.set(color);
-        mesh.material.emissiveIntensity = pulse ? 0.3 : 0.1;
-
-        if (pulse) {
-            mesh.userData.pulseColor1 = color;
-            mesh.userData.pulseColor2 = pulseColor2 || new THREE.Color(color).clone().lerp(new THREE.Color(0xffffff), 0.3);
-            pulsingMeshesRef.current.push(mesh);
-        }
-    };
-    
     const setupWhitening = (mesh) => {
-        // Only initialize if not already tracked or completed
-        if (!whiteningMeshesRef.current.includes(mesh) && !mesh.userData.whiteningCompleted) {
-            mesh.userData.whiteningStartColor = COLOR_STAINED_BASE.clone();
-            mesh.userData.whiteningEndColor = COLOR_WHITENING_TARGET.clone();
-            mesh.userData.isWhitening = true;
-            // Importantly, we don't set start time here, it's set in the animate loop
-            whiteningMeshesRef.current.push(mesh);
-        } else if (mesh.userData.whiteningCompleted) {
-             // If completed, set to final white state immediately
-            mesh.material.color.copy(COLOR_WHITENING_TARGET);
-        }
+      if (!whiteningMeshesRef.current.includes(mesh) && !mesh.userData.whiteningCompleted) {
+        mesh.userData.whiteningStartColor = COLOR_STAINED_BASE.clone();
+        mesh.userData.whiteningEndColor = COLOR_WHITENING_TARGET.clone();
+        mesh.userData.isWhitening = true;
+        whiteningMeshesRef.current.push(mesh);
+      } else if (mesh.userData.whiteningCompleted) {
+        mesh.material.color.copy(COLOR_WHITENING_TARGET);
+      }
+    };
+    
+    const setupCavityCleaning = (mesh) => {
+      if (!cavityCleaningMeshesRef.current.includes(mesh) && !mesh.userData.cavityCleanCompleted) {
+        mesh.userData.cavityCleanStartColor = COLOR_CAVITY.clone();
+        mesh.userData.isCavityClean = true;
+        cavityCleaningMeshesRef.current.push(mesh);
+      } else if (mesh.userData.cavityCleanCompleted) {
+        mesh.material.color.copy(COLOR_DEFAULT);
+      }
     };
 
-    // Collect all relevant tooth IDs
+    const setVisuals = (mesh, color, pulse = false, pulseColor2 = null) => {
+      if (mesh.userData.isWhitening || mesh.userData.isBeingRemoved || mesh.userData.removalCompleted) return; 
+      
+      mesh.material.color.set(color);
+      mesh.material.emissive.set(color);
+      mesh.material.emissiveIntensity = pulse ? 0.3 : 0.1;
+
+      if (pulse) {
+        mesh.userData.pulseColor1 = color;
+        mesh.userData.pulseColor2 = pulseColor2 || new THREE.Color(color).clone().lerp(new THREE.Color(0xffffff), 0.3);
+        pulsingMeshesRef.current.push(mesh);
+      }
+    };
+
     const allToothIds = new Set([
-        ...Object.keys(toothStates),
-        ...Object.keys(getOngoingTreatmentForTooth({})).map(String),
-        ...selectedTeeth.map(String)
+      ...Object.keys(toothStates),
+      ...Object.keys(getOngoingTreatmentForTooth({})).map(String),
+      ...selectedTeeth.map(String)
     ]);
-    
+
     const meshesToAnimateRemoval = [];
 
-    allToothIds.forEach(id => {
-        const toothNum = parseInt(id);
-        const state = (toothStates[id] || '').toLowerCase();
-        const record = getOngoingTreatmentForTooth(toothNum);
-        const meshes = getMeshes(id);
-        
-        if (meshes.length === 0) return;
+    allToothIds.forEach(toothNumStr => {
+      const toothNum = parseInt(toothNumStr);
+      const meshes = getMeshes(toothNum);
+      const state = toothStates[toothNum];
+      const record = getOngoingTreatmentForTooth(toothNum);
 
-        meshes.forEach(mesh => {
-            
-            // --- LOGIC SWITCH (Whitening and Removal logic updated) ---
-            if (viewMode === 'status') {
+      meshes.forEach(mesh => {
+        // --- LOGIC SWITCH (Whitening and Removal logic updated) ---
+        if (viewMode === 'status') {
                 if (state === 'missing') {
                     mesh.visible = false;
                 } else if (selectedTeeth.includes(toothNum)) {
@@ -349,6 +378,9 @@ export default function TeethModelViewer({
                     }
                 } else if (treatment.includes('whitening')) {
                     setupWhitening(mesh); // Handles checking if already completed/in progress
+                } else if (record.condition && record.condition.toLowerCase().includes('cavity')) {
+                    // Cavity cleaning animation - clean cavity teeth
+                    setupCavityCleaning(mesh);
                 } else if (treatment && treatment !== 'null') {
                     setVisuals(mesh, COLOR_SELECTED_TREAT);
                 } else {
@@ -356,7 +388,7 @@ export default function TeethModelViewer({
                 }
             }
         });
-    });
+    });
     
     // Finalize removal animation tracking
     meshesToAnimateRemoval.forEach(mesh => {
@@ -393,22 +425,31 @@ export default function TeethModelViewer({
         }
     });
 
+    // Clean up cavity cleaning tracking list
+    cavityCleaningMeshesRef.current = cavityCleaningMeshesRef.current.filter(mesh => {
+        const id = mesh.parent.name.match(/(\d{2})/)?.[1];
+        const record = getOngoingTreatmentForTooth(parseInt(id));
+        const condition = (record.condition || '').toLowerCase();
+        
+        if (condition.includes('cavity') || !mesh.userData.cavityCleanCompleted) {
+            return true;
+        } else {
+            // If cavity condition is gone, reset completed state
+            mesh.userData.cavityCleanCompleted = false;
+            return false;
+        }
+    });
 
-  }, [selectedTeeth, toothStates, status, viewMode]);
+  }, [status, toothStates, selectedTeeth, viewMode]);
 
-  return (
-    <div className={`teeth-viewer ${className}`} style={{ width: '100%', height: '100%', position: 'relative' }}>
-      {status === "loading" && (
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', background: 'rgba(0,0,0,0.5)' }}>
-          Loading Anatomical Model...
-        </div>
-      )}
-      {status === "error" && (
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'red', background: 'rgba(0,0,0,0.5)' }}>
-          **ERROR:** Could not load Teeth.obj. Check browser console for network or file errors.
-        </div>
-      )}
-      <div style={{ width: '100%', height: '100%' }} ref={mountRef} />
-    </div>
-  );
+  return (
+      <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+      {status === "error" && (
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'red', background: 'rgba(0,0,0,0.5)' }}>
+          **ERROR:** Could not load Teeth.obj. Check browser console for network or file errors.
+        </div>
+      )}
+      <div style={{ width: '100%', height: '100%' }} ref={mountRef} />
+    </div>
+  );
 }
