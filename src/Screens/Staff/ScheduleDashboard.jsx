@@ -416,18 +416,21 @@ const ScheduleDashboard = () => {
       try {
           const apptRef = doc(db, "appointments", servingPatient.id);
           
+          // We mark the status as Complete. 
+          // Your getAppointmentHistory will now find this because the patientId hasn't changed.
           await updateDoc(apptRef, {
-            'status.isComplete': 'Complete', // Mark as complete
-            updatedAt: Timestamp.fromDate(new Date()),
+            'status.isComplete': 'Complete', 
+            'status.isScheduled': 'Finished', // Optional: updates the scheduling status too
+            'completedAt': Timestamp.fromDate(new Date()), // Precise time treatment ended
+            'updatedAt': Timestamp.fromDate(new Date()),
           });
 
-          console.log(`Patient ${servingPatient.name} marked as complete.`);
+          console.log(`Patient ${servingPatient.name} marked as complete and added to history.`);
       } catch (error) {
           console.error("Error releasing patient:", error);
           alert("Failed to release patient. Check Firebase permissions.");
       }
   };
-
 
   // --- Reports and Calendar Logic ---
   
