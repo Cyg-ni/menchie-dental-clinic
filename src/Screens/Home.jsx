@@ -1,12 +1,9 @@
 // src/Screens/Home.jsx
 
-import React from 'react'; 
-// Ensure you have run: npm install react-router-dom
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom'; 
 
-
 // --- Icon Components ---
-
 const BookOpen = (props) => (
   <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M2 17a5 5 0 0 1 5-5h10a5 5 0 0 1 5 5v3a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z" />
@@ -28,95 +25,172 @@ const Phone = (props) => (
   </svg>
 );
 
+const Mail = (props) => (
+  <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+    <polyline points="22,6 12,13 2,6" />
+  </svg>
+);
 
-// --- Main Component ---
+const MapPin = (props) => (
+  <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+    <circle cx="12" cy="10" r="3" />
+  </svg>
+);
+
 const Home = () => {
-  
-  return (
-    <div className="min-h-screen bg-gray-50 font-inter">
+  const [isHoursOpen, setIsHoursOpen] = useState(false);
+  const [isContactOpen, setIsContactOpen] = useState(false); // Contact State
+  const [currentIndex, setCurrentIndex] = useState(0);
 
-      <section className="bg-white shadow-sm sticky top-0 z-10 border-b border-gray-200">
+  const carouselImages = [
+    "https://images.pexels.com/photos/3779705/pexels-photo-3779705.jpeg?cs=srgb&dl=pexels-olly-3779705.jpg&fm=jpg", 
+    "https://mysierradental.com/wp-content/uploads/2024/09/first-dentist-visit-guide.jpg",
+    "https://img.freepik.com/free-photo/photo-smiling-dentist-standing-with-arms-crossed-with-her-colleague-showing-okay-sign_496169-1043.jpg?semt=ais_hybrid&w=740&q=80",
+    "https://st2.depositphotos.com/1518767/6527/i/450/depositphotos_65279377-stock-photo-smiling-co-workers-in-a.jpg",
+  ];
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentIndex((prev) => (prev === carouselImages.length - 1 ? 0 : prev + 1));
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [carouselImages.length]);
+
+  return (
+    <div className="min-h-screen bg-gray-50 font-inter text-gray-900">
+      
+      {/* Navigation */}
+      <nav className="bg-white shadow-sm sticky top-0 z-10 border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          
           <div className="flex items-center space-x-3 text-gray-800 font-semibold text-xl">
-            <img 
-              src="https://cdn-icons-png.flaticon.com/512/103/103386.png" 
-              alt="Dental Clinic Logo" 
-              className="w-6 h-6" 
-            /> 
+            <img src="https://cdn-icons-png.flaticon.com/512/103/103386.png" alt="Logo" className="w-6 h-6" /> 
             <span>Menchie's Dental Clinic</span>
           </div>
-
-          <nav className="hidden md:flex space-x-8 text-lg">
-            {/* 💡 FIXED: Navigation links use <Link to="..."> */}
-            <Link to="/" className="text-indigo-600 font-bold transition duration-150">Home</Link>
-            <Link to="/about" className="text-gray-600 hover:text-indigo-600 transition duration-150">About Us</Link>
-            <Link to="/services" className="text-gray-600 hover:text-indigo-600 transition duration-150">Services</Link>
-          </nav>
-
-          <div className="hidden sm:block">
-            {/* 💡 FIXED: Button uses <Link to="/book"> */}
-            <Link to="/book" className="flex items-center px-4 py-2 bg-indigo-600 text-white font-medium rounded-xl shadow-lg hover:bg-indigo-700 transition duration-200 text-lg">
-              <BookOpen className="w-5 h-5 mr-2" />
-              Book Appointment
-            </Link>
+          <div className="hidden md:flex space-x-8 text-lg">
+            <Link to="/" className="text-indigo-600 font-bold">Home</Link>
+            <Link to="/about" className="text-gray-600 hover:text-indigo-600 transition">About Us</Link>
+            <Link to="/services" className="text-gray-600 hover:text-indigo-600 transition">Services</Link>
           </div>
+          <Link to="/book" className="hidden sm:flex items-center px-4 py-2 bg-indigo-600 text-white font-medium rounded-xl hover:bg-indigo-700 transition">
+            <BookOpen className="w-5 h-5 mr-2" /> Book Appointment
+          </Link>
         </div>
-      </section>
+      </nav>
 
-      
+      {/* Hero Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24 grid md:grid-cols-2 gap-12 items-center min-h-[90vh]">
-        
-        <section id="homehero" className="space-y-6">
+        <section className="space-y-6">
           <h1 className="text-5xl lg:text-7xl font-extrabold text-gray-900 leading-tight">
             Modern Dentistry for a <span className="text-indigo-600">Perfect Smile</span>
           </h1>
-          
-          <h3 className="text-2xl font-light text-gray-600">
+          <p className="text-2xl font-light text-gray-600">
             Providing comprehensive, personalized dental care to meet your unique needs.
-          </h3>
+          </p>
           
-          <div className="pt-4 space-y-4 text-gray-700 text-lg leading-relaxed">
-            <p>
-              Welcome to Menchie's Dental Clinic, where your comfort and oral health are our top priorities. We blend cutting-edge technology with compassionate care to deliver exceptional results in a relaxing, modern environment. From routine checkups to advanced cosmetic procedures, we are here to ensure your smile is healthy and bright.
-            </p>
-          </div>
-
           <div className="flex space-x-4 pt-6">
-            <button className="flex items-center px-6 py-3 bg-gray-800 text-white font-medium rounded-xl shadow-xl hover:bg-gray-900 transition duration-200 text-lg">
-              <Clock className="w-5 h-5 mr-2" />
-              Working Hours
+            <button 
+              onClick={() => setIsHoursOpen(true)}
+              className="flex items-center px-6 py-3 bg-gray-800 text-white font-medium rounded-xl shadow-xl hover:bg-gray-900 transition text-lg"
+            >
+              <Clock className="w-5 h-5 mr-2" /> Working Hours
             </button>
-            <button className="flex items-center px-6 py-3 bg-white text-gray-800 border-2 border-gray-300 font-medium rounded-xl hover:bg-gray-100 transition duration-200 text-lg">
-              <Phone className="w-5 h-5 mr-2" />
-              Contact Us
+            <button 
+              onClick={() => setIsContactOpen(true)} // Toggle Contact Modal
+              className="flex items-center px-6 py-3 bg-white text-gray-800 border-2 border-gray-300 font-medium rounded-xl hover:bg-gray-100 transition text-lg"
+            >
+              <Phone className="w-5 h-5 mr-2" /> Contact Us
             </button>
           </div>
         </section>
 
-
-        <section id="imagecarousel" className="flex flex-col items-center">
-          <div className="w-full aspect-[4/3] bg-white border-4 border-gray-200 rounded-3xl shadow-2xl flex items-center justify-center text-gray-400 text-3xl overflow-hidden">
-            
-            <div className="p-8 text-center">
-              <span className="text-indigo-400 font-bold">High-Quality Image Space</span>
-              <p className="text-sm mt-2">Replace this box with an actual dental image or graphic.</p>
-            </div>
+        {/* Carousel */}
+        <section className="flex flex-col items-center">
+          <div className="w-full aspect-[4/3] bg-white border-4 border-gray-200 rounded-3xl shadow-2xl overflow-hidden relative">
+            {carouselImages.map((img, index) => (
+              <img
+                key={index}
+                src={img}
+                alt={`Slide ${index}`}
+                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${index === currentIndex ? "opacity-100" : "opacity-0"}`}
+              />
+            ))}
           </div>
-          
-          <div id="dots" className="flex justify-center space-x-3 mt-6">
-            <span className="w-3 h-3 bg-gray-300 rounded-full cursor-pointer hover:bg-gray-400 transition"></span>
-            <span className="w-3 h-3 bg-indigo-600 rounded-full cursor-pointer"></span> {/* Active dot */}
-            <span className="w-3 h-3 bg-gray-300 rounded-full cursor-pointer hover:bg-gray-400 transition"></span>
-            <span className="w-3 h-3 bg-gray-300 rounded-full cursor-pointer hover:bg-gray-400 transition"></span>
+          <div className="flex justify-center space-x-3 mt-6">
+            {carouselImages.map((_, index) => (
+              <button key={index} onClick={() => setCurrentIndex(index)} className={`w-3 h-3 rounded-full transition-all ${currentIndex === index ? "bg-indigo-600 w-8" : "bg-gray-300"}`} />
+            ))}
           </div>
         </section>
-        
       </main>
 
-      
+      {/* --- MODALS --- */}
+
+      {/* Working Hours Modal */}
+      {isHoursOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsHoursOpen(false)}>
+          <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-8 relative animate-in zoom-in" onClick={e => e.stopPropagation()}>
+            <h2 className="text-2xl font-bold mb-6 flex items-center">
+              <Clock className="w-6 h-6 mr-2 text-indigo-600" /> Opening Hours
+            </h2>
+            <div className="space-y-3">
+              <div className="flex justify-between border-b pb-2"><span>Mon - Fri</span> <span className="font-bold">8AM - 5PM</span></div>
+              <div className="flex justify-between border-b pb-2"><span>Saturday</span> <span className="font-bold">8AM - 6PM</span></div>
+              <div className="flex justify-between pb-2 text-red-500 font-bold"><span>Sunday</span> <span>Closed</span></div>
+            </div>
+            <button onClick={() => setIsHoursOpen(false)} className="w-full mt-8 py-3 bg-indigo-600 text-white rounded-xl font-bold">Close</button>
+          </div>
+        </div>
+      )}
+
+      {/* Contact Us Modal */}
+      {isContactOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsContactOpen(false)}>
+          <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-8 relative animate-in zoom-in" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setIsContactOpen(false)} className="absolute top-4 right-4 text-gray-400 text-xl">✕</button>
+            
+            <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
+              <Phone className="w-6 h-6 mr-2 text-indigo-600" /> Get in Touch
+            </h2>
+
+            <div className="space-y-6">
+              <div className="flex items-start space-x-4">
+                <div className="p-3 bg-indigo-50 rounded-lg text-indigo-600"><Phone className="w-6 h-6" /></div>
+                <div>
+                  <p className="text-sm text-gray-500 font-medium">Call/Text</p>
+                  <a href="tel:+1234567890" className="text-lg font-bold text-gray-900 hover:text-indigo-600 transition">(123) 456-7890</a>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-4">
+                <div className="p-3 bg-indigo-50 rounded-lg text-indigo-600"><Mail className="w-6 h-6" /></div>
+                <div>
+                  <p className="text-sm text-gray-500 font-medium">Email</p>
+                  <a href="mailto:hello@menchiesdental.com" className="text-lg font-bold text-gray-900 hover:text-indigo-600 transition">info@menchiedental.com</a>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-4">
+                <div className="p-3 bg-indigo-50 rounded-lg text-indigo-600"><MapPin className="w-6 h-6" /></div>
+                <div>
+                  <p className="text-sm text-gray-500 font-medium">Location</p>
+                  <p className="text-lg font-bold text-gray-900 leading-tight">baguio<br/>shopper's lane</p>
+                </div>
+              </div>
+            </div>
+
+            <a href="https://www.facebook.com/menchieamor.a.dangla" target="_blank" rel="noopener noreferrer">
+            <button className="w-full mt-8 py-4 bg-indigo-600 text-white rounded-xl font-bold flex justify-center items-center hover:bg-indigo-700 transition">
+              Message Us Directly
+            </button>
+          </a>
+          </div>
+        </div>
+      )}
+
       <footer className="w-full py-4 text-center text-gray-500 text-sm border-t border-gray-200 bg-white">
-        &copy; {new Date().getFullYear()} Menchie's Dental Clinic. All Rights Reserved.
+        &copy; {new Date().getFullYear()} Menchie's Dental Clinic.
       </footer>
     </div>
   );
