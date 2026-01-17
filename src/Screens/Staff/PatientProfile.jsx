@@ -63,6 +63,7 @@ const formatAppointmentTime = (timeStr) => {
     return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
 };
 
+// --- Render Appointment History Component ---
 const RenderAppointmentHistory = ({ history }) => {
     if (!history || history.length === 0) {
         return <div style={{ color: '#999', padding: 24 }}>No previous appointments found for this patient.</div>;
@@ -70,24 +71,37 @@ const RenderAppointmentHistory = ({ history }) => {
     
     return (
         <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
-            {history.map((appt) => (
-                <div key={appt.id} style={{ border: '1px solid #e1e1e1', borderRadius: 8, padding: 15, background: '#fcfcfc' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-                        <span style={{ fontWeight: 600, color: '#223245' }}>{appt.serviceType || 'Service N/A'}</span>
-                        <span style={{ fontSize: 12, color: '#555' }}>
-                            {formatAppointmentDate(appt.scheduledDate)} at {formatAppointmentTime(appt.scheduledTime)}
-                        </span>
+            {history.map((appt) => {
+                // Determine if the appointment was finished via the dashboard "Release" button
+                const isFinished = appt.status?.isComplete === 'Complete';
+                const displayStatus = isFinished ? 'Complete' : (appt.status?.isScheduled || 'Pending');
+                const statusColor = isFinished ? '#21965a' : '#d96a2f';
+
+                return (
+                    <div key={appt.id} style={{ border: '1px solid #e1e1e1', borderRadius: 8, padding: 15, background: '#fcfcfc' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                            <span style={{ fontWeight: 600, color: '#223245' }}>{appt.serviceType || 'Service N/A'}</span>
+                            <span style={{ fontSize: 12, color: '#555' }}>
+                                {formatAppointmentDate(appt.scheduledDate)} at {formatAppointmentTime(appt.scheduledTime)}
+                            </span>
+                        </div>
+                        <div style={{ fontSize: 13, color: '#777' }}>
+                            Status: <span style={{ fontWeight: 600, color: statusColor }}>
+                                {displayStatus}
+                            </span>
+                        </div>
+                        <div style={{ fontSize: 13, color: '#777', marginTop: 5 }}>
+                            Notes: {appt.patientNotes || 'None'}
+                        </div>
+                        {/* Show the actual completion time if available */}
+                        {appt.completedAt && (
+                            <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
+                                Treatment ended at: {new Date(appt.completedAt.seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                            </div>
+                        )}
                     </div>
-                    <div style={{ fontSize: 13, color: '#777' }}>
-                        Status: <span style={{ fontWeight: 600, color: appt.status?.isComplete === 'Complete' ? '#21965a' : '#d96a2f' }}>
-                            {appt.status?.isComplete || appt.status?.isScheduled}
-                        </span>
-                    </div>
-                    <div style={{ fontSize: 13, color: '#777', marginTop: 5 }}>
-                        Notes: {appt.patientNotes || 'None'}
-                    </div>
-                </div>
-            ))}
+                );
+            })}
         </div>
     );
 };
