@@ -8,7 +8,6 @@ import PatientProfile from "./Screens/Staff/PatientProfile.jsx";
 import Settings from "./Screens/Staff/Settings.jsx";
 import SuperAdminDashboard from "./Screens/Staff/SuperAdminDashboard.jsx";
 
-
 function App() {
   return (
     <Router>

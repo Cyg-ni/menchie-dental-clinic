@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import "./Layout.css";
 import "./Settings.css";
+import logoImage from "./Images/logo.webp";
 
 const Icon = ({ name }) => {
   switch (name) {
@@ -213,7 +214,7 @@ const Settings = () => {
         </button>
 
         <div className="brand-left">
-          <div className="brand-logo" />
+          <img src={logoImage} alt="Menchie's Dental Clinic Logo" className="brand-logo" />
           <div className="brand-name">Dr. Menchie Amor Dangla Dental Clinic</div>
         </div>
 

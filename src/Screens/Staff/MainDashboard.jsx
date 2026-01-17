@@ -8,22 +8,13 @@ import "./Layout.css";
 import AppointmentsModal from "./AppointmentsModal.jsx";
 import AddingPatientModal from "./AddingPatientModal.jsx";
 import logoImage from "./Images/logo.webp";
+import patientImage from "./Images/patienticon.png";
 
 // Define collection references
 const appointmentsCollectionRef = collection(db, "appointments");
 const patientsCollectionRef = collection(db, "patients");
 
 // --- UTILITY COMPONENTS ---
-const Placeholder = ({ className }) => (
-  <div className={`ph ${className || ""}`}>
-    <svg viewBox="0 0 100 60" width="60%" height="60%" aria-hidden>
-      <rect x="0" y="0" width="100" height="60" fill="#e6e6e6" />
-      <circle cx="30" cy="20" r="6" fill="#cfcfcf" />
-      <path d="M5 55 L35 25 L55 40 L95 55 Z" fill="#cfcfcf" />
-    </svg>
-  </div>
-);
-
 const StatPill = ({ label }) => <div className="stat-pill">{label}</div>;
 
 const EllipsisIcon = () => (
@@ -515,7 +506,7 @@ const MainDashboard = () => {
             <div className="section-title">
               <span style={{fontSize: '26px'}}className="muted">Good Morning,</span> <span style={{fontSize: '26px',color: '#A78BFA'}}>Juana</span>
               <div className="hero-card">
-                <Placeholder />
+                <img src={patientImage} alt="Patient-Icon" className="patient-icon" />
                 <button className="link" onClick={() => setShowAddingPatient(true)}>
                   Manage Patient Settings
                 </button>

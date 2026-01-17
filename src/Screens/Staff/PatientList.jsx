@@ -5,6 +5,7 @@ import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc } from 'firebase
 import "./Layout.css";
 import "./PatientList.css";
 import "./AddingPatientModal.css";
+import logoImage from "./Images/logo.webp";
 // Assuming AddingPatientModal.jsx is in the same directory as PatientList.jsx
 import AddingPatientModal from './AddingPatientModal.jsx'; 
 
@@ -331,7 +332,7 @@ export default function PatientList() {
                     ≡
                 </button>
                     <div className="brand-left">
-                        <div className="brand-logo" />
+                        <img src={logoImage} alt="Menchie's Dental Clinic Logo" className="brand-logo" />
                         <div className="brand-name">Dr. Menchie Amor Dangla Dental Clinic</div>
                     </div>
                     <div className="user">

@@ -19,10 +19,13 @@ const SuperAdminDashboard = () => {
   const [formData, setFormData] = useState({
     username: '',
     email: '',
+    password: '',
     firstName: '',
     lastName: '',
     role: 'staff', // staff, dentist, admin, super_admin
-    status: 'active' // active, inactive
+    status: 'active', // active, inactive
+    profilePicture: null,
+    profilePictureUrl: ''
   });
 
   // Fetch all users
@@ -66,10 +69,13 @@ const SuperAdminDashboard = () => {
     setFormData({
       username: '',
       email: '',
+      password: '',
       firstName: '',
       lastName: '',
       role: 'staff',
-      status: 'active'
+      status: 'active',
+      profilePicture: null,
+      profilePictureUrl: ''
     });
     setShowModal(true);
   };
@@ -81,10 +87,13 @@ const SuperAdminDashboard = () => {
     setFormData({
       username: user.username || '',
       email: user.email || '',
+      password: '',
       firstName: user.firstName || '',
       lastName: user.lastName || '',
       role: user.role || 'staff',
-      status: user.status || 'active'
+      status: user.status || 'active',
+      profilePicture: null,
+      profilePictureUrl: user.profilePictureUrl || ''
     });
     setShowModal(true);
   };
@@ -98,12 +107,40 @@ const SuperAdminDashboard = () => {
     }));
   };
 
+  // Handle profile picture upload
+  const handleProfilePictureChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Check file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setErrorMessage("File size must be less than 5MB");
+        return;
+      }
+      
+      // Create preview URL
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData(prev => ({
+          ...prev,
+          profilePicture: file,
+          profilePictureUrl: reader.result
+        }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   // Save user (create or update)
   const handleSaveUser = async (e) => {
     e.preventDefault();
 
     if (!formData.username.trim() || !formData.email.trim()) {
       setErrorMessage("Username and email are required");
+      return;
+    }
+
+    if (modalMode === 'create' && !formData.password.trim()) {
+      setErrorMessage("Password is required for new users");
       return;
     }
 
@@ -129,18 +166,32 @@ const SuperAdminDashboard = () => {
 
         // Create new user
         const newUserId = `user_${Date.now()}`;
-        await setDoc(doc(db, "users", newUserId), {
+        const userData = {
           ...formData,
+          profilePicture: null,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
-        });
+        };
+        
+        // Remove the profilePicture file object and keep only the URL
+        if (formData.profilePictureUrl) {
+          userData.profilePictureUrl = formData.profilePictureUrl;
+        }
+        delete userData.profilePicture;
+
+        await setDoc(doc(db, "users", newUserId), userData);
         setSuccessMessage("User created successfully");
       } else {
         // Update existing user
-        await updateDoc(doc(db, "users", selectedUser.id), {
+        const updateData = {
           ...formData,
           updatedAt: new Date().toISOString()
-        });
+        };
+        
+        // Remove the profilePicture file object and keep only the URL
+        delete updateData.profilePicture;
+
+        await updateDoc(doc(db, "users", selectedUser.id), updateData);
         setSuccessMessage("User updated successfully");
       }
 
@@ -334,6 +385,33 @@ const SuperAdminDashboard = () => {
                   placeholder="Enter email address"
                   required
                 />
+              </div>
+
+              <div className="form-group">
+                <label>Password {modalMode === 'create' ? '*' : ''}</label>
+                <input
+                  type="password"
+                  name="password"
+                  value={formData.password}
+                  onChange={handleInputChange}
+                  placeholder={modalMode === 'create' ? "Enter password" : "Leave blank to keep current password"}
+                  required={modalMode === 'create'}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Profile Picture</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleProfilePictureChange}
+                  className="file-input"
+                />
+                {formData.profilePictureUrl && (
+                  <div className="profile-preview">
+                    <img src={formData.profilePictureUrl} alt="Profile preview" />
+                  </div>
+                )}
               </div>
 
               <div className="form-row">

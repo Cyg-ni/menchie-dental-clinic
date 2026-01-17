@@ -486,3 +486,124 @@
     background: #1e458c; 
     border-color: #1e458c;
 }
+/* Treatment type selector */
+.treatment-type-selector {
+    margin: 15px 0;
+    padding: 15px;
+    background: #e8f4f8;
+    border-radius: 8px;
+    border: 1px solid #b3e0ff;
+    box-shadow: 0 2px 4px rgba(0, 102, 204, 0.1);
+}
+
+.treatment-type-selector label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #0066cc;
+    font-size: 14px;
+}
+
+.treatment-type-selector select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 2px solid #66b3ff;
+    border-radius: 6px;
+    background: white;
+    color: #333;
+    font-size: 14px;
+    margin-bottom: 8px;
+    transition: border-color 0.3s;
+}
+
+.treatment-type-selector select:focus {
+    outline: none;
+    border-color: #0066cc;
+}
+
+.treatment-hint {
+    font-size: 12px;
+    color: #666;
+    font-style: italic;
+    padding: 4px 0;
+}
+
+.treatment-hint strong {
+    color: #0066cc;
+}
+
+/* Timeline selector improvements */
+.timeline-selector {
+    margin-top: 15px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.timeline-selector label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #495057;
+    font-size: 14px;
+}
+
+.timeline-selector select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 2px solid #ced4da;
+    border-radius: 6px;
+    background: white;
+    color: #333;
+    font-size: 14px;
+    margin-bottom: 10px;
+    transition: border-color 0.3s;
+}
+
+.timeline-selector select:focus {
+    outline: none;
+    border-color: #0066cc;
+}
+
+.selected-record-info {
+    padding: 10px 12px;
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+    border-radius: 4px;
+    color: #155724;
+    font-size: 14px;
+    margin-top: 8px;
+    animation: fadeIn 0.3s ease-in;
+}
+
+/* View 3D Model button */
+.view-3d-model-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    margin-top: 20px;
+    box-shadow: 0 4px 6px rgba(102, 126, 234, 0.2);
+}
+
+.view-3d-model-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(102, 126, 234, 0.3);
+}
+
+.view-3d-model-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+}

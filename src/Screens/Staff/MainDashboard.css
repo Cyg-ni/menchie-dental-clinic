@@ -183,3 +183,9 @@
   border-radius: 12px;
   overflow: hidden;
 }
+
+img.patient-icon {
+  width: 120px;
+  height: 150px;
+  object-fit: contain;
+}

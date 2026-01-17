@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import "./Layout.css";
 import "./ScheduleDashboard.css";
 import ReportsModal from "./ReportsModal.jsx";
+import logoImage from "./Images/logo.webp";
 
 // ===============================================
 // 1. FIREBASE SETUP & IMPORTS (Self-Contained)
@@ -19,7 +20,6 @@ import {
 } from 'firebase/firestore'; 
 
 const firebaseConfig = {
-  // NOTE: REPLACE WITH YOUR ACTUAL CONFIGURATION
   apiKey: "AIzaSyCS-olCQRpJZGcYSGWG7CZ8PIpV-wBNaOE",
   authDomain: "menchie-dental-clinic.firebaseapp.com",
   projectId: "menchie-dental-clinic",
@@ -552,7 +552,7 @@ const ScheduleDashboard = () => {
         </button>
 
         <div className="brand-left">
-          <div className="brand-logo" />
+          <img src={logoImage} alt="Menchie's Dental Clinic Logo" className="brand-logo" />
           <div className="brand-name">Dr. Menchie Amor Dangla Dental Clinic</div>
         </div>
 
