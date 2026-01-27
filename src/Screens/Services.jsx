@@ -170,10 +170,6 @@ const Services = () => {
               </div>
               <h3 className="text-xl font-bold text-gray-800">{service.title}</h3>
               <p className="text-gray-600 flex-grow">{service.description}</p>
-              {/* 4. Converted <a> to Link */}
-              <Link to="/services" className="text-indigo-600 font-semibold text-sm hover:text-indigo-800 transition duration-150 mt-4">
-                Learn More &rarr;
-              </Link>
             </div>
           ))}
         </section>
@@ -211,7 +207,6 @@ const Services = () => {
             
             <div className="text-center md:text-left space-y-2">
                 <h4 className="font-bold text-lg text-gray-800 mb-2">Connect Online</h4>
-                {/* <a> tags are fine here if they link to external social media sites */}
                 <a href="#" className="block text-indigo-600 hover:underline">Facebook</a>
                 <a href="#" className="block text-indigo-600 hover:underline">Instagram</a>
                 <a href="#" className="block text-indigo-600 hover:underline">Twitter</a>
