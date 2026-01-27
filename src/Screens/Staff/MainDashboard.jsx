@@ -430,7 +430,7 @@ const MainDashboard = () => {
 
         <div className="brand-left">
           <img src={logoImage} alt="Menchie's Dental Clinic Logo" className="brand-logo" />
-          <div className="brand-name">Menchie's Dental Clinic</div>
+          <div className="brand-name">Dr. Menchie Amor Dangla Dental Clinic</div>
         </div>
 
         <div className="user">

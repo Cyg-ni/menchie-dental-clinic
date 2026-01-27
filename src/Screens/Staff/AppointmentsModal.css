@@ -9,14 +9,22 @@
   align-items: center;
   justify-content: center;
   z-index: 100;
+  padding: 12px; /* slightly smaller padding for tighter layout */
 }
 
 .modal {
   background: #ffffff;
   border-radius: 10px;
-  width: 720px;
-  max-width: calc(100vw - 32px);
+  /* Responsive sizing: grows with viewport but stays within sensible bounds */
+  width: clamp(640px, 80vw, 1100px) !important;
+  max-width: calc(100vw - 32px) !important;
+  box-sizing: border-box;
+  height: auto;
+  max-height: calc(100vh - 48px) !important;
   box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .modal-header {
@@ -30,27 +38,39 @@
 .modal-title { font-weight: 700; color: #333333; }
 .modal-close { background: none; border: none; font-size: 22px; line-height: 1; cursor: pointer; color: #666666; }
 
-.modal-body { padding: 18px; }
+.modal-body { 
+  padding: 18px;
+  /* allow internal scrolling while keeping header/footer visible */
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
+}
 
 .req-list {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   border: 1px solid #ececec;
   border-radius: 10px;
-  padding: 14px;
+  padding: 12px;
+  box-sizing: border-box;
+  /* vertical scroll only; reserve space for scrollbar */
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 12px;
 }
 
 .req-row { 
-  display: grid; 
-  grid-template-columns: 1fr auto; 
-  align-items: center; gap: 16px; 
+  display: flex; 
+  align-items: center; 
+  gap: 12px;
+  justify-content: space-between;
 }
 
 .req-left { 
   display: flex; 
-  align-items: center; 
-  gap: 12px; 
+  align-items: center;
+  flex: 1;
+  min-width: 0;
 }
 
 .req-pill { position: relative; 
@@ -80,33 +100,45 @@
 .req-actions { 
   display: flex;
   gap: 12px;
+  flex-shrink: 0;
   align-items: center;
-  justify-content: center; 
+  justify-content: center;
+  z-index: 2; /* keep buttons on top of scrollbar area */
 }
 
 .req-actions .approve { 
- width: 64px; /* INCREASED SIZE */
- height: 64px; /* INCREASED SIZE */
+ width: 56px;
+ height: 56px;
  background: #5b5b5b; 
  border: none; 
- border-radius: 10px; /* Needs semicolon */
- display: flex; /* Needs semicolon */
- align-items: center; /* Needs semicolon */
- justify-content: center; /* Needs semicolon */
- cursor: pointer; /* Needs semicolon */
+ border-radius: 8px;
+ display: flex;
+ align-items: center;
+ justify-content: center;
+ cursor: pointer;
 }
 
 .req-actions .reject { 
- width: 64px; /* INCREASED SIZE */
-height: 64px; /* INCREASED SIZE */
-background: #ffffff; 
- border: 3px solid #4d4b4b; 
- border-radius: 50%; /* Needs semicolon */
-display: flex; /* Needs semicolon */
- align-items: center; /* Needs semicolon */
- justify-content: center; /* Needs semicolon */
- cursor: pointer; /* Needs semicolon */
+ width: 56px;
+ height: 56px;
+ background: #ffffff;
+ border: 2px solid #4d4b4b;
+ border-radius: 8px;
+ display: flex;
+ align-items: center;
+ justify-content: center;
+ cursor: pointer;
 }
+
+/* Increase icon sizes inside buttons */
+.req-actions .approve svg,
+.req-actions .reject svg {
+  width: 28px;
+  height: 28px;
+}
+
+.req-actions .approve svg { stroke-width: 4; }
+.req-actions .reject svg { stroke-width: 3.5; }
 
 /* =========================================
    NEW CALENDAR CSS (APPENDED BELOW)
@@ -114,11 +146,11 @@ display: flex; /* Needs semicolon */
 
 /* 1. Layout: Split Modal Body into Columns */
 .modal-body.modal-grid {
-    display: grid;
-    /* Requests take 55%, Calendar takes 45% (prevents squishing) */
-    grid-template-columns: 1.2fr 1fr; 
-    gap: 24px;
-    align-items: start;
+  display: grid;
+  /* Give the requests column more room so buttons fit comfortably */
+  grid-template-columns: 1.5fr 1fr; 
+  gap: 20px;
+  align-items: start;
 }
 
 /* Ensure the requests list scrolls if it gets too long, 
@@ -194,8 +226,14 @@ display: flex; /* Needs semicolon */
     color: #333;
 }
 
-.calendar-day:hover:not(.empty):not(.fully-booked) {
-    background-color: #f0f0f0;
+.calendar-day:hover:not(.empty):not(.fully-booked):not(.selected) {
+  background-color: #f0f0f0;
+}
+
+/* Keep the selected day's contrast when hovered */
+.calendar-day.selected:hover {
+  background-color: #333;
+  color: #fff;
 }
 
 .calendar-day.selected {

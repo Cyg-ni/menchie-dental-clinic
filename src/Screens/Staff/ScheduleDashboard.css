@@ -257,6 +257,70 @@
     cursor: pointer;
   }
 
+  /* Not scheduled visual state: diagonal stripes and disabled cursor */
+  .start-btn.not-scheduled,
+  .start-btn[disabled].not-scheduled {
+    background: repeating-linear-gradient(45deg, #f0f0f0 0 10px, #e6e6e6 10px 20px);
+    color: #666;
+    border: 1px solid #d0d0d0;
+    cursor: not-allowed;
+  }
+
+  .start-btn.not-scheduled:hover {
+    /* avoid hover changes */
+    opacity: 1;
+  }
+
+  .options-btn {
+    background: #1976d2; /* primary blue */
+    color: #ffffff; /* white gear */
+    border: none;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(25,118,210,0.18);
+  }
+
+  .options-btn:hover { background: #155fa8; }
+
+  .options-menu .menu-item { background: transparent; border: none; cursor: pointer; }
+  .options-menu .menu-item:hover { background: #f5f5f5; }
+
+  /* Improved options wrapper and menu positioning */
+  .options-wrap { position: relative; display: inline-flex; gap: 8px; align-items: center; }
+  .options-menu { position: absolute; right: 0; top: 44px; background: #fff; border: 1px solid #e6f0ff; box-shadow: 0 10px 30px rgba(25,118,210,0.08); border-radius: 8px; padding: 6px; z-index: 400; min-width: 180px; }
+  .options-menu .menu-item { display: block; padding: 8px 12px; width: 100%; text-align: center; background: transparent; border: none; cursor: pointer; color: #1976d2; font-weight: 600; }
+  .options-menu .menu-item:hover { background: #1976d2; color: #fff; border-radius: 6px; }
+
+  /* Reschedule modal */
+  .reschedule-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 900;
+  }
+  .reschedule-modal {
+    background: #fff;
+    padding: 18px;
+    border-radius: 8px;
+    width: 360px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  }
+  .reschedule-modal h4 { margin: 0 0 12px 0; }
+  .reschedule-modal .row { display:flex; gap:8px; margin-bottom:12px; }
+  .reschedule-modal input[type="date"], .reschedule-modal input[type="time"] { padding:8px; border:1px solid #e6e6e6; border-radius:6px; width:100%; box-sizing:border-box; }
+  .reschedule-modal .actions { display:flex; gap:8px; justify-content:flex-end; }
+  .reschedule-modal .btn { padding:8px 12px; border-radius:6px; border:none; cursor:pointer; }
+  .reschedule-modal .btn.primary { background:#2f4156; color:#fff; }
+  .reschedule-modal .btn.ghost { background:#f5f5f5; color:#333; }
+
 /* --- BOTTOM ROW LAYOUT --- */
 /* These rules define the placement within the .row-bottom grid (which is 3 columns) */
 .notifications-card {

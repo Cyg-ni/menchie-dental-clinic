@@ -106,6 +106,63 @@ const RenderAppointmentHistory = ({ history }) => {
     );
 };
 
+// --- Debug helper: Search recent appointment documents for patient's email ---
+const DebugSearchByEmail = ({ patientId }) => {
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState(null);
+
+  const runDebug = async () => {
+    setLoading(true);
+    setResults(null);
+    try {
+      const patientDoc = await getDoc(doc(db, 'patients', patientId));
+      const patientData = patientDoc.exists() ? patientDoc.data() : null;
+      const patientEmail = (patientData?.email || patientData?.contactEmail || patientData?.contactInfo || patientData?.contact?.email || '').toLowerCase();
+      if (!patientEmail) {
+        setResults({ error: 'No email found on patient record.' });
+        setLoading(false);
+        return;
+      }
+
+      const recentQ = query(appointmentsCollectionRef, orderBy('updatedAt', 'desc'));
+      const snap = await getDocs(recentQ);
+      const matched = [];
+      snap.docs.slice(0, 500).forEach(d => {
+        try {
+          const raw = JSON.stringify(d.data()).toLowerCase();
+          if (raw.includes(patientEmail)) matched.push({ id: d.id, data: d.data() });
+        } catch (e) {}
+      });
+
+      setResults({ email: patientEmail, found: matched });
+    } catch (err) {
+      setResults({ error: err.message || String(err) });
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div style={{ marginTop: 12 }}>
+      <button className="btn ghost" onClick={runDebug} disabled={loading}>{loading ? 'Searching...' : 'Debug: Find appointments by email'}</button>
+      {results && (
+        <div style={{ marginTop: 10 }}>
+          {results.error && <div style={{ color: '#b00' }}>{results.error}</div>}
+          {results.found && results.found.length === 0 && <div style={{ color: '#666' }}>No matching appointment docs found in recent 500 records.</div>}
+          {results.found && results.found.length > 0 && (
+            <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
+              {results.found.map(r => (
+                <div key={r.id} style={{ border: '1px solid #eee', padding: 8, borderRadius: 6, background: '#fff' }}>
+                  <div style={{ fontSize: 12, color: '#444', marginBottom: 6 }}>ID: {r.id}</div>
+                  <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12, color: '#222', margin: 0 }}>{JSON.stringify(r.data, null, 2)}</pre>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 
 // === MAIN COMPONENT ===
 export default function PatientProfile() {
@@ -121,6 +178,8 @@ export default function PatientProfile() {
   const [loading, setLoading] = useState(true); 
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false); 
   const [appointmentHistory, setAppointmentHistory] = useState([]); 
+  const [debugResults, setDebugResults] = useState(null);
+  const [debugLoading, setDebugLoading] = useState(false);
 
   // Odontogram / Treatment States
   const [treatTeeth, setTreatTeeth] = useState([]);
@@ -209,19 +268,102 @@ export default function PatientProfile() {
 
   const getAppointmentHistory = useCallback(async (patientId) => {
     if (!patientId) return;
-    const patientIdQueryValue = `/patients/${patientId}`; 
+    const patientIdQueryValue = `/patients/${patientId}`;
     try {
-        const q = query(
-            appointmentsCollectionRef,
-            where("patientId", "in", [patientId, patientIdQueryValue]), 
-            orderBy("scheduledDate", "desc") 
-        );
-        const snapshot = await getDocs(q);
-        const history = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setAppointmentHistory(history);
+      // 1) Primary: appointments tied to the patientId
+      const qById = query(
+        appointmentsCollectionRef,
+        where("patientId", "in", [patientId, patientIdQueryValue])
+      );
+      const snapById = await getDocs(qById);
+
+      // 2) Secondary: try to match by the patient's email (if available)
+      let emailMatches = [];
+      try {
+        const patientDoc = await getDoc(doc(db, 'patients', patientId));
+        const patientData = patientDoc.exists() ? patientDoc.data() : null;
+        const patientEmail = patientData?.email || patientData?.contactEmail || patientData?.contactInfo || patientData?.contact?.email || null;
+        if (patientEmail) {
+          // Try several common email field names on the appointment record
+          const emailFields = ['email', 'patientEmail', 'contactEmail', 'contact.email'];
+          for (const field of emailFields) {
+            try {
+              const qEmail = query(
+                appointmentsCollectionRef,
+                where(field, '==', patientEmail)
+              );
+              const snapEmail = await getDocs(qEmail);
+              emailMatches = emailMatches.concat(snapEmail.docs.map(d => ({ id: d.id, ...d.data() })));
+            } catch (e) {
+              // ignore field-not-found or other query errors and continue
+              // (Firestore may error if field is not indexed)
+              console.debug('email query failed for field', field, e.message || e);
+            }
+          }
+        }
+      } catch (e) {
+        console.debug('Failed to read patient email', e.message || e);
+      }
+
+      // Merge results (dedupe by id)
+      const map = new Map();
+      snapById.docs.forEach(d => map.set(d.id, { id: d.id, ...d.data() }));
+      emailMatches.forEach(a => map.set(a.id, a));
+
+      const merged = Array.from(map.values());
+
+      // Sort by scheduledDate desc, then scheduledTime desc
+      merged.sort((a, b) => {
+        const da = a.scheduledDate || '';
+        const db = b.scheduledDate || '';
+        if (da > db) return -1;
+        if (da < db) return 1;
+        const ta = a.scheduledTime || '00:00';
+        const tb = b.scheduledTime || '00:00';
+        if (ta > tb) return -1;
+        if (ta < tb) return 1;
+        return 0;
+      });
+
+      // If nothing found yet, do a broader fallback: scan recent appointments and match email anywhere in the document
+      if (merged.length === 0) {
+        try {
+          const patientDoc = await getDoc(doc(db, 'patients', patientId));
+          const patientData = patientDoc.exists() ? patientDoc.data() : null;
+          const patientEmail = patientData?.email || patientData?.contactEmail || patientData?.contactInfo || patientData?.contact?.email || null;
+          if (patientEmail) {
+            const allRecentQuery = query(appointmentsCollectionRef, orderBy('updatedAt', 'desc'));
+            const recentSnap = await getDocs(allRecentQuery);
+            const lowerEmail = patientEmail.toLowerCase();
+            const matched = [];
+            recentSnap.docs.slice(0, 500).forEach(d => {
+              try {
+                const raw = JSON.stringify(d.data()).toLowerCase();
+                if (raw.includes(lowerEmail)) matched.push({ id: d.id, ...d.data() });
+              } catch (e) { /* ignore stringify errors */ }
+            });
+            // Merge these matches too
+            matched.forEach(a => map.set(a.id, a));
+          }
+        } catch (e) {
+          console.debug('fallback scan failed', e.message || e);
+        }
+      }
+
+      setAppointmentHistory(Array.from(map.values()).sort((a,b)=>{
+        const da = a.scheduledDate || '';
+        const db = b.scheduledDate || '';
+        if (da > db) return -1;
+        if (da < db) return 1;
+        const ta = a.scheduledTime || '00:00';
+        const tb = b.scheduledTime || '00:00';
+        if (ta > tb) return -1;
+        if (ta < tb) return 1;
+        return 0;
+      }));
     } catch (error) {
-        console.error("Error fetching appointment history:", error);
-        setAppointmentHistory([]);
+      console.error("Error fetching appointment history:", error);
+      setAppointmentHistory([]);
     }
   }, []);
 
@@ -652,7 +794,10 @@ export default function PatientProfile() {
           </div>
         )}
 
-        {tab === "history" && <div style={{ marginTop: 30 }}> <RenderAppointmentHistory history={appointmentHistory} /> </div>}
+        {tab === "history" && <div style={{ marginTop: 30 }}>
+          <RenderAppointmentHistory history={appointmentHistory} />
+          <DebugSearchByEmail patientId={id} />
+        </div>}
         
         {tab === "info" && (
           <div style={{ marginTop: 30, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>

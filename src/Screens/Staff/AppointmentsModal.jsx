@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import "./AppointmentsModal.css";
+import CalendarView, { TIME_SLOTS } from './AppointmentCalendar.jsx';
 
 // ===============================================
 // 1. FIREBASE SETUP & IMPORTS
@@ -32,135 +33,7 @@ const db = getFirestore(app);
 const appointmentsCollectionRef = collection(db, "appointments");
 // ===============================================
 
-// --- 2. TIME SLOTS CONSTANT ---
-const TIME_SLOTS = [
-    "08:30", "09:45", "11:00", "13:00", 
-    "14:30", "15:45", "17:00",
-];
 
-// --- 3. HELPER FUNCTION: GET DAYS IN MONTH ---
-const getDaysInMonth = (year, month) => {
-    return new Date(year, month + 1, 0).getDate();
-};
-
-// --- HELPER: FORMAT DATE LOCAL (Fixes the "One Day Behind" bug) ---
-const formatDateLocal = (date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-};
-
-// --- 4. CALENDAR VIEW COMPONENT ---
-const CalendarView = ({ selectedDate, onDateSelect, bookedTimes, loading }) => {
-    const today = new Date();
-    const [currentMonth, setCurrentMonth] = useState(today.getMonth());
-    const [currentYear, setCurrentYear] = useState(today.getFullYear());
-
-    // Calculate first day of month. 
-    const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay(); 
-    const daysInMonth = getDaysInMonth(currentYear, currentMonth);
-
-    // Monday-start logic: (Sun=0 -> 6, Mon=1 -> 0, etc.)
-    const startDay = (firstDayOfMonth + 6) % 7; 
-
-    const dateCells = [];
-    // Pad empty cells
-    for (let i = 0; i < startDay; i++) {
-        dateCells.push(<div key={`empty-${i}`} className="calendar-day empty"></div>);
-    }
-
-    // Render days
-    for (let day = 1; day <= daysInMonth; day++) {
-        const date = new Date(currentYear, currentMonth, day);
-        
-        // FIX: Use local string formatting instead of ISO
-        const dateString = formatDateLocal(date);
-        const todayString = formatDateLocal(today);
-
-        const isToday = dateString === todayString;
-        const isSelected = dateString === selectedDate;
-        
-        // Note: To gray out an entire day based on bookings, 
-        // you would need to fetch availability for the whole month here.
-        // For now, the CSS class 'fully-booked' is ready if you add that logic.
-        const isFullyBooked = false; 
-
-        let dayClass = 'calendar-day';
-        if (isToday) dayClass += ' today';
-        if (isSelected) dayClass += ' selected';
-        if (isFullyBooked) dayClass += ' fully-booked';
-        
-        dateCells.push(
-            <div 
-                key={day} 
-                className={dayClass}
-                onClick={() => !isFullyBooked && onDateSelect(dateString)}
-            >
-                {day}
-            </div>
-        );
-    }
-
-    const monthName = new Date(currentYear, currentMonth).toLocaleString('default', { month: 'long' });
-
-    const changeMonth = (delta) => {
-        let newMonth = currentMonth + delta;
-        let newYear = currentYear;
-        if (newMonth > 11) {
-            newMonth = 0;
-            newYear += 1;
-        } else if (newMonth < 0) {
-            newMonth = 11;
-            newYear -= 1;
-        }
-        setCurrentMonth(newMonth);
-        setCurrentYear(newYear);
-        
-        // Optional: Auto-select 1st of month
-        const newDate = new Date(newYear, newMonth, 1);
-        onDateSelect(formatDateLocal(newDate));
-    };
-
-    return (
-        <div className="calendar-container">
-            <div className="calendar-header">
-                <button onClick={() => changeMonth(-1)} className="nav-btn">{"<"}</button>
-                <h3>{monthName} {currentYear}</h3>
-                <button onClick={() => changeMonth(1)} className="nav-btn">{">"}</button>
-            </div>
-            
-            <div className="calendar-grid">
-                {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
-                    <div key={d} className="calendar-weekday">{d}</div>
-                ))}
-                {dateCells}
-            </div>
-
-            <div className="time-slots-view">
-                <h4 className="time-slots-header">Slots for {selectedDate}</h4>
-                {loading ? (
-                    <p className="loading-text">Loading...</p>
-                ) : (
-                    <div className="slots-grid">
-                        {TIME_SLOTS.map(slot => {
-                            const isBooked = bookedTimes.includes(slot);
-                            return (
-                                <span 
-                                    key={slot} 
-                                    className={`time-slot ${isBooked ? 'booked' : 'available'}`}
-                                    title={isBooked ? 'Booked' : 'Available'}
-                                >
-                                    {slot}
-                                </span>
-                            );
-                        })}
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-};
 
 
 // --- Main Component ---

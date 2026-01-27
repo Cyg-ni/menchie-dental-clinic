@@ -15,9 +15,12 @@ import {
   onSnapshot, 
   query, 
   doc,         
-  updateDoc,   
-  Timestamp    
+  updateDoc,  
+  Timestamp,
+  getDocs,
+  where
 } from 'firebase/firestore'; 
+import CalendarView from './AppointmentCalendar.jsx';
 
 const firebaseConfig = {
   apiKey: "AIzaSyCS-olCQRpJZGcYSGWG7CZ8PIpV-wBNaOE",
@@ -238,6 +241,14 @@ const ScheduleDashboard = () => {
   
   // State for live time updates (runs interval)
   const [currentTime, setCurrentTime] = useState(Date.now()); 
+  const [showOptionsForNext, setShowOptionsForNext] = useState(false);
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  const [rescheduleDate, setRescheduleDate] = useState('');
+  const [rescheduleTime, setRescheduleTime] = useState('');
+  const [rescheduleBookedTimes, setRescheduleBookedTimes] = useState([]);
+  const [rescheduleLoading, setRescheduleLoading] = useState(false);
+  const [rescheduleSelectedSlot, setRescheduleSelectedSlot] = useState('');
 
 
   const formatDate = (dateObj) => {
@@ -432,6 +443,84 @@ const ScheduleDashboard = () => {
       }
   };
 
+  // --- New: Drop appointment ---
+  const handleDropAppointment = async () => {
+    const nextAppointment = nextAppointmentObject;
+    if (!nextAppointment) { alert('No next appointment to drop.'); return; }
+    if (!confirm(`Drop appointment for ${nextAppointment.patientFullName || 'patient'} on ${nextAppointment.scheduledDate} at ${nextAppointment.scheduledTime}?`)) return;
+    try {
+      const apptRef = doc(db, 'appointments', nextAppointment.id);
+      await updateDoc(apptRef, {
+        'status.isScheduled': 'Cancelled',
+        'status.isComplete': 'Cancelled',
+        updatedAt: Timestamp.fromDate(new Date()),
+      });
+      alert('Appointment dropped.');
+    } catch (err) {
+      console.error('Failed to drop appointment', err);
+      alert('Failed to drop appointment.');
+    }
+  };
+
+  // --- New: Reschedule appointment ---
+  const handleRescheduleAppointment = async () => {
+    // open reschedule modal prefilled with next appointment
+    const nextAppointment = nextAppointmentObject;
+    if (!nextAppointment) { alert('No next appointment to reschedule.'); return; }
+    setRescheduleDate(nextAppointment.scheduledDate || '');
+    setRescheduleTime(nextAppointment.scheduledTime || '');
+    setRescheduleSelectedSlot(nextAppointment.scheduledTime || '');
+    setShowRescheduleModal(true);
+  };
+
+  const fetchBookedSlotsForReschedule = async (dateString) => {
+    setRescheduleLoading(true);
+    setRescheduleBookedTimes([]);
+    try {
+      const q = query(
+        collection(db, 'appointments'),
+        where('scheduledDate', '==', dateString),
+        where('status.isScheduled', '==', 'Scheduled')
+      );
+      const snapshot = await getDocs(q);
+      const booked = snapshot.docs.map(d => d.data().scheduledTime);
+      setRescheduleBookedTimes(booked);
+    } catch (err) {
+      console.error('Error fetching booked slots for reschedule', err);
+    } finally {
+      setRescheduleLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    if (showRescheduleModal && rescheduleDate) {
+      fetchBookedSlotsForReschedule(rescheduleDate);
+    }
+  }, [showRescheduleModal, rescheduleDate]);
+
+  const handleConfirmReschedule = async () => {
+    const nextAppointment = nextAppointmentObject;
+    if (!nextAppointment) { alert('No appointment to reschedule.'); return; }
+    if (!rescheduleDate || !(rescheduleSelectedSlot || rescheduleTime)) { alert('Please choose date and time.'); return; }
+    const chosenTime = rescheduleSelectedSlot || rescheduleTime;
+    const newTimeObj = getTimeObject(rescheduleDate, chosenTime);
+    if (!newTimeObj || isNaN(newTimeObj.getTime())) { alert('Invalid date/time.'); return; }
+    try {
+      const apptRef = doc(db, 'appointments', nextAppointment.id);
+      await updateDoc(apptRef, {
+        scheduledDate: rescheduleDate,
+        scheduledTime: chosenTime,
+        updatedAt: Timestamp.fromDate(new Date()),
+      });
+      setShowRescheduleModal(false);
+      setOptionsOpen(false);
+      alert('Appointment rescheduled.');
+    } catch (err) {
+      console.error('Failed to reschedule', err);
+      alert('Failed to reschedule appointment.');
+    }
+  };
+
   // --- Reports and Calendar Logic ---
   
   // Create a memoized list of only scheduled appointments for reports/calendar shading
@@ -535,6 +624,34 @@ const ScheduleDashboard = () => {
   }));
   
   const waiting = waitingList; 
+
+  // Compute whether Start/Release actions are allowed based on appointment datetime
+  const nextAppointmentObject = useMemo(() => {
+    if (!waitingList || waitingList.length === 0) return null;
+    return appointments.find(a => a.id === waitingList[0].id) || null;
+  }, [waitingList, appointments]);
+
+  const canStart = useMemo(() => {
+    if (!nextAppointmentObject) return false;
+    // only allow start when appointment date is today and current time >= scheduled time
+    if (nextAppointmentObject.scheduledDate !== todayISO) return false;
+    const apptTimeObj = getTimeObject(nextAppointmentObject.scheduledDate, nextAppointmentObject.scheduledTime);
+    if (!apptTimeObj) return false;
+    return currentTime >= apptTimeObj.getTime();
+  }, [nextAppointmentObject, currentTime, todayISO]);
+
+  const servingAppointmentObject = useMemo(() => {
+    if (!servingPatient) return null;
+    return appointments.find(a => a.id === servingPatient.id) || null;
+  }, [servingPatient, appointments]);
+
+  const canRelease = useMemo(() => {
+    if (!servingAppointmentObject) return false;
+    if (servingAppointmentObject.scheduledDate !== todayISO) return false;
+    const apptTimeObj = getTimeObject(servingAppointmentObject.scheduledDate, servingAppointmentObject.scheduledTime);
+    if (!apptTimeObj) return false;
+    return currentTime >= apptTimeObj.getTime();
+  }, [servingAppointmentObject, currentTime, todayISO]);
 
 
   return (
@@ -747,9 +864,12 @@ const ScheduleDashboard = () => {
                     <>
                         <div className="serving-text">Serving: <b>{servingPatient.name}</b></div>
                         <div className="serving-details">{servingPatient.service} at {servingPatient.scheduledTime}</div>
-                        <button className="start-btn release-btn" onClick={handleReleasePatient}>
+                          <button className="start-btn release-btn" onClick={(e)=>{
+                            if (!canRelease) { e.preventDefault(); alert('Cannot release patient until their scheduled time and date.'); return; }
+                            handleReleasePatient();
+                          }} disabled={!canRelease}>
                             Release & Complete
-                        </button>
+                          </button>
                     </>
                 ) : (
                     <>
@@ -760,9 +880,23 @@ const ScheduleDashboard = () => {
                                 <span>Queue is empty.</span>
                             }
                         </div>
-                        <button className="start-btn" onClick={handleStartServing} disabled={waiting.length === 0}>
-                            Start
-                        </button>
+                        <div className="options-wrap">
+                          <button className={`start-btn ${!canStart ? 'not-scheduled' : ''}`} onClick={(e)=>{
+                            if (!canStart) { e.preventDefault(); alert('Cannot start serving until the appointment date and scheduled time.'); return; }
+                            handleStartServing();
+                          }} disabled={!canStart}>
+                            {canStart ? 'Start' : 'Not Appointed Schedule'}
+                          </button>
+
+                          <button className="options-btn" title="Options" onClick={()=> setOptionsOpen(o => !o)}>⚙</button>
+
+                          {optionsOpen && (
+                            <div className="options-menu">
+                              <button className="menu-item" onClick={()=>{ setOptionsOpen(false); handleDropAppointment(); }}>Drop Appointment</button>
+                              <button className="menu-item" onClick={()=>{ setOptionsOpen(false); handleRescheduleAppointment(); }}>Reschedule Appointment</button>
+                            </div>
+                          )}
+                        </div>
                     </>
                 )}
                 
@@ -780,9 +914,34 @@ const ScheduleDashboard = () => {
             />
         }
 
+        {showRescheduleModal && (
+          <div className="reschedule-overlay">
+            <div className="reschedule-modal">
+              <h4>Reschedule Appointment</h4>
+              <div style={{marginBottom:8}}><b>{nextAppointmentObject?.patientFullName || 'Patient'}</b></div>
+              <div style={{marginBottom:12}}>
+                <CalendarView
+                  selectedDate={rescheduleDate}
+                  onDateSelect={(d)=>{ setRescheduleDate(d); setRescheduleSelectedSlot(''); }}
+                  bookedTimes={rescheduleBookedTimes}
+                  loading={rescheduleLoading}
+                  onSlotSelect={(slot)=> setRescheduleSelectedSlot(slot)}
+                  selectedSlot={rescheduleSelectedSlot}
+                />
+              </div>
+              <div className="actions">
+                <button className="btn ghost" onClick={()=>setShowRescheduleModal(false)}>Cancel</button>
+                <button className="btn primary" onClick={handleConfirmReschedule}>Confirm</button>
+              </div>
+            </div>
+          </div>
+        )}
+
       </main>
     </div>
   );
 };
 
 export default ScheduleDashboard;
+
+// Reschedule modal root element rendering (placed at end so it's included in this file)
