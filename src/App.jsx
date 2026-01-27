@@ -6,8 +6,8 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 // Import all screens from your Screens folder
 import Home from './Screens/Home';
 import AboutUs from './Screens/About_us';
-import Services from './Screens/services';
-import Appointment from './Screens/appointment';
+import Services from './Screens/Services';
+import Appointment from './Screens/Appointment';
 
 const App = () => {
   return (
