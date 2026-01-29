@@ -48,6 +48,17 @@ const Appointment = () => {
     firstName: '',
     lastName: '',
     email: '',
+    phone: '',
+    age: '',
+    gender: '',
+    occupation: '',
+    maritalStatus: '',
+    address: '',
+    allergies: '',
+    conditionNotes: '',
+    currentMeds: '',
+    isPregnant: false,
+    isSmoking: false,
     service: '',
     date: new Date().toISOString().split('T')[0],
     time: '',
@@ -59,9 +70,7 @@ const Appointment = () => {
   const [takenTimes, setTakenTimes] = useState([]);
   const [fetchingTimes, setFetchingTimes] = useState(false);
   const [nameErrors, setNameErrors] = useState({ firstName: '', lastName: '' });
-  const [submittedFirstName, setSubmittedFirstName] = useState('');
 
-  // Fetch booked slots when date changes
   useEffect(() => {
     const fetchBookedSlots = async () => {
       setFetchingTimes(true);
@@ -69,50 +78,34 @@ const Appointment = () => {
       setTakenTimes([]);
 
       try {
-        const q = query(
-          appointmentsCollectionRef,
-          where("scheduledDate", "==", formData.date)
-        );
+        const q = query(appointmentsCollectionRef, where("scheduledDate", "==", formData.date));
         const querySnapshot = await getDocs(q);
         const booked = querySnapshot.docs.map(doc => doc.data().scheduledTime);
         setTakenTimes(booked);
       } catch (error) {
-        console.error("Error fetching booked slots:", error);
+        console.error("Error fetching slots:", error);
       } finally {
         setFetchingTimes(false);
       }
     };
-
     fetchBookedSlots();
   }, [formData.date]);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-
+    const { name, value, type, checked } = e.target;
     if (name === 'firstName' || name === 'lastName') {
       const nameRegex = /^[A-Za-z\s'-]*$/;
       if (!nameRegex.test(value)) {
-        setNameErrors(prev => ({ ...prev, [name]: 'Invalid characters used.' }));
+        setNameErrors(prev => ({ ...prev, [name]: 'Invalid characters.' }));
       } else {
         setNameErrors(prev => ({ ...prev, [name]: '' }));
       }
     }
-
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleTimeSelect = (timeSlot) => {
-    setFormData(prev => ({ ...prev, time: timeSlot }));
+    setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (nameErrors.firstName || nameErrors.lastName || !formData.firstName || !formData.lastName) {
-      setSubmitStatus({ type: 'error', message: 'Please provide a valid First and Last name.' });
-      return;
-    }
-
     if (!formData.time) {
       setSubmitStatus({ type: 'error', message: 'Please select a time slot.' });
       return;
@@ -122,12 +115,6 @@ const Appointment = () => {
     setSubmitStatus(null);
 
     try {
-      if (takenTimes.includes(formData.time)) {
-        setSubmitStatus({ type: 'error', message: `This slot is no longer available.` });
-        setLoading(false);
-        return;
-      }
-
       const appointmentData = {
         createdAt: Timestamp.fromDate(new Date()),
         dateTime: Timestamp.fromDate(new Date(`${formData.date}T${formData.time}:00`)),
@@ -137,29 +124,27 @@ const Appointment = () => {
         patientLastName: formData.lastName,
         patientFullName: `${formData.firstName} ${formData.lastName}`,
         patientEmail: formData.email,
+        patientPhone: formData.phone,
+        address: formData.address,
+        age: formData.age,
+        gender: formData.gender,
+        occupation: formData.occupation,
+        maritalStatus: formData.maritalStatus,
+        isPregnant: formData.isPregnant,
+        isSmoking: formData.isSmoking,
+        medicalHistory: {
+          allergies: formData.allergies,
+          conditionNotes: formData.conditionNotes,
+          currentMeds: formData.currentMeds
+        },
         serviceType: formData.service,
         patientNotes: formData.message,
-        status: {
-          isPending: "Approval Pending",
-          isScheduled: "Appointment Requested"
-        },
+        status: { isPending: "Approval Pending", isScheduled: "Appointment Requested" },
       };
 
       const docRef = await addDoc(appointmentsCollectionRef, appointmentData);
-      
-      setSubmittedFirstName(formData.firstName);
-      setSubmitStatus({
-        type: 'success',
-        message: `Thank you, ${formData.firstName}! Your request is confirmed. ID: ${docRef.id}`
-      });
-
+      setSubmitStatus({ type: 'success', message: `Confirmed! ID: ${docRef.id}` });
       setTakenTimes(prev => [...prev, formData.time]);
-      setFormData({
-        firstName: '', lastName: '', email: '', service: '',
-        date: new Date().toISOString().split('T')[0],
-        time: '', message: ''
-      });
-
     } catch (error) {
       setSubmitStatus({ type: 'error', message: `Error: ${error.message}` });
     } finally {
@@ -169,7 +154,7 @@ const Appointment = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 font-inter">
-      {/* Navbar */}
+      {/* Navbar - Retained design with Book Button */}
       <section className="bg-white shadow-sm sticky top-0 z-10 border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <div className="flex items-center space-x-3 text-gray-800 font-semibold text-xl">
@@ -177,15 +162,17 @@ const Appointment = () => {
             <span>Menchie's Dental Clinic</span>
           </div>
           <nav className="hidden md:flex space-x-8 text-lg">
-            <Link to="/" className="text-gray-600 hover:text-indigo-600 transition duration-150">Home</Link>
-            <Link to="/about" className="text-gray-600 hover:text-indigo-600 transition duration-150">About Us</Link>
-            <Link to="/services" className="text-gray-600 hover:text-indigo-600 transition duration-150">Services</Link>
+            <Link to="/" className="text-gray-600 hover:text-indigo-600 transition">Home</Link>
+            <Link to="/about" className="text-gray-600 hover:text-indigo-600 transition">About Us</Link>
+            <Link to="/services" className="text-gray-600 hover:text-indigo-600 transition">Services</Link>
+            <Link to="/my-records" className="text-indigo-600 font-semibold transition">My Records</Link> 
           </nav>
           <div className="hidden sm:block">
-            <Link to="/book" className="flex items-center px-4 py-2 bg-indigo-700 text-white font-medium rounded-xl shadow-lg transition duration-200 text-lg">
+            <Link to="/book" className="flex items-center px-4 py-2 bg-indigo-700 text-white font-medium rounded-xl shadow-lg transition text-lg">
               <BookOpen className="w-5 h-5 mr-2" />
               Book Appointment
             </Link>
+            
           </div>
         </div>
       </section>
@@ -195,129 +182,92 @@ const Appointment = () => {
           <h1 className="text-4xl font-extrabold text-gray-900">
             Book Your <span className="text-indigo-600">Appointment</span>
           </h1>
-          <p className="text-lg text-gray-600 mt-2">Secure your visit with Menchie's Dental Clinic in simple steps.</p>
+          <p className="text-lg text-gray-600 mt-2">Complete your profile to help us prepare for your visit.</p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
-          <div className="bg-white p-6 sm:p-10 rounded-2xl shadow-xl border border-gray-100">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">Patient Information</h2>
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
+          <div className="bg-white p-6 sm:p-10 rounded-2xl shadow-xl border border-gray-100 space-y-8">
+            
+            {/* Section 1: Patient Information */}
+            <div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-6">Patient Information</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <input type="text" name="firstName" placeholder="First Name" onChange={handleChange} required className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500" />
+                <input type="text" name="lastName" placeholder="Last Name" onChange={handleChange} required className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500" />
+                <input type="email" name="email" placeholder="Email Address" onChange={handleChange} required className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500" />
+                <input type="tel" name="phone" placeholder="Phone Number" onChange={handleChange} required className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500" />
+                <input type="text" name="address" placeholder="Home Address" onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 sm:col-span-2" />
+                <input type="number" name="age" placeholder="Age" onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500" />
+                <select name="gender" onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white">
+                  <option value="">Gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </select>
+              </div>
+            </div>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Separated Name Fields */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div>
-                  <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
-                  <input
-                    type="text"
-                    name="firstName"
-                    id="firstName"
-                    value={formData.firstName}
-                    onChange={handleChange}
-                    required
-                    className={`w-full px-4 py-2 border rounded-lg shadow-sm focus:ring-indigo-500 transition duration-150 ${nameErrors.firstName ? 'border-red-500' : 'border-gray-300'}`}
-                    placeholder="First Name"
-                  />
-                  {nameErrors.firstName && <p className="mt-1 text-xs text-red-600">{nameErrors.firstName}</p>}
+            {/* Section 2: Medical History */}
+            <div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-6 border-t pt-6">Medical History</h2>
+              <div className="space-y-4">
+                <input type="text" name="allergies" placeholder="Allergies (e.g. Penicillin)" onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg" />
+                <input type="text" name="currentMeds" placeholder="Current Medications" onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg" />
+                <textarea name="conditionNotes" placeholder="Medical Condition Notes" onChange={handleChange} rows="2" className="w-full px-4 py-2 border border-gray-300 rounded-lg"></textarea>
+                <div className="flex space-x-6">
+                  <label className="flex items-center space-x-2 text-sm text-gray-700">
+                    <input type="checkbox" name="isPregnant" onChange={handleChange} className="w-4 h-4 text-indigo-600 rounded" />
+                    <span>Is Pregnant?</span>
+                  </label>
+                  <label className="flex items-center space-x-2 text-sm text-gray-700">
+                    <input type="checkbox" name="isSmoking" onChange={handleChange} className="w-4 h-4 text-indigo-600 rounded" />
+                    <span>Smoker?</span>
+                  </label>
                 </div>
-                <div>
-                  <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
-                  <input
-                    type="text"
-                    name="lastName"
-                    id="lastName"
-                    value={formData.lastName}
-                    onChange={handleChange}
-                    required
-                    className={`w-full px-4 py-2 border rounded-lg shadow-sm focus:ring-indigo-500 transition duration-150 ${nameErrors.lastName ? 'border-red-500' : 'border-gray-300'}`}
-                    placeholder="Last Name"
-                  />
-                  {nameErrors.lastName && <p className="mt-1 text-xs text-red-600">{nameErrors.lastName}</p>}
-                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 3: Scheduling - Mellow Design */}
+          <div className="bg-white p-6 sm:p-10 rounded-2xl shadow-xl border border-gray-100 space-y-6">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Schedule Your Visit</h2>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Select Service</label>
+                <select name="service" onChange={handleChange} required className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white focus:ring-indigo-500">
+                  <option value="">-- Choose a Service --</option>
+                  {serviceOptions.map((opt, i) => <option key={i} value={opt}>{opt}</option>)}
+                </select>
               </div>
 
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-                <input
-                  type="email"
-                  name="email"
-                  id="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500"
-                  placeholder="you@example.com"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div>
-                  <label htmlFor="service" className="block text-sm font-medium text-gray-700 mb-1">Service</label>
-                  <select
-                    name="service"
-                    id="service"
-                    value={formData.service}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white"
-                  >
-                    <option value="">-- Select --</option>
-                    {serviceOptions.map((opt, i) => <option key={i} value={opt}>{opt}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label htmlFor="date" className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                  <div className="relative">
-                    <input
-                      type="date"
-                      name="date"
-                      id="date"
-                      value={formData.date}
-                      onChange={handleChange}
-                      required
-                      min={new Date().toISOString().split('T')[0]}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                    />
-                    <CalendarIcon className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none"/>
-                  </div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Appointment Date</label>
+                <div className="relative">
+                  <input type="date" name="date" value={formData.date} onChange={handleChange} min={new Date().toISOString().split('T')[0]} required className="w-full px-4 py-2 border border-gray-300 rounded-lg" />
+                  <CalendarIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 </div>
               </div>
 
-              {/* Time Slot Grid */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Available Time Slots {fetchingTimes && <span className="text-gray-400 ml-2 text-xs">(Checking...)</span>}
                 </label>
                 <div className="grid grid-cols-3 gap-3">
-                  {TIME_SLOTS.map((slot) => {
-                    const isTaken = takenTimes.includes(slot);
-                    const isSelected = formData.time === slot;
-                    return (
-                      <button
-                        key={slot}
-                        type="button"
-                        disabled={isTaken}
-                        onClick={() => handleTimeSelect(slot)}
-                        className={`py-2 px-2 rounded-lg text-sm font-semibold transition-all border ${
-                          isTaken ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed line-through' :
-                          isSelected ? 'bg-indigo-600 text-white border-indigo-600 shadow-md scale-105' :
-                          'bg-white text-gray-700 border-gray-300 hover:border-indigo-400'
-                        }`}
-                      >
-                        {slot}
-                      </button>
-                    );
-                  })}
+                  {TIME_SLOTS.map((slot) => (
+                    <button
+                      key={slot} type="button"
+                      disabled={takenTimes.includes(slot)}
+                      onClick={() => setFormData(p => ({ ...p, time: slot }))}
+                      className={`py-2 px-2 rounded-lg text-sm font-semibold transition-all border ${
+                        takenTimes.includes(slot) ? 'bg-gray-100 text-gray-300 border-gray-200 cursor-not-allowed line-through' :
+                        formData.time === slot ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' :
+                        'bg-white text-gray-700 border-gray-300 hover:border-indigo-400 hover:bg-indigo-50'
+                      }`}
+                    >
+                      {slot}
+                    </button>
+                  ))}
                 </div>
-              </div>
-
-              <div>
-                <label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-1">Notes (Optional)</label>
-                <textarea
-                  name="message" id="message" rows="3"
-                  value={formData.message} onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500"
-                  placeholder="Any specific concerns?"
-                ></textarea>
               </div>
 
               {submitStatus && (
@@ -328,25 +278,16 @@ const Appointment = () => {
 
               <button
                 type="submit"
-                disabled={loading || submitStatus?.type === 'success' || !formData.time || !!nameErrors.firstName || !!nameErrors.lastName}
-                className={`w-full flex items-center justify-center px-6 py-3 font-semibold rounded-xl shadow-lg transition duration-200 text-lg ${
-                  loading || submitStatus?.type === 'success' || !formData.time || !!nameErrors.firstName || !!nameErrors.lastName
-                  ? 'bg-indigo-300 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                disabled={loading || submitStatus?.type === 'success'}
+                className={`w-full py-4 font-bold rounded-xl shadow-lg transition text-lg ${
+                  loading || submitStatus?.type === 'success' ? 'bg-gray-300 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700'
                 }`}
               >
-                {loading ? 'Submitting...' : 'Confirm Appointment Request'}
+                {loading ? 'Processing...' : 'Request Appointment'}
               </button>
-            </form>
+            </div>
           </div>
-
-          <div className="hidden lg:block relative">
-            <img
-              src="https://media.istockphoto.com/id/1311280344/photo/asian-dentist-explaining-tooth-x-rays-to-a-patient-with-digital-tablet-asian-young-attractive.jpg?s=612x612&w=0&k=20&c=eHIfwTNNrsbgdz3RwudbKhdGd9WM7EaeIdzcuktL5xE="
-              alt="Dentist"
-              className="w-full h-full object-cover rounded-2xl shadow-2xl border-4 border-white"
-            />
-          </div>
-        </div>
+        </form>
       </main>
 
       <footer className="w-full py-4 mt-16 text-center text-gray-500 text-sm border-t border-gray-200 bg-white">

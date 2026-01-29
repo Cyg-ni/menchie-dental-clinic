@@ -1,8 +1,7 @@
-// src/Screens/About_us.jsx
-
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, Link } from 'react-router-dom';
-
+import { auth } from '../firebase-config'; // Ensure this path is correct
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 
 // --- Icon Components ---
 
@@ -13,7 +12,6 @@ const BookOpen = (props) => (
     <path d="M7 12V3h5l4 4v5" />
   </svg>
 );
-
 
 const SmileIcon = (props) => ( 
     <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -39,6 +37,24 @@ const HeartIcon = (props) => (
 
 // --- Main Component ---
 const AboutUs = () => {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  // Listen for Auth State
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleLogout = () => {
+    if (window.confirm("Are you sure you want to logout?")) {
+      signOut(auth).catch((error) => console.error("Logout error:", error));
+    }
+  };
+
   const ExternalLogo = ({ size = 'w-6 h-6', className = '' }) => (
     <img 
       src="https://cdn-icons-png.flaticon.com/512/103/103386.png" 
@@ -51,22 +67,45 @@ const AboutUs = () => {
   return (
     <div className="min-h-screen bg-gray-50 font-inter">
 
+      {/* --- NAVBAR --- */}
       <section className="bg-white shadow-sm sticky top-0 z-10 border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <div className="flex items-center space-x-3 text-gray-800 font-semibold text-xl">
             <ExternalLogo size="w-6 h-6" />
             <span>Menchie's Dental Clinic</span>
           </div>
-          <nav className="hidden md:flex space-x-8 text-lg">
+          <nav className="hidden md:flex space-x-8 text-lg font-medium">
             <NavLink to="/" className={({ isActive }) => isActive ? 'text-indigo-600 font-bold transition duration-150' : 'text-gray-600 hover:text-indigo-600 transition duration-150'}>Home</NavLink>
             <NavLink to="/about" className={({ isActive }) => isActive ? 'text-indigo-600 font-bold transition duration-150' : 'text-gray-600 hover:text-indigo-600 transition duration-150'}>About Us</NavLink> 
             <NavLink to="/services" className={({ isActive }) => isActive ? 'text-indigo-600 font-bold transition duration-150' : 'text-gray-600 hover:text-indigo-600 transition duration-150'}>Services</NavLink>
+            <Link to="/my-records" className="text-indigo-600 font-semibold transition">My Records</Link> 
           </nav>
-          <div className="hidden sm:block">
-            <Link to="/book" className="flex items-center px-4 py-2 bg-indigo-600 text-white font-medium rounded-xl shadow-lg hover:bg-indigo-700 transition duration-200 text-lg">
-              <BookOpen className="w-5 h-5 mr-2" />
-              Book Appointment
-            </Link>
+          <div className="flex items-center space-x-4">
+            {!loading && (
+              <>
+                {user ? (
+                  <div className="flex items-center space-x-3">
+                    <Link to="/book" className="flex items-center px-5 py-2.5 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 transition duration-200 text-base">
+                      <BookOpen className="w-5 h-5 mr-2" />
+                      Book Appointment
+                    </Link>
+                    <button 
+                      onClick={handleLogout}
+                      className="flex items-center px-5 py-2.5 border-2 border-red-100 text-red-500 font-bold rounded-xl hover:bg-red-50 hover:border-red-200 transition duration-200 text-base"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                      Logout
+                    </button>
+                  </div>
+                ) : (
+                  <Link to="/auth" className="flex items-center px-8 py-2.5 border-2 border-indigo-600 text-indigo-600 font-extrabold rounded-xl hover:bg-indigo-50 transition duration-200 text-base">
+                    Sign In
+                  </Link>
+                )}
+              </>
+            )}
           </div>
         </div>
       </section>
@@ -89,8 +128,8 @@ const AboutUs = () => {
             <div className="bg-indigo-50 border-l-4 border-indigo-600 p-4 rounded-r-xl">
                <p className="text-indigo-900 font-bold uppercase text-xs tracking-wider mb-1">Visit us at:</p>
                <p className="text-indigo-800 font-medium">
-                  Unit 17-A Ground Floor Shopper's Lane Building<br/>
-                  Lower General Luna Road, Baguio City
+                 Unit 17-A Ground Floor Shopper's Lane Building<br/>
+                 Lower General Luna Road, Baguio City
                </p>
             </div>
           </div>
@@ -104,8 +143,7 @@ const AboutUs = () => {
               loading="lazy"
               allowFullScreen
               referrerPolicy="no-referrer-when-downgrade"
-              // The "q" parameter creates the pin at the specific address
-              src="https://www.google.com/maps?q=Shopper's+Lane+Building,+Lower+General+Luna+Road,+Baguio+City&output=embed"
+              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3827.1328475263623!2d120.5960413!3d16.4180425!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3391a16639c7162d%3A0xc3f5c7866d5854b7!2sShopper's%20Lane%20Bldg!5e0!3m2!1sen!2sph!4v1700000000000"
             ></iframe>
           </div>
                    

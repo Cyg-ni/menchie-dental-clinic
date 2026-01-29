@@ -1,9 +1,8 @@
 // src/firebase-config.js
-
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 import { getFirestore } from "firebase/firestore"; 
-
+import { getAuth } from "firebase/auth"; 
 
 const firebaseConfig = {
   apiKey: "AIzaSyCS-olCQRpJZGcYSGWG7CZ8PIpV-wBNaOE",
@@ -15,12 +14,10 @@ const firebaseConfig = {
   measurementId: "G-C96BVD0XY6"
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
 
-// 2. INITIALIZE FIRESTORE DATABASE
 const db = getFirestore(app);
+const auth = getAuth(app);
 
-// 3. EXPORT THE FIRESTORE DATABASE INSTANCE
-export { db };
+export { db, auth };
