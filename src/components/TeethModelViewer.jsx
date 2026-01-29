@@ -14,14 +14,17 @@ const WHITENING_DURATION = 3.0;
 const CLEANING_DURATION = 3.0;
 
 export default function TeethModelViewer({ 
-  className = "", 
-  selectedTeeth = [],
-  toothStates = {}, 
-  viewMode = 'status',
-  selectedRecord = null,
-  timelineRecords = [],
-  patientId = "default-patient",
-  toothTreatments = {}
+    className = "", 
+    selectedTeeth = [],
+    toothStates = {}, 
+    viewMode = 'status',
+    selectedRecord = null,
+    timelineRecords = [],
+    patientId = "default-patient",
+    toothTreatments = {},
+    defaultTreatment = null,
+    defaultCondition = null,
+    timelineSelectedTooth = null
 }) {
   const mountRef = React.useRef(null);
   const [status, setStatus] = React.useState("loading");
@@ -44,6 +47,7 @@ export default function TeethModelViewer({
   const COLOR_STAINED_BASE = new THREE.Color(0xffe699);
   const COLOR_WHITENING_TARGET = new THREE.Color(0xffffff);
   const COLOR_DIM = new THREE.Color(0x444444); 
+  const COLOR_MISSING = new THREE.Color(0x9e9e9e);
   const COLOR_CLEANING_TARGET = new THREE.Color(0xffffff);
   
   // --- ANIMATION TRACKING ---
@@ -281,6 +285,40 @@ export default function TeethModelViewer({
     };
   }, [updateAnimations]);
 
+  // Check if a tooth is missing from any source
+  const isToothMissing = React.useCallback((toothNum) => {
+    // Check toothStates first
+    if (toothStates[toothNum] === 'missing') {
+      console.log(`Tooth ${toothNum} marked as missing in toothStates`);
+      return true;
+    }
+    
+    // Check timeline records for missing condition
+    if (timelineRecords && timelineRecords.length > 0) {
+      const missingRecords = timelineRecords.filter(record => 
+        record.toothNumber === toothNum && 
+        record.condition && 
+        record.condition.toLowerCase().includes('missing')
+      );
+      
+      if (missingRecords.length > 0) {
+        console.log(`Tooth ${toothNum} found as missing in timeline records:`, missingRecords);
+        return true;
+      }
+    }
+    
+    // Check selected record for missing condition
+    if (selectedRecord && selectedRecord.condition) {
+      if (selectedRecord.condition.toLowerCase().includes('missing') && 
+          selectedRecord.toothNumber === toothNum) {
+        console.log(`Tooth ${toothNum} found as missing in selected record`);
+        return true;
+      }
+    }
+    
+    return false;
+  }, [toothStates, timelineRecords, selectedRecord]);
+
   // --- MAIN EFFECT TO UPDATE VISUALS ---
   React.useEffect(() => {
     if (status !== 'ready') {
@@ -301,6 +339,25 @@ export default function TeethModelViewer({
         state.completedAnimations.clear();
         state.animationStartTimes.clear();
         prevViewModeRef.current = viewMode;
+    }
+
+    // NEW: Highlight timeline selected tooth
+    if (timelineSelectedTooth) {
+        console.log(`🔍 Timeline selected tooth: ${timelineSelectedTooth}`);
+        const selectedMeshes = getMeshes(timelineSelectedTooth);
+        selectedMeshes.forEach(mesh => {
+            // Add a special glow/pulse effect for timeline selection
+            mesh.material.emissive.setHex(0xff6b6b);
+            mesh.material.emissiveIntensity = 0.5;
+            mesh.userData.timelineSelected = true;
+                
+            // Add to pulsing meshes for animation
+            if (!state.pulsingMeshes.includes(mesh)) {
+                state.pulsingMeshes.push(mesh);
+                mesh.userData.pulseColor1 = new THREE.Color(0xff6b6b);
+                mesh.userData.pulseColor2 = new THREE.Color(0xff8e8e);
+            }
+        });
     }
 
     const getMeshes = (id) => map[String(id)] || [];
@@ -390,7 +447,7 @@ export default function TeethModelViewer({
     };
 
     // Get teeth from selected record
-    const teethToShow = selectedRecord?.toothNumbers || [];
+    const teethToShow = selectedRecord ? [selectedRecord.toothNumber] : [];
     
     // Get all teeth we need to process
     const allToothIds = new Set([
@@ -399,12 +456,12 @@ export default function TeethModelViewer({
         ...teethToShow.map(String)
     ]);
 
+    // Prepare a string-based set for selected teeth to avoid type mismatch (string vs number)
+    const selectedSet = new Set((selectedTeeth || []).map(String));
+
     console.log('=== VISUAL UPDATE ===');
     console.log('VIEW MODE:', viewMode);
-    console.log('SELECTED RECORD:', selectedRecord);
-    console.log('TEETH TO SHOW:', teethToShow);
-    console.log('SELECTED TEETH:', selectedTeeth);
-    console.log('ALL TOOTH IDs:', Array.from(allToothIds));
+    console.log('SELECTED TEETH:', Array.from(selectedSet));
 
     // Process each tooth
     allToothIds.forEach(toothNumStr => {
@@ -412,40 +469,64 @@ export default function TeethModelViewer({
         const meshes = getMeshes(toothNum);
         const toothState = toothStates[toothNum];
 
+        // Check if tooth is missing from any source
+        const isMissing = isToothMissing(toothNum);
+        
+        if (isMissing) {
+            console.log(`🚫 Tooth ${toothNum} is marked as MISSING - hiding in 3D view`);
+            meshes.forEach(mesh => {
+                mesh.visible = false;
+                // Remove any animations referencing this mesh
+                state.pulsingMeshes = state.pulsingMeshes.filter(m => m !== mesh);
+                state.whiteningMeshes = state.whiteningMeshes.filter(m => m !== mesh);
+                state.removalMeshes = state.removalMeshes.filter(m => m !== mesh);
+                state.cleaningMeshes = state.cleaningMeshes.filter(m => m !== mesh);
+            });
+            return; // Skip further processing for this tooth
+        }
+        
         // Determine if this tooth is in the selected record
         const isInSelectedRecord = teethToShow.includes(toothNum);
 
         meshes.forEach(mesh => {
             if (viewMode === 'status') {
-                // Status view
-                if (toothState === 'missing') {
-                    mesh.visible = false;
-                } else if (selectedTeeth.includes(toothNum)) {
+                // Status view - SIMPLIFIED: Only highlight teeth that are in selectedTeeth
+                if (selectedSet.has(String(toothNum))) {
+                    // ONLY highlight if tooth is in selectedTeeth
+                    console.log(`Highlighting tooth ${toothNum} in status view (selected in odontogram)`);
                     setVisuals(mesh, COLOR_SELECTED_TREAT, true, new THREE.Color(0x7397c5));
-                } else if (toothState === 'treated') {
-                    setVisuals(mesh, COLOR_TREATED);
-                } else if (toothState === 'issue') {
-                    setVisuals(mesh, COLOR_ISSUE);
                 } else {
-                    setVisuals(mesh, COLOR_DEFAULT);
+                    // All other teeth - show default or treated color
+                    if (toothState === 'treated') {
+                        setVisuals(mesh, COLOR_TREATED);
+                    } else if (toothState === 'issue') {
+                        setVisuals(mesh, COLOR_ISSUE);
+                    } else {
+                        setVisuals(mesh, COLOR_DEFAULT);
+                    }
                 }
                 
             } else if (viewMode === 'condition') {
                 console.log(`=== CONDITION VIEW - Tooth ${toothNum} ===`);
                 
-                // Find condition from any source
+                // Find condition from any source. Prefer selectedRecord, then timelineRecords, then toothStates.
                 let actualCondition = '';
-                
-                // Check selectedRecord
-                if (isInSelectedRecord && selectedRecord && selectedRecord.condition) {
+
+                // If a defaultCondition is provided by the parent and this tooth is selected for treatment,
+                // prefer that (staff just chose it in the side panel).
+                if (defaultCondition && selectedSet.has(String(toothNum))) {
+                    actualCondition = (defaultCondition || '').toLowerCase().trim();
+                    console.log(`Using defaultCondition prop for selected tooth: "${actualCondition}"`);
+                }
+                // Check selectedRecord next
+                else if (isInSelectedRecord && selectedRecord && selectedRecord.condition) {
                     actualCondition = selectedRecord.condition.toLowerCase().trim();
                     console.log(`Found condition in selectedRecord: "${actualCondition}"`);
                 }
-                // Check timelineRecords
-                else if (timelineRecords && timelineRecords.length > 0) {
+                // Then check timelineRecords
+                if (!actualCondition && timelineRecords && timelineRecords.length > 0) {
                     const timelineRecord = timelineRecords.find(record => 
-                        record.toothNumbers && 
-                        record.toothNumbers.includes(toothNum) && 
+                        record.toothNumber === toothNum && 
                         record.condition
                     );
                     if (timelineRecord) {
@@ -453,8 +534,8 @@ export default function TeethModelViewer({
                         console.log(`Found condition in timelineRecords: "${actualCondition}"`);
                     }
                 }
-                // Check toothStates (fallback)
-                else if (toothState && toothState !== 'healthy') {
+                // Finally, check toothStates as fallback (non-missing)
+                if (!actualCondition && toothState && toothState !== 'healthy') {
                     actualCondition = toothState.toLowerCase().trim();
                     console.log(`Found condition in toothStates: "${actualCondition}"`);
                 }
@@ -462,10 +543,7 @@ export default function TeethModelViewer({
                 console.log(`Final condition for tooth ${toothNum}: "${actualCondition}"`);
                 
                 // Apply correct color based on condition
-                if (actualCondition === 'missing') {
-                    mesh.visible = false;
-                    console.log(`Setting tooth ${toothNum} as missing`);
-                } else if (actualCondition.includes('stained')) {
+                if (actualCondition.includes('stained')) {
                     setVisuals(mesh, COLOR_STAINED_BASE);
                     console.log(`Setting tooth ${toothNum} as stained (yellow)`);
                 } else if (actualCondition.includes('decay')) {
@@ -483,7 +561,7 @@ export default function TeethModelViewer({
                 console.log(`=== TREATMENT VIEW - Tooth ${toothNum} ===`);
                 
                 // Check if tooth is selected (highlighted in odontogram)
-                const isToothSelected = selectedTeeth.includes(toothNum);
+                const isToothSelected = selectedSet.has(String(toothNum));
                 console.log(`Tooth ${toothNum} is in selectedTeeth: ${isToothSelected}`);
                 
                 if (isToothSelected) {
@@ -513,13 +591,19 @@ export default function TeethModelViewer({
                     
                     // 2. If no treatment from toothTreatments, check selectedRecord
                     if (!treatment && selectedRecord && selectedRecord.treatment) {
-                        if (selectedRecord.toothNumbers && selectedRecord.toothNumbers.includes(toothNum)) {
+                        if (selectedRecord.toothNumber === toothNum) {
                             treatment = selectedRecord.treatment;
                             console.log(`📋 Found treatment in selectedRecord: "${treatment}"`);
                         }
                     }
+
+                    // 3. If still no treatment, use the parent's defaultTreatment (e.g. selected in side-panel)
+                    if (!treatment && defaultTreatment) {
+                        treatment = defaultTreatment;
+                        console.log(`📌 Using defaultTreatment prop: "${treatment}"`);
+                    }
                     
-                    // 3. Get condition for this tooth
+                    // Get condition for this tooth
                     if (toothState && toothState !== 'healthy') {
                         condition = toothState.toLowerCase().trim();
                         console.log(`📋 Found condition in toothStates: "${condition}"`);
@@ -528,7 +612,7 @@ export default function TeethModelViewer({
                     console.log(`🔍 Condition for tooth ${toothNum}: "${condition}"`);
                     console.log(`💊 Treatment for tooth ${toothNum}: "${treatment}"`);
                     
-                    // CRITICAL FIX: If no treatment found, use DEFAULT treatment based on condition
+                    // If no treatment found, use DEFAULT treatment based on condition
                     if (!treatment && condition) {
                         console.log(`⚠️ No treatment found for tooth ${toothNum}, using default based on condition`);
                         
@@ -559,9 +643,15 @@ export default function TeethModelViewer({
                         const normalizedCondition = condition ? condition.toLowerCase().trim() : '';
                         
                         console.log(`🎯 FINAL: Condition="${normalizedCondition}", Treatment="${normalizedTreatment}"`);
-                        
-                        // Remove animation conditions
-                        if ((normalizedCondition.includes('tooth cavity') || normalizedCondition.includes('cavity')) &&
+
+                        // If the staff explicitly selected a removal/extraction as the current procedure,
+                        // prioritize the removal animation regardless of the recorded condition (unless missing).
+                        if (normalizedTreatment.includes('remov') || normalizedTreatment.includes('extract')) {
+                            console.log(`⚡ Staff-selected removal detected → FORCE REMOVAL ANIMATION`);
+                            setupRemoval(mesh);
+                        }
+                        // Otherwise, run condition+treatment rules
+                        else if ((normalizedCondition.includes('tooth cavity') || normalizedCondition.includes('cavity')) &&
                             (normalizedTreatment.includes('removal') || normalizedTreatment.includes('extraction'))) {
                             console.log(`✅ Condition: tooth cavity, Treatment: removal → REMOVAL ANIMATION`);
                             setupRemoval(mesh);
@@ -633,7 +723,7 @@ export default function TeethModelViewer({
     console.log('Cleaning animations:', state.cleaningMeshes.length);
     console.log('Pulsing meshes:', state.pulsingMeshes.length);
 
-  }, [status, toothStates, selectedTeeth, viewMode, selectedRecord, timelineRecords, toothTreatments]);
+    }, [status, toothStates, selectedTeeth, viewMode, selectedRecord, timelineRecords, toothTreatments, defaultTreatment, defaultCondition, isToothMissing, timelineSelectedTooth]);
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>

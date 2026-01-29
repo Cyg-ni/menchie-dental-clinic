@@ -708,7 +708,7 @@ export default function PatientProfile() {
                   <button type="button" onClick={() => setCurrentTool('missing')} style={{ background: currentTool === 'missing' ? '#e3f2fd' : '#fff', border: currentTool === 'missing' ? '1px solid #2452a2' : '1px solid #ddd', padding: '5px 10px', borderRadius: 5, cursor: 'pointer', fontWeight: 600, color: '#333' }}> Mark Missing </button>
                   <button type="button" onClick={() => setCurrentTool('treat')} style={{ background: currentTool === 'treat' ? '#2452a2' : '#f0f0f0', border: '1px solid #ddd', padding: '5px 10px', borderRadius: 5, cursor: 'pointer', color: currentTool === 'treat' ? 'white' : '#333', fontWeight: 600 }}> Select for Treatment </button>
               </div>
-              <Odontogram selectedTeeth={treatTeeth} onSelectionChange={setTreatTeeth} toothStates={toothStates} onStateChange={handlePermanentToothStateChange} currentTool={currentTool} selectable={currentTool === 'treat'} />
+              <Odontogram selectedTeeth={treatTeeth} onSelectionChange={setTreatTeeth} toothStates={toothStates} onStateChange={handlePermanentToothStateChange} currentTool={currentTool} selectable={currentTool === 'treat'} treatmentType={form.procedure} defaultCondition={form.condition} />
             </div>
             
             <form style={{ flex: 1, background: '#f8f9fa', borderRadius: 8, minHeight: 280, padding: 20 }} onSubmit={handleTreatmentSubmit}>
@@ -764,10 +764,10 @@ export default function PatientProfile() {
               
               const timelineSelectedTeeth = selectedTreatment?.teeth || [];
               
-              return (
+                  return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 15, background: "#fff", borderRadius: 10, boxShadow: "0 2px 24px #eee", padding: 22, maxWidth: '100%', overflowX: 'auto' }}>
                   <div style={{ fontWeight: 700, color: '#223245', fontSize: 18 }}> {sectionTitle} </div>
-                  <Odontogram selectedTeeth={timelineSelectedTeeth} selectable={false} toothStates={shadedStatus} currentTool={'none'} onSelectionChange={()=>{}} />
+                  <Odontogram selectedTeeth={timelineSelectedTeeth} selectable={false} toothStates={shadedStatus} currentTool={'none'} onSelectionChange={()=>{}} treatmentType={form.procedure} defaultCondition={form.condition} />
                   
                   {form.isModelOpen && (
                       <div className="odontogram-modal-backdrop" onClick={() => setForm(f => ({ ...f, isModelOpen: false }))} role="presentation">
@@ -776,7 +776,7 @@ export default function PatientProfile() {
                               <div className="odontogram-modal-body">
                                   {/* Container required for rendering canvas */}
                                   <div style={{ width: '100%', height: '500px' }}>
-                                      <TeethModelViewer selectedTeeth={timelineSelectedTeeth} toothStates={shadedStatus} />
+                                      <TeethModelViewer selectedTeeth={timelineSelectedTeeth} toothStates={shadedStatus} defaultTreatment={form.procedure} />
                                   </div>
                               </div>
                               <div className="odontogram-modal-footer"> <button type="button" className="modal-close-secondary" onClick={() => setForm(f => ({ ...f, isModelOpen: false }))}> Close </button> </div>
