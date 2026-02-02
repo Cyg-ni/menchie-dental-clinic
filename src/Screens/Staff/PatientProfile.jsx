@@ -106,59 +106,13 @@ const RenderAppointmentHistory = ({ history }) => {
     );
 };
 
-// --- Debug helper: Search recent appointment documents for patient's email ---
-const DebugSearchByEmail = ({ patientId }) => {
-  const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState(null);
-
-  const runDebug = async () => {
-    setLoading(true);
-    setResults(null);
-    try {
-      const patientDoc = await getDoc(doc(db, 'patients', patientId));
-      const patientData = patientDoc.exists() ? patientDoc.data() : null;
-      const patientEmail = (patientData?.email || patientData?.contactEmail || patientData?.contactInfo || patientData?.contact?.email || '').toLowerCase();
-      if (!patientEmail) {
-        setResults({ error: 'No email found on patient record.' });
-        setLoading(false);
-        return;
-      }
-
-      const recentQ = query(appointmentsCollectionRef, orderBy('updatedAt', 'desc'));
-      const snap = await getDocs(recentQ);
-      const matched = [];
-      snap.docs.slice(0, 500).forEach(d => {
-        try {
-          const raw = JSON.stringify(d.data()).toLowerCase();
-          if (raw.includes(patientEmail)) matched.push({ id: d.id, data: d.data() });
-        } catch (e) {}
-      });
-
-      setResults({ email: patientEmail, found: matched });
-    } catch (err) {
-      setResults({ error: err.message || String(err) });
-    } finally { setLoading(false); }
-  };
-
+// --- Refresh button for appointment history ---
+const RefreshAppointments = ({ onRefresh, loading }) => {
   return (
     <div style={{ marginTop: 12 }}>
-      <button className="btn ghost" onClick={runDebug} disabled={loading}>{loading ? 'Searching...' : 'Debug: Find appointments by email'}</button>
-      {results && (
-        <div style={{ marginTop: 10 }}>
-          {results.error && <div style={{ color: '#b00' }}>{results.error}</div>}
-          {results.found && results.found.length === 0 && <div style={{ color: '#666' }}>No matching appointment docs found in recent 500 records.</div>}
-          {results.found && results.found.length > 0 && (
-            <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
-              {results.found.map(r => (
-                <div key={r.id} style={{ border: '1px solid #eee', padding: 8, borderRadius: 6, background: '#fff' }}>
-                  <div style={{ fontSize: 12, color: '#444', marginBottom: 6 }}>ID: {r.id}</div>
-                  <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12, color: '#222', margin: 0 }}>{JSON.stringify(r.data, null, 2)}</pre>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      <button className="btn ghost" onClick={onRefresh} disabled={loading}>
+        {loading ? 'Refreshing...' : 'Refresh Appointments'}
+      </button>
     </div>
   );
 };
@@ -177,9 +131,7 @@ export default function PatientProfile() {
   const [patient, setPatient] = useState(null);
   const [loading, setLoading] = useState(true); 
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false); 
-  const [appointmentHistory, setAppointmentHistory] = useState([]); 
-  const [debugResults, setDebugResults] = useState(null);
-  const [debugLoading, setDebugLoading] = useState(false);
+  const [appointmentHistory, setAppointmentHistory] = useState([]);
 
   // Odontogram / Treatment States
   const [treatTeeth, setTreatTeeth] = useState([]);
@@ -499,12 +451,20 @@ export default function PatientProfile() {
         return;
     }
     
+    // Collect all teeth marked as missing in the current session (from toothStates with 'missing' state)
+    const missingTeeth = Object.entries(toothStates)
+      .filter(([tooth, state]) => state === 'missing')
+      .map(([tooth]) => tooth);
+    
+    // Combine missing teeth + selected treatment teeth (remove duplicates)
+    const allTeeth = Array.from(new Set([...missingTeeth, ...treatTeeth]));
+    
     const newTreat = {
       condition: form.condition,
       procedure: form.procedure,
       notes: form.notes,
       done: form.done,
-      teeth: [...treatTeeth],
+      teeth: allTeeth,
       date: new Date().toISOString().split('T')[0],
     };
 
@@ -514,8 +474,17 @@ export default function PatientProfile() {
         
         const updatedToothStates = { ...patient.currentToothState || {} };
         if (newTreat.done) {
+            const proc = (newTreat.procedure || '').toLowerCase();
+            const isRemoval = proc.includes('remove') || proc.includes('remov') || proc.includes('extract');
+
             newTreat.teeth.forEach(tooth => {
-                updatedToothStates[tooth] = 'treated';
+                // Preserve 'missing' state for teeth that were already marked as missing
+                const currentState = toothStates[tooth];
+                if (currentState === 'missing') {
+                    updatedToothStates[tooth] = 'missing';
+                } else {
+                    updatedToothStates[tooth] = isRemoval ? 'missing' : 'treated';
+                }
             });
         }
         
@@ -749,8 +718,20 @@ export default function PatientProfile() {
               if (selectedTreatment) {
                   sectionTitle = "Odontogram (Treatment Detail)";
                   const cond = selectedTreatment.condition || '';
+                  
+                  // First, check all teeth in the permanent record for missing status
+                  // and include them in shadedStatus if they're in the selected treatment
+                  const permanentState = patient.currentToothState || {};
+                  const selectedTeethSet = new Set((selectedTreatment.teeth || []).map(String));
+                  
                   selectedTreatment.teeth.forEach(t => {
-                      shadedStatus[t] = cond;
+                      const toothKey = String(t);
+                      // Check if this tooth is permanently marked as missing
+                      if (permanentState[t] === 'missing' || permanentState[toothKey] === 'missing') {
+                          shadedStatus[t] = 'missing';  // Preserve missing status
+                      } else {
+                          shadedStatus[t] = cond;  // Otherwise use the treatment condition
+                      }
                   });
               } else {
                   // Default: Show the current permanent state (Global record)
@@ -776,7 +757,7 @@ export default function PatientProfile() {
                               <div className="odontogram-modal-body">
                                   {/* Container required for rendering canvas */}
                                   <div style={{ width: '100%', height: '500px' }}>
-                                      <TeethModelViewer selectedTeeth={timelineSelectedTeeth} toothStates={shadedStatus} defaultTreatment={form.procedure} />
+                                      <TeethModelViewer selectedTeeth={timelineSelectedTeeth} toothStates={shadedStatus} defaultTreatment={form.procedure} defaultCondition={selectedTreatment?.condition} />
                                   </div>
                               </div>
                               <div className="odontogram-modal-footer"> <button type="button" className="modal-close-secondary" onClick={() => setForm(f => ({ ...f, isModelOpen: false }))}> Close </button> </div>
@@ -796,7 +777,7 @@ export default function PatientProfile() {
 
         {tab === "history" && <div style={{ marginTop: 30 }}>
           <RenderAppointmentHistory history={appointmentHistory} />
-          <DebugSearchByEmail patientId={id} />
+          <RefreshAppointments onRefresh={() => getAppointmentHistory(id)} loading={loading} />
         </div>}
         
         {tab === "info" && (

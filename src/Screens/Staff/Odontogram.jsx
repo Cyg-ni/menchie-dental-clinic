@@ -157,6 +157,7 @@ export default function Odontogram({
     const [selectedRecord, setSelectedRecord] = React.useState(null);
     const [toothTreatments, setToothTreatments] = React.useState({});
     const [timelineSelectedTooth, setTimelineSelectedTooth] = React.useState(null);
+    const [modelKey, setModelKey] = React.useState(0);
     
     // NEW: Medical Record Selected Teeth - FORCE MISSING TEETH TO APPEAR
     const [medicalRecordSelectedTeeth, setMedicalRecordSelectedTeeth] = React.useState([]);
@@ -478,6 +479,7 @@ export default function Odontogram({
     const handleOpenModel = () => {
         console.log("Opening 3D model");
         setModalViewMode('status');
+        setModelKey(prev => prev + 1);
         setIsModelOpen(true);
     };
     
@@ -763,6 +765,7 @@ export default function Odontogram({
                   
                   <div className="odontogram-modal-body">
                     <TeethModelViewer 
+                        key={modelKey}
                         selectedTeeth={selectedTeeth} 
                         toothStates={toothStates} 
                         viewMode={modalViewMode}
