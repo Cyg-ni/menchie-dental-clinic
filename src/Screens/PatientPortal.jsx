@@ -1,11 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { auth, db } from '../firebase-config';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, collection, getDocs, query, orderBy, where } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
-import * as THREE from 'three';
-import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+import TeethModelViewer from '../components/TeethModelViewer';
 
 const PatientPortal = () => {
   const [profile, setProfile] = useState(null);
@@ -16,7 +14,7 @@ const PatientPortal = () => {
   // --- 3D MODEL LOGIC STATES ---
   const [toothStates, setToothStates] = useState({});
   const [selectedRecord, setSelectedRecord] = useState(null);
-  const mountRef = useRef(null);
+  const [viewMode, setViewMode] = useState('status');
   
   const navigate = useNavigate();
 
@@ -54,6 +52,7 @@ const PatientPortal = () => {
             date: record.date || "N/A",
             condition: record.condition || "--",
             procedure: record.procedure || "--",
+            treatment: record.procedure || "--", // Add alias for component compatibility
             done: record.done
           };
         });
@@ -72,49 +71,8 @@ const PatientPortal = () => {
   };
 
   // --- ACTUAL 3D RENDERER LOGIC ---
-  useEffect(() => {
-    if (loading || !mountRef.current) return;
+  // (Replaced by TeethModelViewer component)
 
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color('#f9fafb'); // Match your bg-gray-50
-    const camera = new THREE.PerspectiveCamera(45, mountRef.current.clientWidth / 400, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(mountRef.current.clientWidth, 400);
-    mountRef.current.appendChild(renderer.domElement);
-
-    const controls = new OrbitControls(camera, renderer.domElement);
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
-    scene.add(ambientLight);
-
-    const loader = new OBJLoader();
-    loader.load('/models/Teeth.obj', (obj) => {
-      obj.traverse((child) => {
-        if (child.isMesh) {
-          const toothNum = child.name.replace('Tooth', '');
-          // LOGIC: Color based on toothStates
-          const condition = toothStates[toothNum];
-          if (condition === 'missing') child.visible = false;
-          else if (condition === 'cavity') child.material.color.setHex(0xef4444); // Red
-          else if (condition === 'filled') child.material.color.setHex(0x10b981); // Green
-          else child.material.color.setHex(0xffffff); // Healthy white
-        }
-      });
-      scene.add(obj);
-      camera.position.z = 150;
-    });
-
-    const animate = () => {
-      requestAnimationFrame(animate);
-      controls.update();
-      renderer.render(scene, camera);
-    };
-    animate();
-
-    return () => {
-      renderer.dispose();
-      if (mountRef.current) mountRef.current.removeChild(renderer.domElement);
-    };
-  }, [loading, toothStates]);
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -180,12 +138,35 @@ const PatientPortal = () => {
           <div className="lg:col-span-2 space-y-8">
             {/* 3D Model Section */}
             <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden">
-              <div className="flex justify-between items-center mb-6">
+              <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
                 <h2 className="text-xl font-black text-gray-800">3D Dental Model</h2>
-                <div className="text-[10px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full uppercase">Interactive Viewer</div>
+                
+                <div className="flex bg-gray-50 p-1 rounded-xl border border-gray-100">
+                  {['status', 'condition', 'treatment'].map((mode) => (
+                    <button
+                      key={mode}
+                      onClick={() => setViewMode(mode)}
+                      className={`px-6 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${
+                        viewMode === mode 
+                          ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' 
+                          : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                      }`}
+                    >
+                      {mode}
+                    </button>
+                  ))}
+                </div>
               </div>
               
-              <div ref={mountRef} className="h-[400px] w-full rounded-[1.5rem] bg-gray-50 border border-gray-100 relative overflow-hidden" />
+              <div className="h-[400px] w-full rounded-[1.5rem] bg-gray-50 border border-gray-100 relative overflow-hidden">
+                <TeethModelViewer 
+                  toothStates={toothStates}
+                  selectedTeeth={selectedRecord ? selectedRecord.toothNumbers : []}
+                  selectedRecord={selectedRecord}
+                  timelineRecords={toothConditions}
+                  viewMode={viewMode}
+                />
+              </div>
             </div>
 
             {/* Treatment Records Section */}
