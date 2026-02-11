@@ -7,7 +7,7 @@
 }
 
 .settings-main {
-  padding: 32px;
+  padding: calc(var(--card-gap) * 2);
   overflow-y: auto;
   background: #f8fafc;
   height: 100vh;
@@ -57,15 +57,15 @@
 .settings-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 24px;
+  gap: var(--card-gap);
   align-items: start;
 }
 
 .settings-card {
   background: #ffffff;
-  border-radius: 16px;
+  border-radius: var(--card-radius);
   border: 1px solid #e5e7eb;
-  padding: 20px;
+  padding: var(--card-pad);
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
   display: flex;
   flex-direction: column;
@@ -108,7 +108,12 @@
 .ghost-btn:hover {
   background: #f3f4f6;
 }
-
+.readonly-input {
+  background-color: #f3f4f6 !important;
+  color: #6b7280 !important;
+  cursor: not-allowed;
+  border-color: #e5e7eb !important;
+}
 .form-grid {
   display: grid;
   gap: 14px;

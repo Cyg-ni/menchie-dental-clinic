@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from "react-router-dom";
 // 👇️ FIREBASE IMPORTS
 import { db } from '../../firebase';
 import { doc, getDoc, updateDoc, collection, query, where, getDocs, orderBy } from 'firebase/firestore'; 
+import { useCurrentUser } from "../../hooks/useCurrentUser";
 
 // 👇️ COMPONENT IMPORTS
 import Odontogram from "./Odontogram.jsx";
@@ -124,6 +125,7 @@ export default function PatientProfile() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const { currentUser } = useCurrentUser();
   const [menuOpen, setMenuOpen] = useState(true);
   const [tab, setTab] = useState("medical"); 
 
@@ -639,7 +641,13 @@ export default function PatientProfile() {
       <header className="topbar">
       <button className="icon-btn" onClick={(e) => { e.stopPropagation(); setMenuOpen(o => !o); }}> ≡ </button>
       <div className="brand-left"> <div className="brand-logo" /> <div className="brand-name">Dr. Menchie Amor Dangla Dental Clinic</div> </div>
-      <div className="user"> <div className="avatar" /> <div className="user-meta"> <div className="user-name">Juana Cruz</div> <div className="user-role">Chief Dentist</div> </div> </div>
+      <div className="user">
+          <div className="avatar" style={{ backgroundImage: currentUser?.profilePictureUrl ? `url(${currentUser.profilePictureUrl})` : 'none', backgroundSize: 'cover' }} />
+          <div className="user-meta">
+            <div className="user-name">{currentUser ? `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() || currentUser.username : "Loading..."}</div>
+            <div className="user-role">{currentUser?.role ? currentUser.role.replace('_', ' ').toUpperCase() : "..."}</div>
+          </div>
+      </div>
       </header>
 
       <aside className={`sidebar ${menuOpen ? "open" : ""}`}>

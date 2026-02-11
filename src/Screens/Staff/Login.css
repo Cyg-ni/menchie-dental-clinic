@@ -179,3 +179,29 @@ body, html {
 .admin-login-button:hover {
   background-color: #1a3a4f;
 }
+
+.login-footer {
+  width: 100%;
+  margin-top: 16px;
+  display: flex;
+  justify-content: center;
+}
+
+.back-button {
+  width: 100%;
+  padding: 12px;
+  background-color: #1a1a1a;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: "Exo 2", sans-serif;
+}
+
+.back-button:hover {
+  background-color: #333333;
+  transform: translateY(-1px);
+}

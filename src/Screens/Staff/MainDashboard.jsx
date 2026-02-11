@@ -1,10 +1,11 @@
-﻿import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { db } from "../../firebase"; 
 import { collection, getDocs, query, where, doc, getDoc, orderBy, limit } from 'firebase/firestore'; 
+import { useCurrentUser } from "../../hooks/useCurrentUser";
 
-import "./MainDashboard.css";
 import "./Layout.css";
+import "./MainDashboard.css";
 import AppointmentsModal from "./AppointmentsModal.jsx";
 import AddingPatientModal from "./AddingPatientModal.jsx";
 import logoImage from "./Images/logo.webp";
@@ -131,6 +132,7 @@ const MainDashboard = () => {
   const [patientCounts, setPatientCounts] = useState({ month: 0, year: 0 }); 
   const [todaysAppointments, setTodaysAppointments] = useState([]); 
   const [recentPatients, setRecentPatients] = useState([]); 
+  const { currentUser } = useCurrentUser();
   
   const [loading, setLoading] = useState(true);
   
@@ -434,10 +436,10 @@ const MainDashboard = () => {
         </div>
 
         <div className="user">
-          <div className="avatar" />
+          <div className="avatar" style={{ backgroundImage: currentUser?.profilePictureUrl ? `url(${currentUser.profilePictureUrl})` : 'none', backgroundSize: 'cover' }} />
           <div className="user-meta">
-            <div className="user-name">Juana Cruz</div>
-            <div className="user-role">Chief Dentist</div>
+            <div className="user-name">{currentUser ? `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() || currentUser.username : "Loading..."}</div>
+            <div className="user-role">{currentUser?.role ? currentUser.role.replace('_', ' ').toUpperCase() : "..."}</div>
           </div>
           
         </div>
@@ -503,14 +505,14 @@ const MainDashboard = () => {
           </div>
 
           <div className="card hero">
-            <div className="section-title">
-              <span style={{fontSize: '26px'}}className="muted">Good Morning,</span> <span style={{fontSize: '26px',color: '#A78BFA'}}>Juana</span>
-              <div className="hero-card">
-                <img src={patientImage} alt="Patient-Icon" className="patient-icon" />
-                <button className="link" onClick={() => setShowAddingPatient(true)}>
-                  Manage Patient Settings
-                </button>
-              </div>
+            <div className="card-title">
+              <span style={{fontSize: '22px', fontWeight: '400'}} className="muted">Good Morning,</span> <span style={{fontSize: '22px', color: '#A78BFA', fontWeight: '700'}}>{currentUser?.firstName || "Staff"}</span>
+            </div>
+            <div className="hero-card">
+              <img src={patientImage} alt="Patient-Icon" className="patient-icon" />
+              <button className="link" onClick={() => setShowAddingPatient(true)}>
+                Manage Patient Settings
+              </button>
             </div>
           </div>
 

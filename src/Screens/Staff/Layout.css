@@ -2,6 +2,10 @@
 
 :root {
   background-color: #ffffff;
+  --base-font-size: clamp(14px, 0.35vw + 13px, 18px);
+  --card-pad: clamp(12px, 1vw + 8px, 22px);
+  --card-radius: clamp(8px, 0.6vw + 6px, 16px);
+  --card-gap: clamp(12px, 1vw + 8px, 20px);
 }
 body, html {
   margin: 0;
@@ -11,6 +15,8 @@ body, html {
   font-family: Helvetica, Arial, sans-serif;
   background: #ffffff;
   font-family: "Exo 2", sans-serif;
+  font-size: var(--base-font-size);
+  line-height: 1.5;
 }
 
 .exo2 {
@@ -179,8 +185,8 @@ body, html {
   width: 100%;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  padding: 16px;
+  gap: var(--card-gap);
+  padding: var(--card-gap);
   box-sizing: border-box;
   background: #ffffff;
 }
@@ -188,8 +194,8 @@ body, html {
 .card {
   background: #ffffff;
   border: 1px solid #e6e6e6;
-  border-radius: 8px;
-  padding: 12px;
+  border-radius: var(--card-radius);
+  padding: var(--card-pad);
 }
 
 .card-title {

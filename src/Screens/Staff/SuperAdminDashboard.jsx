@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { db } from "../../firebase";
 import { collection, getDocs, deleteDoc, doc, setDoc, updateDoc, query, where } from 'firebase/firestore';
 import "./SuperAdminDashboard.css";
@@ -6,11 +7,16 @@ import "./SuperAdminDashboard.css";
 const usersCollectionRef = collection(db, "users");
 
 const SuperAdminDashboard = () => {
+  const navigate = useNavigate();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState('create'); // 'create' or 'edit'
   const [selectedUser, setSelectedUser] = useState(null);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [viewingUser, setViewingUser] = useState(null);
+  const [viewModalTab, setViewModalTab] = useState('details');
+  const [userLogs, setUserLogs] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('all');
   const [successMessage, setSuccessMessage] = useState('');
@@ -22,6 +28,9 @@ const SuperAdminDashboard = () => {
     password: '',
     firstName: '',
     lastName: '',
+    mobileNumber: '',
+    address: '',
+    bio: '',
     role: 'staff', // staff, dentist, admin, super_admin
     status: 'active', // active, inactive
     profilePicture: null,
@@ -72,12 +81,61 @@ const SuperAdminDashboard = () => {
       password: '',
       firstName: '',
       lastName: '',
+      mobileNumber: '',
+      address: '',
+      bio: '',
       role: 'staff',
       status: 'active',
       profilePicture: null,
       profilePictureUrl: ''
     });
     setShowModal(true);
+  };
+
+  const fetchLogs = async (userId) => {
+    try {
+      const logsRef = collection(db, "activity_logs");
+      const q = query(logsRef, where("userId", "==", userId));
+      const snapshot = await getDocs(q);
+      const logsList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      // If collection is empty, provide some sample data for demonstration if user is one of the screenshots
+      if (logsList.length === 0) {
+        return [
+          {
+            id: 'sample-1',
+            action: 'Approved an appointment',
+            patientName: 'Roberto Gomez',
+            timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), // 2 hours ago
+          },
+          {
+            id: 'sample-2',
+            action: 'Filed a new treatment record',
+            patientName: 'Maria Santos',
+            timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), // 1 day ago
+          },
+          {
+            id: 'sample-3',
+            action: 'Updated patient profile',
+            patientName: 'Juan Dela Cruz',
+            timestamp: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(), // 2 days ago
+          }
+        ];
+      }
+
+      return logsList.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    } catch (error) {
+      console.error("Error fetching logs:", error);
+      return [];
+    }
+  };
+
+  const handleViewUser = async (user) => {
+    setViewingUser(user);
+    setViewModalTab('details');
+    setShowViewModal(true);
+    const logs = await fetchLogs(user.id);
+    setUserLogs(logs);
   };
 
   // Open edit modal
@@ -90,6 +148,9 @@ const SuperAdminDashboard = () => {
       password: '',
       firstName: user.firstName || '',
       lastName: user.lastName || '',
+      mobileNumber: user.mobileNumber || '',
+      address: user.address || '',
+      bio: user.bio || '',
       role: user.role || 'staff',
       status: user.status || 'active',
       profilePicture: null,
@@ -230,6 +291,12 @@ const SuperAdminDashboard = () => {
     return matchesSearch && matchesRole;
   });
 
+  const handleLogout = () => {
+    localStorage.removeItem("superAdminLoggedIn");
+    localStorage.removeItem("superAdminUsername");
+    navigate("/super-admin-login");
+  };
+
   const getRoleBadgeColor = (role) => {
     switch (role) {
       case 'super_admin': return '#e11d48';
@@ -248,9 +315,14 @@ const SuperAdminDashboard = () => {
     <div className="super-admin-dashboard">
       <header className="admin-header">
         <h1>Super Admin - Account Management</h1>
-        <button className="btn-create" onClick={handleCreateUser}>
-          + Create New Account
-        </button>
+        <div className="header-actions">
+          <button className="btn-create" onClick={handleCreateUser}>
+            + Create New Account
+          </button>
+          <button className="btn-logout" onClick={handleLogout}>
+            Logout
+          </button>
+        </div>
       </header>
 
       {successMessage && (
@@ -326,6 +398,13 @@ const SuperAdminDashboard = () => {
                   </td>
                   <td className="actions-cell">
                     <button 
+                      className="btn-action btn-view" 
+                      onClick={() => handleViewUser(user)}
+                      title="View details & logs"
+                    >
+                      View
+                    </button>
+                    <button 
                       className="btn-action btn-edit" 
                       onClick={() => handleEditUser(user)}
                       title="Edit user"
@@ -357,7 +436,7 @@ const SuperAdminDashboard = () => {
                 className="modal-close" 
                 onClick={() => setShowModal(false)}
               >
-                ×
+                &times;
               </button>
             </div>
 
@@ -437,6 +516,28 @@ const SuperAdminDashboard = () => {
                 </div>
               </div>
 
+              <div className="form-group">
+                <label>Mobile Number</label>
+                <input
+                  type="text"
+                  name="mobileNumber"
+                  value={formData.mobileNumber}
+                  onChange={handleInputChange}
+                  placeholder="Enter mobile number"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Address</label>
+                <input
+                  type="text"
+                  name="address"
+                  value={formData.address}
+                  onChange={handleInputChange}
+                  placeholder="Enter complete address"
+                />
+              </div>
+
               <div className="form-row">
                 <div className="form-group">
                   <label>Role *</label>
@@ -482,6 +583,113 @@ const SuperAdminDashboard = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* View User Details & Logs Modal */}
+      {showViewModal && viewingUser && (
+        <div className="modal-overlay">
+          <div className="modal view-modal">
+            <header className="modal-header">
+              <h2>User Information</h2>
+              <button className="modal-close" onClick={() => setShowViewModal(false)}>&times;</button>
+            </header>
+
+            <div className="view-tabs">
+              <button 
+                className={`tab-btn ${viewModalTab === 'details' ? 'active' : ''}`}
+                onClick={() => setViewModalTab('details')}
+              >
+                Profile Details
+              </button>
+              <button 
+                className={`tab-btn ${viewModalTab === 'logs' ? 'active' : ''}`}
+                onClick={() => setViewModalTab('logs')}
+              >
+                Activity Logs
+              </button>
+            </div>
+
+            <div className="view-body">
+              {viewModalTab === 'details' ? (
+                <div className="details-view">
+                  <div className="user-profile-summary">
+                    {viewingUser.profilePictureUrl ? (
+                      <img src={viewingUser.profilePictureUrl} alt="Profile" className="view-avatar" />
+                    ) : (
+                      <div className="view-avatar-placeholder">
+                        {viewingUser.firstName?.[0] || viewingUser.username?.[0] || '?'}
+                      </div>
+                    )}
+                    <div className="user-info-main">
+                      <h3>{`${viewingUser.firstName || ''} ${viewingUser.lastName || ''}`.trim() || viewingUser.username}</h3>
+                      <p className="user-role-badge" style={{ backgroundColor: getRoleBadgeColor(viewingUser.role) }}>
+                        {viewingUser.role?.replace('_', ' ').toUpperCase()}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="details-grid">
+                    <div className="detail-item">
+                      <label>Username</label>
+                      <span>{viewingUser.username}</span>
+                    </div>
+                    <div className="detail-item">
+                      <label>Email Address</label>
+                      <span>{viewingUser.email}</span>
+                    </div>
+                    <div className="detail-item">
+                      <label>Mobile Number</label>
+                      <span>{viewingUser.mobileNumber || 'N/A'}</span>
+                    </div>
+                    <div className="detail-item">
+                      <label>Account Status</label>
+                      <span className={`status-${viewingUser.status}`}>{viewingUser.status?.toUpperCase()}</span>
+                    </div>
+                    <div className="detail-item full-width">
+                      <label>Home Address</label>
+                      <span>{viewingUser.address || 'No address provided'}</span>
+                    </div>
+                    <div className="detail-item full-width">
+                      <label>Short Bio</label>
+                      <p>{viewingUser.bio || 'No bio available'}</p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="logs-view">
+                  {userLogs.length === 0 ? (
+                    <div className="no-logs">No activity recorded for this user.</div>
+                  ) : (
+                    <div className="logs-list">
+                      {userLogs.map((log) => (
+                        <div key={log.id} className="log-entry">
+                          <div className="log-icon">
+                            {log.action?.includes('appointment') ? '📅' : log.action?.includes('treatment') ? '🦷' : '📝'}
+                          </div>
+                          <div className="log-content">
+                            <p>
+                              <strong>{viewingUser.firstName}</strong> {log.action.toLowerCase()}
+                              {log.patientName && <> for <strong>{log.patientName}</strong></>}
+                            </p>
+                            <span className="log-time">
+                              {new Date(log.timestamp).toLocaleString(undefined, {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

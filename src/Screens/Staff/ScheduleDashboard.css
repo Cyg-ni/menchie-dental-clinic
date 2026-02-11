@@ -7,8 +7,8 @@
     /* Main grid layout: 2 columns, 2 rows */
     grid-template-columns: 1fr;
     grid-template-rows: auto auto; 
-    gap: 16px;
-    padding: 16px;
+  gap: var(--card-gap);
+  padding: var(--card-gap);
     background: #ffffff;
     width: 98%;
     color: #333;
@@ -18,7 +18,7 @@
     /* Takes up the top area, split into Calendar (2fr) and Reports (1fr) */
     display: grid;
     grid-template-columns: 2fr 1fr;
-    gap: 16px;
+    gap: var(--card-gap);
     grid-column: 1 / -1; /* Ensure it spans the full width of the main grid */
   }
   
@@ -26,7 +26,7 @@
     /* Takes up the bottom area, split into 3 columns */
     display: grid;
     grid-template-columns: 1.2fr 1.8fr 1fr;
-    gap: 16px;
+    gap: var(--card-gap);
     align-items: stretch;
     grid-column: 1 / -1;
   }
@@ -120,8 +120,8 @@
     /* UPDATED: 6 tiles require 3 columns */
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 16px; 
-    padding: 16px;
+    gap: var(--card-gap);
+    padding: var(--card-gap);
     justify-items: center;
   }
   

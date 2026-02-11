@@ -1,87 +1,59 @@
 .main-grid {
-  width: 98%;
+  width: 100%;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  padding: 16px;
-
+  gap: var(--card-gap);
+  padding: var(--card-gap);
+  align-items: stretch;
+  box-sizing: border-box;
 }
 
 .div {
   color: #333333;
 }
 
-.list {
-  grid-column: 1;
+.main-grid .card.hero {
+  grid-column: 1 / span 1;
   grid-row: 1;
+  background: #ffffff;
+  border: 1px solid #e1e1e1;
+  display: flex;
+  flex-direction: column;
 }
 
-.hero {
+.main-grid .card.list {
   grid-column: 2 / span 1;
   grid-row: 1;
-  background: linear-gradient(135deg, #f0f5f7 0%, #e8f1f5 100%);
-  position: relative;
-  overflow: hidden;
 }
 
-.hero::before {
-  content: '';
-  position: absolute;
-  top: -50%;
-  right: -50%;
-  width: 400px;
-  height: 400px;
-  background: radial-gradient(circle, rgba(86, 124, 141, 0.1) 0%, transparent 70%);
-  border-radius: 50%;
-  pointer-events: none;
-}
-
-.approvals {
-  grid-column: 3;
+.main-grid .card.approvals {
+  grid-column: 3 / span 1;
   grid-row: 1;
 }
 
-.appointments {
-  grid-column: 1;
+.main-grid .card.appointments {
+  grid-column: 1 / span 1;
   grid-row: 2;
 }
 
-.totals {
-  grid-column: 2;
+.main-grid .card.totals {
+  grid-column: 2 / span 1;
   grid-row: 2;
 }
 
-.treatments {
-  grid-column: 3;
+.main-grid .card.treatments {
+  grid-column: 3 / span 1;
   grid-row: 2;
-}
-
-.hero-cards {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 16px;
-  position: relative;
-  z-index: 1;
 }
 
 .hero-card {
-  background: white;
-  border: 1px solid rgba(86, 124, 141, 0.2);
-  border-radius: 16px;
-  padding: 32px 24px;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 20px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-  transition: all 0.3s ease;
-  position: relative;
-}
-
-.hero-card:hover {
-  border-color: rgba(86, 124, 141, 0.4);
-  box-shadow: 0 8px 20px rgba(86, 124, 141, 0.15);
-  transform: translateY(-2px);
+  flex-grow: 1;
+  padding: 20px 0;
 }
 
 .list-items {

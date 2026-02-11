@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useCurrentUser } from "../../hooks/useCurrentUser";
 import "./Layout.css";
 import "./ScheduleDashboard.css";
 import ReportsModal from "./ReportsModal.jsx";
@@ -223,6 +224,7 @@ const IconTile = ({ color, label, kind, count = 0 }) => (
 const ScheduleDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { currentUser } = useCurrentUser();
   const [menuOpen, setMenuOpen] = useState(true);
   const [showReports, setShowReports] = useState(false);
   const menuRef = useRef(null);
@@ -677,10 +679,10 @@ const ScheduleDashboard = () => {
         </div>
 
         <div className="user">
-          <div className="avatar" />
+          <div className="avatar" style={{ backgroundImage: currentUser?.profilePictureUrl ? `url(${currentUser.profilePictureUrl})` : 'none', backgroundSize: 'cover' }} />
           <div className="user-meta">
-            <div className="user-name">Juana Cruz</div>
-            <div className="user-role">Chief Dentist</div>
+            <div className="user-name">{currentUser ? `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() || currentUser.username : "Loading..."}</div>
+            <div className="user-role">{currentUser?.role ? currentUser.role.replace('_', ' ').toUpperCase() : "..."}</div>
           </div>
         </div>
       </header>

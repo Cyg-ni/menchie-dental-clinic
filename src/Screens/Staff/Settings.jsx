@@ -1,5 +1,8 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { db } from "../../firebase";
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { useCurrentUser } from "../../hooks/useCurrentUser";
 import "./Layout.css";
 import "./Settings.css";
 import logoImage from "./Images/logo.webp";
@@ -46,11 +49,11 @@ const STORAGE_KEY = "mdc-settings";
 
 const DEFAULT_SETTINGS = {
   profile: {
-    fullName: "Juana Cruz",
-    email: "juana.cruz@menchieclinic.com",
-    phone: "+63 912 345 6789",
-    role: "Chief Dentist",
-    bio: "Primary contact for clinical operations.",
+    fullName: "Loading...",
+    email: "loading@example.com",
+    phone: "Calculating...",
+    role: "Staff",
+    bio: "",
   },
   clinic: {
     timezone: "Asia/Manila",
@@ -130,6 +133,23 @@ const Settings = () => {
   const [menuOpen, setMenuOpen] = useState(true);
   const [settings, setSettings] = useState(() => loadSettings());
   const [statusMessage, setStatusMessage] = useState("");
+  const { currentUser: currentUserData } = useCurrentUser();
+
+  useEffect(() => {
+    if (currentUserData) {
+      setSettings(prev => ({
+        ...prev,
+        profile: {
+          ...prev.profile,
+          fullName: `${currentUserData.firstName || ''} ${currentUserData.lastName || ''}`.trim() || currentUserData.username,
+          email: currentUserData.email || prev.profile.email,
+          phone: currentUserData.mobileNumber || currentUserData.phone || prev.profile.phone,
+          role: currentUserData.role || prev.profile.role,
+          bio: currentUserData.bio || prev.profile.bio,
+        }
+      }));
+    }
+  }, [currentUserData]);
 
   useEffect(() => {
     const handleOutsideClick = (event) => {
@@ -219,10 +239,10 @@ const Settings = () => {
         </div>
 
         <div className="user">
-          <div className="avatar" />
+          <div className="avatar" style={{ backgroundImage: currentUserData?.profilePictureUrl ? `url(${currentUserData.profilePictureUrl})` : 'none', backgroundSize: 'cover' }} />
           <div className="user-meta">
             <div className="user-name">{settings.profile.fullName}</div>
-            <div className="user-role">{settings.profile.role}</div>
+            <div className="user-role">{settings.profile.role && settings.profile.role.replace('_', ' ').toUpperCase()}</div>
           </div>
         </div>
       </header>
@@ -265,7 +285,6 @@ const Settings = () => {
           <div>
             <p className="eyebrow">Control Center</p>
             <h1>Settings</h1>
-            <p className="subtitle">Configure account, clinic operations, alerts, and integrations in one place.</p>
           </div>
           <div className="status-chip" aria-live="polite">
             {statusMessage || "Idle"}
@@ -279,7 +298,6 @@ const Settings = () => {
                 <h2>Profile & Account</h2>
                 <p>Update the details that appear to staff and patients.</p>
               </div>
-              <button className="ghost-btn" type="button">Sync Staff Directory</button>
             </header>
             <div className="form-grid two-col">
               <label className="form-control">
@@ -287,7 +305,8 @@ const Settings = () => {
                 <input
                   type="text"
                   value={settings.profile.fullName}
-                  onChange={(event) => updateSetting("profile", "fullName", event.target.value)}
+                  readOnly
+                  className="readonly-input"
                 />
               </label>
               <label className="form-control">
@@ -295,7 +314,8 @@ const Settings = () => {
                 <input
                   type="text"
                   value={settings.profile.role}
-                  onChange={(event) => updateSetting("profile", "role", event.target.value)}
+                  readOnly
+                  className="readonly-input"
                 />
               </label>
               <label className="form-control">
@@ -303,7 +323,8 @@ const Settings = () => {
                 <input
                   type="email"
                   value={settings.profile.email}
-                  onChange={(event) => updateSetting("profile", "email", event.target.value)}
+                  readOnly
+                  className="readonly-input"
                 />
               </label>
               <label className="form-control">
@@ -311,7 +332,8 @@ const Settings = () => {
                 <input
                   type="tel"
                   value={settings.profile.phone}
-                  onChange={(event) => updateSetting("profile", "phone", event.target.value)}
+                  readOnly
+                  className="readonly-input"
                 />
               </label>
               <label className="form-control full">
@@ -319,7 +341,17 @@ const Settings = () => {
                 <textarea
                   rows={3}
                   value={settings.profile.bio}
-                  onChange={(event) => updateSetting("profile", "bio", event.target.value)}
+                  onChange={(event) => {
+                    const newValue = event.target.value;
+                    updateSetting("profile", "bio", newValue);
+                    
+                    // Save bio to Firestore if logged in
+                    const userId = localStorage.getItem("staffUserId");
+                    if (userId) {
+                      updateDoc(doc(db, "users", userId), { bio: newValue })
+                        .catch(err => console.error("Error updating bio:", err));
+                    }
+                  }}
                 />
               </label>
             </div>
