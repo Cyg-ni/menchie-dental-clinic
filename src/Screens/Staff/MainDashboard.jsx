@@ -8,6 +8,8 @@ import "./Layout.css";
 import "./MainDashboard.css";
 import AppointmentsModal from "./AppointmentsModal.jsx";
 import AddingPatientModal from "./AddingPatientModal.jsx";
+import PredictiveGraph from "../../components/PredictiveGraph.jsx";
+import { getMonthDummyData, getWeekDummyData, getYearDummyData } from "../../utils/predictiveDummyData";
 import logoImage from "./Images/logo.webp";
 import patientImage from "./Images/patienticon.png";
 
@@ -132,6 +134,8 @@ const MainDashboard = () => {
   const [patientCounts, setPatientCounts] = useState({ month: 0, year: 0 }); 
   const [todaysAppointments, setTodaysAppointments] = useState([]); 
   const [recentPatients, setRecentPatients] = useState([]); 
+  const [predictiveData, setPredictiveData] = useState([]);
+  const [predictiveTimeframe, setPredictiveTimeframe] = useState('month'); // 'week' | 'month' | 'year'
   const { currentUser } = useCurrentUser();
   
   const [loading, setLoading] = useState(true);
@@ -384,6 +388,29 @@ const MainDashboard = () => {
     }
   }, [todayISO]); 
 
+  const getPredictiveData = useCallback(async (timeframe = predictiveTimeframe) => {
+    try {
+        // Using dummy data as requested (Sample target: 350)
+        let chartData = [];
+        if (timeframe === 'week') {
+            chartData = getWeekDummyData();
+        } else if (timeframe === 'year') {
+            chartData = getYearDummyData();
+        } else {
+            chartData = getMonthDummyData();
+        }
+        
+        setPredictiveData(chartData);
+        
+        /* Original Firebase Logic (Paused for Dummy Data Demo)
+        const now = new Date();
+        ...
+        */
+    } catch (error) {
+        console.error("Error generating predictive data:", error);
+    }
+  }, [predictiveTimeframe]);
+
   
   const fetchDashboardData = useCallback(async () => {
       setLoading(true);
@@ -394,12 +421,13 @@ const MainDashboard = () => {
           getTopServices(),
           getPatientCounts(),
           getTodaysAppointments(),
-          getRecentPatients()
+          getRecentPatients(),
+          getPredictiveData()
       ]);
       
       setLoading(false);
       
-  }, [getPendingAppointments, getUpcomingAppointments, getTopServices, getPatientCounts, getTodaysAppointments, getRecentPatients]);
+  }, [getPendingAppointments, getUpcomingAppointments, getTopServices, getPatientCounts, getTodaysAppointments, getRecentPatients, getPredictiveData]);
 
 
   useEffect(() => {
@@ -505,14 +533,50 @@ const MainDashboard = () => {
           </div>
 
           <div className="card hero">
-            <div className="card-title">
-              <span style={{fontSize: '22px', fontWeight: '400'}} className="muted">Good Morning,</span> <span style={{fontSize: '22px', color: '#A78BFA', fontWeight: '700'}}>{currentUser?.firstName || "Staff"}</span>
+            <div style={{ padding: '20px 20px 0 20px' }}>
+              <h1 style={{ fontSize: '28px', fontWeight: '400', color: '#666', margin: 0 }}>
+                Good Morning, <span style={{ color: '#A78BFA', fontWeight: '700' }}>{currentUser?.firstName || "Staff"}</span>
+              </h1>
+              <p style={{ fontSize: '15px', color: '#999', margin: '5px 0 10px 0' }}>Here's what's happening today.</p>
             </div>
-            <div className="hero-card">
-              <img src={patientImage} alt="Patient-Icon" className="patient-icon" />
-              <button className="link" onClick={() => setShowAddingPatient(true)}>
-                Manage Patient Settings
-              </button>
+            <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{fontSize: '18px', color: '#333', fontWeight: '600'}}>Projections</span>
+              <div className="timeframe-tabs" style={{ display: 'flex', gap: '5px', background: '#f0f0f0', padding: '3px', borderRadius: '8px' }}>
+                {['week', 'month', 'year'].map((tf) => (
+                  <button
+                    key={tf}
+                    onClick={() => {
+                      setPredictiveTimeframe(tf);
+                      getPredictiveData(tf);
+                    }}
+                    style={{
+                      padding: '4px 10px',
+                      fontSize: '11px',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      background: predictiveTimeframe === tf ? '#ffffff' : 'transparent',
+                      color: predictiveTimeframe === tf ? '#A78BFA' : '#666',
+                      fontWeight: predictiveTimeframe === tf ? '700' : '500',
+                      transition: 'all 0.2s',
+                      boxShadow: predictiveTimeframe === tf ? '0 2px 4px rgba(0,0,0,0.05)' : 'none'
+                    }}
+                  >
+                    {tf.charAt(0).toUpperCase() + tf.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="hero-card" style={{ display: 'block', padding: '10px' }}>
+              <PredictiveGraph data={predictiveData} loading={loading} timeframe={predictiveTimeframe} />
+              <div style={{ padding: '0 10px', marginTop: '10px' }}>
+                <div style={{ fontSize: '13px', color: '#666', display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Est. Total Volume ({predictiveTimeframe}):</span>
+                  <span style={{ fontWeight: '700', color: '#A78BFA' }}>
+                    {predictiveData.reduce((acc, curr) => acc + (curr.actual || curr.predicted || 0), 0)} patients
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
 
