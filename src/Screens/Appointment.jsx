@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { db } from '../firebase-config';
 import { collection, addDoc, Timestamp, query, where, getDocs } from 'firebase/firestore';
+import emailjs from '@emailjs/browser'; 
 
 // --- SVG Components ---
 const BookOpen = (props) => (
@@ -21,14 +22,21 @@ const CalendarIcon = (props) => (
   </svg>
 );
 
-const ExternalLogo = ({ size = 'w-6 h-6', className = '' }) => (
-  <img
-    src="https://cdn-icons-png.flaticon.com/512/103/103386.png"
-    alt="Dental Clinic Logo"
-    className={`${size} ${className}`}
-    onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/24x24/f5f5f5/a0aec0?text=Logo" }}
-  />
+const CheckCircle = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+    <polyline points="22 4 12 14.01 9 11.01" />
+  </svg>
 );
+
+const ExternalLogo = ({ size = 'w-6 h-6', className = '' }) => (
+    <img 
+      src="https://cdn-icons-png.flaticon.com/512/103/103386.png" 
+      alt="Dental Clinic Logo" 
+      className={`${size} ${className}`} 
+      onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/24x24/f5f5f5/a0aec0?text=Logo" }}
+    />
+  );
 
 const serviceOptions = [
   "Routine Check-up & Cleaning",
@@ -40,43 +48,30 @@ const serviceOptions = [
 ];
 
 const TIME_SLOTS = ["08:30", "09:45", "11:00", "13:00", "14:30", "15:45", "17:00"];
-
 const appointmentsCollectionRef = collection(db, "appointments");
 
 const Appointment = () => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    phone: '',
-    age: '',
-    gender: '',
-    occupation: '',
-    maritalStatus: '',
-    address: '',
-    allergies: '',
-    conditionNotes: '',
-    currentMeds: '',
-    isPregnant: false,
-    isSmoking: false,
-    service: '',
-    date: new Date().toISOString().split('T')[0],
-    time: '',
-    message: ''
+    firstName: '', lastName: '', email: '', phone: '', age: '', gender: '',
+    occupation: '', maritalStatus: '', address: '', allergies: '',
+    conditionNotes: '', currentMeds: '', isPregnant: false, isSmoking: false,
+    service: '', date: new Date().toISOString().split('T')[0], time: '', message: ''
   });
 
   const [loading, setLoading] = useState(false);
   const [submitStatus, setSubmitStatus] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [newAppointmentId, setNewAppointmentId] = useState('');
   const [takenTimes, setTakenTimes] = useState([]);
   const [fetchingTimes, setFetchingTimes] = useState(false);
-  const [nameErrors, setNameErrors] = useState({ firstName: '', lastName: '' });
+  const [errors, setErrors] = useState({});
 
   useEffect(() => {
     const fetchBookedSlots = async () => {
       setFetchingTimes(true);
       setFormData(prev => ({ ...prev, time: '' }));
       setTakenTimes([]);
-
       try {
         const q = query(appointmentsCollectionRef, where("scheduledDate", "==", formData.date));
         const querySnapshot = await getDocs(q);
@@ -91,23 +86,39 @@ const Appointment = () => {
     fetchBookedSlots();
   }, [formData.date]);
 
+  const validateField = (name, value) => {
+    let error = '';
+    if (name === 'firstName' || name === 'lastName') {
+      if (!/^[A-Za-z\s'-]*$/.test(value)) error = 'Only letters allowed.';
+    }
+    if (name === 'email') {
+      if (!/\S+@\S+\.\S+/.test(value)) error = 'Invalid email format.';
+    }
+    if (name === 'phone') {
+      if (!/^\+?[0-9]{10,15}$/.test(value)) error = 'Invalid phone number.';
+    }
+    if (name === 'age') {
+      if (value < 0 || value > 120) error = 'Enter a valid age.';
+    }
+    setErrors(prev => ({ ...prev, [name]: error }));
+    return error === '';
+  };
+
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    if (name === 'firstName' || name === 'lastName') {
-      const nameRegex = /^[A-Za-z\s'-]*$/;
-      if (!nameRegex.test(value)) {
-        setNameErrors(prev => ({ ...prev, [name]: 'Invalid characters.' }));
-      } else {
-        setNameErrors(prev => ({ ...prev, [name]: '' }));
-      }
-    }
-    setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+    const finalValue = type === 'checkbox' ? checked : value;
+    setFormData(prev => ({ ...prev, [name]: finalValue }));
+    validateField(name, finalValue);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.time) {
-      setSubmitStatus({ type: 'error', message: 'Please select a time slot.' });
+    const hasErrors = Object.values(errors).some(err => err !== '');
+    if (hasErrors || !formData.time) {
+      setSubmitStatus({ 
+        type: 'error', 
+        message: !formData.time ? 'Please select a time slot.' : 'Please fix the errors.' 
+      });
       return;
     }
 
@@ -115,6 +126,7 @@ const Appointment = () => {
     setSubmitStatus(null);
 
     try {
+      // 1. SAVE TO FIREBASE FIRST
       const appointmentData = {
         createdAt: Timestamp.fromDate(new Date()),
         dateTime: Timestamp.fromDate(new Date(`${formData.date}T${formData.time}:00`)),
@@ -125,40 +137,80 @@ const Appointment = () => {
         patientFullName: `${formData.firstName} ${formData.lastName}`,
         patientEmail: formData.email,
         patientPhone: formData.phone,
-        address: formData.address,
-        age: formData.age,
-        gender: formData.gender,
-        occupation: formData.occupation,
-        maritalStatus: formData.maritalStatus,
-        isPregnant: formData.isPregnant,
-        isSmoking: formData.isSmoking,
-        medicalHistory: {
-          allergies: formData.allergies,
-          conditionNotes: formData.conditionNotes,
-          currentMeds: formData.currentMeds
-        },
         serviceType: formData.service,
-        patientNotes: formData.message,
         status: { isPending: "Approval Pending", isScheduled: "Appointment Requested" },
       };
 
       const docRef = await addDoc(appointmentsCollectionRef, appointmentData);
-      setSubmitStatus({ type: 'success', message: `Confirmed! ID: ${docRef.id}` });
+      const generatedId = docRef.id; // Store this for the email
+      
+      setNewAppointmentId(generatedId);
       setTakenTimes(prev => [...prev, formData.time]);
+
+      // 2. ATTEMPT EMAIL (Detailed error logging)
+      try {
+        await emailjs.send(
+          'service_yei2sk7',
+          'template_tqviuem',
+          {
+            to_name: formData.firstName,
+            to_email: formData.email,
+            service_type: formData.service,
+            app_date: formData.date,
+            app_time: formData.time,
+            appointment_id: generatedId, // Pass the actual ID here
+          },
+          'Bw_dLBXg4UIfg4mUh'
+        );
+      } catch (emailErr) {
+        console.error("EmailJS Error details:", emailErr);
+        // We catch this separately so if email fails, the user still gets the success modal (since DB worked)
+      }
+
+      setShowModal(true); 
     } catch (error) {
-      setSubmitStatus({ type: 'error', message: `Error: ${error.message}` });
+      setSubmitStatus({ 
+        type: 'error', 
+        message: error.text || error.message || "Something went wrong with the connection." 
+      });
     } finally {
       setLoading(false);
     }
   };
 
+  const inputClass = (name) => `w-full px-4 py-2 border rounded-lg focus:ring-indigo-500 outline-none transition-colors ${
+    errors[name] ? 'border-red-500 bg-red-50' : 'border-gray-300'
+  }`;
+
   return (
-    <div className="min-h-screen bg-gray-50 font-inter">
-      {/* Navbar - Retained design with Book Button */}
+    <div className="min-h-screen bg-gray-50 font-inter text-gray-900 relative">
+      
+      {/* SUCCESS MODAL */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center space-y-6">
+            <div className="flex justify-center animate-bounce"><CheckCircle /></div>
+            <div>
+              <h3 className="text-2xl font-bold">Appointment Requested!</h3>
+              <p className="text-gray-500 mt-2">Check your inbox for a confirmation from Menchie's Clinic.</p>
+            </div>
+            <div className="space-y-3">
+              <button 
+                onClick={() => navigate(`/track/${newAppointmentId}`)}
+                className="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 transition"
+              >
+                Track My Status
+              </button>
+              <button onClick={() => setShowModal(false)} className="text-gray-400 text-sm hover:underline w-full">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <section className="bg-white shadow-sm sticky top-0 z-10 border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          <div className="flex items-center space-x-3 text-gray-800 font-semibold text-xl">
-            <ExternalLogo size="w-6 h-6" />
+          <div className="flex items-center space-x-3 font-semibold text-xl">
+            <ExternalLogo />
             <span>Menchie's Dental Clinic</span>
           </div>
           <nav className="hidden md:flex space-x-8 text-lg">
@@ -172,14 +224,13 @@ const Appointment = () => {
               <BookOpen className="w-5 h-5 mr-2" />
               Book Appointment
             </Link>
-            
           </div>
         </div>
       </section>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="mb-12">
-          <h1 className="text-4xl font-extrabold text-gray-900">
+          <h1 className="text-4xl font-extrabold">
             Book Your <span className="text-indigo-600">Appointment</span>
           </h1>
           <p className="text-lg text-gray-600 mt-2">Complete your profile to help us prepare for your visit.</p>
@@ -190,14 +241,29 @@ const Appointment = () => {
             
             {/* Section 1: Patient Information */}
             <div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-6">Patient Information</h2>
+              <h2 className="text-2xl font-bold mb-6">Patient Information</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <input type="text" name="firstName" placeholder="First Name" onChange={handleChange} required className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500" />
-                <input type="text" name="lastName" placeholder="Last Name" onChange={handleChange} required className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500" />
-                <input type="email" name="email" placeholder="Email Address" onChange={handleChange} required className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500" />
-                <input type="tel" name="phone" placeholder="Phone Number" onChange={handleChange} required className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500" />
-                <input type="text" name="address" placeholder="Home Address" onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 sm:col-span-2" />
-                <input type="number" name="age" placeholder="Age" onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500" />
+                <div className="space-y-1">
+                  <input type="text" name="firstName" placeholder="First Name" autoComplete="given-name" onChange={handleChange} required className={inputClass('firstName')} />
+                  {errors.firstName && <p className="text-xs text-red-500">{errors.firstName}</p>}
+                </div>
+                <div className="space-y-1">
+                  <input type="text" name="lastName" placeholder="Last Name" autoComplete="family-name" onChange={handleChange} required className={inputClass('lastName')} />
+                  {errors.lastName && <p className="text-xs text-red-500">{errors.lastName}</p>}
+                </div>
+                <div className="sm:col-span-2 space-y-1">
+                  <input type="email" name="email" placeholder="Email Address" autoComplete="email" onChange={handleChange} required className={inputClass('email')} />
+                  {errors.email && <p className="text-xs text-red-500">{errors.email}</p>}
+                </div>
+                <div className="space-y-1">
+                  <input type="tel" name="phone" placeholder="Phone Number" autoComplete="tel" onChange={handleChange} required className={inputClass('phone')} />
+                  {errors.phone && <p className="text-xs text-red-500">{errors.phone}</p>}
+                </div>
+                <div className="space-y-1">
+                  <input type="number" name="age" placeholder="Age" onChange={handleChange} className={inputClass('age')} />
+                  {errors.age && <p className="text-xs text-red-500">{errors.age}</p>}
+                </div>
+                <input type="text" name="address" placeholder="Home Address" autoComplete="street-address" onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg sm:col-span-2" />
                 <select name="gender" onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white">
                   <option value="">Gender</option>
                   <option value="Male">Male</option>
@@ -208,17 +274,17 @@ const Appointment = () => {
 
             {/* Section 2: Medical History */}
             <div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-6 border-t pt-6">Medical History</h2>
+              <h2 className="text-2xl font-bold mb-6 border-t pt-6">Medical History</h2>
               <div className="space-y-4">
                 <input type="text" name="allergies" placeholder="Allergies (e.g. Penicillin)" onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg" />
                 <input type="text" name="currentMeds" placeholder="Current Medications" onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg" />
                 <textarea name="conditionNotes" placeholder="Medical Condition Notes" onChange={handleChange} rows="2" className="w-full px-4 py-2 border border-gray-300 rounded-lg"></textarea>
                 <div className="flex space-x-6">
-                  <label className="flex items-center space-x-2 text-sm text-gray-700">
+                  <label className="flex items-center space-x-2 text-sm text-gray-700 cursor-pointer">
                     <input type="checkbox" name="isPregnant" onChange={handleChange} className="w-4 h-4 text-indigo-600 rounded" />
                     <span>Is Pregnant?</span>
                   </label>
-                  <label className="flex items-center space-x-2 text-sm text-gray-700">
+                  <label className="flex items-center space-x-2 text-sm text-gray-700 cursor-pointer">
                     <input type="checkbox" name="isSmoking" onChange={handleChange} className="w-4 h-4 text-indigo-600 rounded" />
                     <span>Smoker?</span>
                   </label>
@@ -227,10 +293,9 @@ const Appointment = () => {
             </div>
           </div>
 
-          {/* Section 3: Scheduling - Mellow Design */}
+          {/* Section 3: Scheduling */}
           <div className="bg-white p-6 sm:p-10 rounded-2xl shadow-xl border border-gray-100 space-y-6">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">Schedule Your Visit</h2>
-            
+            <h2 className="text-2xl font-bold mb-6">Schedule Your Visit</h2>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Select Service</label>
@@ -244,13 +309,13 @@ const Appointment = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Appointment Date</label>
                 <div className="relative">
                   <input type="date" name="date" value={formData.date} onChange={handleChange} min={new Date().toISOString().split('T')[0]} required className="w-full px-4 py-2 border border-gray-300 rounded-lg" />
-                  <CalendarIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <CalendarIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
                 </div>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Available Time Slots {fetchingTimes && <span className="text-gray-400 ml-2 text-xs">(Checking...)</span>}
+                  Available Time Slots {fetchingTimes && <span className="text-gray-400 ml-2 text-xs animate-pulse">(Checking...)</span>}
                 </label>
                 <div className="grid grid-cols-3 gap-3">
                   {TIME_SLOTS.map((slot) => (
@@ -278,9 +343,9 @@ const Appointment = () => {
 
               <button
                 type="submit"
-                disabled={loading || submitStatus?.type === 'success'}
+                disabled={loading}
                 className={`w-full py-4 font-bold rounded-xl shadow-lg transition text-lg ${
-                  loading || submitStatus?.type === 'success' ? 'bg-gray-300 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                  loading ? 'bg-gray-300 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700'
                 }`}
               >
                 {loading ? 'Processing...' : 'Request Appointment'}

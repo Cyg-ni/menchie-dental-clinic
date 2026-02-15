@@ -10,6 +10,7 @@ import Services from './Screens/Services';
 import Appointment from './Screens/Appointment';
 import Auth from './Screens/Auth'; 
 import PatientPortal from './Screens/PatientPortal';
+import TrackStatus from './Screens/TrackStatus';
 
 
 const App = () => {
@@ -24,6 +25,7 @@ const App = () => {
         <Route path="/book" element={<Appointment />} />
         <Route path="/auth" element={<Auth />} />
         <Route path="/my-records" element={<PatientPortal patientId="test-patient-id" />} />
+        <Route path="/track/:id" element={<TrackStatus />} />
       </Routes>
     </BrowserRouter>
   );
