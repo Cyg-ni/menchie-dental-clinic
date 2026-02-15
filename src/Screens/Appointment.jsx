@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { db } from '../firebase-config';
+import { db, storage, auth } from '../firebase-config'; // Added auth
 import { collection, addDoc, Timestamp, query, where, getDocs } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { onAuthStateChanged } from 'firebase/auth'; // Added for profile photo detection
 import emailjs from '@emailjs/browser'; 
 
 // --- SVG Components ---
@@ -30,13 +32,13 @@ const CheckCircle = () => (
 );
 
 const ExternalLogo = ({ size = 'w-6 h-6', className = '' }) => (
-    <img 
-      src="https://cdn-icons-png.flaticon.com/512/103/103386.png" 
-      alt="Dental Clinic Logo" 
-      className={`${size} ${className}`} 
-      onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/24x24/f5f5f5/a0aec0?text=Logo" }}
-    />
-  );
+  <img 
+    src="https://i.imgur.com/K6NksfF.jpeg" 
+    alt="Dental Clinic Logo" 
+    className={`${size} ${className} object-contain`} 
+    onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/24x24/f5f5f5/a0aec0?text=Logo" }}
+  />
+);
 
 const serviceOptions = [
   "Routine Check-up & Cleaning",
@@ -59,6 +61,10 @@ const Appointment = () => {
     service: '', date: new Date().toISOString().split('T')[0], time: '', message: ''
   });
 
+  // --- Image States ---
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+
   const [loading, setLoading] = useState(false);
   const [submitStatus, setSubmitStatus] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -66,6 +72,16 @@ const Appointment = () => {
   const [takenTimes, setTakenTimes] = useState([]);
   const [fetchingTimes, setFetchingTimes] = useState(false);
   const [errors, setErrors] = useState({});
+
+  // NEW: Detect if user is logged in and has a profile photo
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user && user.photoURL) {
+        setImagePreview(user.photoURL);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     const fetchBookedSlots = async () => {
@@ -111,6 +127,15 @@ const Appointment = () => {
     validateField(name, finalValue);
   };
 
+  // --- Image Handler ---
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setImageFile(file);
+      setImagePreview(URL.createObjectURL(file));
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const hasErrors = Object.values(errors).some(err => err !== '');
@@ -126,7 +151,17 @@ const Appointment = () => {
     setSubmitStatus(null);
 
     try {
-      // 1. SAVE TO FIREBASE FIRST
+      // Use existing profile photo URL by default if no new file is uploaded
+      let photoURL = imagePreview && !imageFile ? imagePreview : "";
+
+      // 1. UPLOAD NEW IMAGE IF SELECTED
+      if (imageFile) {
+        const storageRef = ref(storage, `patientPhotos/${Date.now()}_${imageFile.name}`);
+        const uploadTask = await uploadBytes(storageRef, imageFile);
+        photoURL = await getDownloadURL(uploadTask.ref);
+      }
+
+      // 2. SAVE TO FIREBASE
       const appointmentData = {
         createdAt: Timestamp.fromDate(new Date()),
         dateTime: Timestamp.fromDate(new Date(`${formData.date}T${formData.time}:00`)),
@@ -137,17 +172,18 @@ const Appointment = () => {
         patientFullName: `${formData.firstName} ${formData.lastName}`,
         patientEmail: formData.email,
         patientPhone: formData.phone,
+        patientPhoto: photoURL, 
         serviceType: formData.service,
         status: { isPending: "Approval Pending", isScheduled: "Appointment Requested" },
       };
 
       const docRef = await addDoc(appointmentsCollectionRef, appointmentData);
-      const generatedId = docRef.id; // Store this for the email
+      const generatedId = docRef.id; 
       
       setNewAppointmentId(generatedId);
       setTakenTimes(prev => [...prev, formData.time]);
 
-      // 2. ATTEMPT EMAIL (Detailed error logging)
+      // 3. ATTEMPT EMAIL
       try {
         await emailjs.send(
           'service_yei2sk7',
@@ -158,13 +194,12 @@ const Appointment = () => {
             service_type: formData.service,
             app_date: formData.date,
             app_time: formData.time,
-            appointment_id: generatedId, // Pass the actual ID here
+            appointment_id: generatedId,
           },
           'Bw_dLBXg4UIfg4mUh'
         );
       } catch (emailErr) {
-        console.error("EmailJS Error details:", emailErr);
-        // We catch this separately so if email fails, the user still gets the success modal (since DB worked)
+        console.error("EmailJS Error:", emailErr);
       }
 
       setShowModal(true); 
@@ -241,7 +276,24 @@ const Appointment = () => {
             
             {/* Section 1: Patient Information */}
             <div>
-              <h2 className="text-2xl font-bold mb-6">Patient Information</h2>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold">Patient Information</h2>
+                {/* Profile Picture: Reflects profile photo but remains editable */}
+                <div className="relative group">
+                  <div className="w-16 h-16 rounded-full border-2 border-indigo-100 overflow-hidden bg-gray-50 flex items-center justify-center">
+                    {imagePreview ? (
+                      <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-xs text-gray-400">Photo</span>
+                    )}
+                  </div>
+                  <label className="absolute -bottom-1 -right-1 bg-indigo-600 text-white p-1 rounded-full cursor-pointer shadow-md hover:bg-indigo-700 transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14m-7-7v14"/></svg>
+                    <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
+                  </label>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <input type="text" name="firstName" placeholder="First Name" autoComplete="given-name" onChange={handleChange} required className={inputClass('firstName')} />

@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, NavLink } from 'react-router-dom'; 
-import { auth } from '../firebase-config';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { auth, storage } from '../firebase-config';
+import { onAuthStateChanged, signOut, updateProfile } from 'firebase/auth';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 // --- Icon Components ---
 const BookOpen = (props) => (
@@ -39,12 +40,38 @@ const MapPin = (props) => (
   </svg>
 );
 
+const UserIcon = (props) => (
+  <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+    <circle cx="12" cy="7" r="4" />
+  </svg>
+);
+
+const CameraIcon = (props) => (
+  <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>
+  </svg>
+);
+
+// --- Logo Component (STRICT) ---
+const ExternalLogo = ({ size = 'w-6 h-6', className = '' }) => (
+  <img 
+    src="https://cdn-icons-png.flaticon.com/512/103/103386.png" 
+    alt="Dental Clinic Logo" 
+    className={`${size} ${className}`} 
+    onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/24x24/f5f5f5/a0aec0?text=Logo" }}
+  />
+);
+
 const Home = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isHoursOpen, setIsHoursOpen] = useState(false);
   const [isContactOpen, setIsContactOpen] = useState(false); 
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const fileInputRef = useRef(null);
 
   const carouselImages = [
     "https://images.pexels.com/photos/3779705/pexels-photo-3779705.jpeg?cs=srgb&dl=pexels-olly-3779705.jpg&fm=jpg", 
@@ -53,7 +80,6 @@ const Home = () => {
     "https://st2.depositphotos.com/1518767/6527/i/450/depositphotos_65279377-stock-photo-smiling-co-workers-in-a.jpg",
   ];
 
-  // Listen for Auth State
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -64,7 +90,26 @@ const Home = () => {
 
   const handleLogout = () => {
     if (window.confirm("Are you sure you want to logout?")) {
-      signOut(auth).catch((error) => console.error("Logout error:", error));
+      signOut(auth).then(() => setIsSidebarOpen(false)).catch((error) => console.error("Logout error:", error));
+    }
+  };
+
+  const handlePhotoUpdate = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !user) return;
+    try {
+      setIsUploading(true);
+      const storageRef = ref(storage, `user_profiles/${user.uid}`);
+      await uploadBytes(storageRef, file);
+      const photoURL = await getDownloadURL(storageRef);
+      await updateProfile(auth.currentUser, { photoURL });
+      setUser({ ...auth.currentUser, photoURL }); 
+      alert("Profile photo updated!");
+    } catch (error) {
+      console.error("Error updating photo:", error);
+      alert("Failed to upload photo.");
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -76,13 +121,57 @@ const Home = () => {
   }, [carouselImages.length]);
 
   return (
-    <div className="min-h-screen bg-gray-50 font-inter text-gray-900">
+    <div className="min-h-screen bg-gray-50 font-inter text-gray-900 overflow-x-hidden">
       
-      {/* Navigation */}
+      {/* --- PROFILE SIDEBAR --- */}
+      <div className={`fixed inset-y-0 right-0 z-[100] w-80 bg-white shadow-2xl transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+        <div className="p-6 h-full flex flex-col">
+          <button onClick={() => setIsSidebarOpen(false)} className="self-end p-2 text-gray-400 hover:text-gray-600 transition">✕</button>
+          
+          <div className="flex flex-col items-center mt-4 mb-8">
+            <div className="relative group">
+              <div className="w-20 h-20 rounded-full bg-indigo-100 flex items-center justify-center border-4 border-white shadow-md overflow-hidden relative">
+                 {isUploading && (
+                   <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-10">
+                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                   </div>
+                 )}
+                 {user?.photoURL ? <img src={user.photoURL} alt="Avatar" className="w-full h-full object-cover" /> : <UserIcon className="w-10 h-10 text-indigo-600" />}
+              </div>
+              <button 
+                onClick={() => fileInputRef.current.click()}
+                className="absolute bottom-0 right-0 bg-indigo-600 text-white p-1.5 rounded-full shadow-lg hover:bg-indigo-700 transition transform hover:scale-110"
+              >
+                <CameraIcon className="w-3.5 h-3.5" />
+              </button>
+              <input type="file" ref={fileInputRef} onChange={handlePhotoUpdate} className="hidden" accept="image/*" />
+            </div>
+            <h3 className="font-bold text-xl text-gray-900 text-center mt-4">{user?.displayName || "Patient"}</h3>
+            <p className="text-gray-500 text-sm truncate w-full text-center">{user?.email}</p>
+          </div>
+
+          <div className="flex-1 space-y-2">
+            <Link to="/my-records" onClick={() => setIsSidebarOpen(false)} className="flex items-center p-3 rounded-xl hover:bg-gray-50 text-gray-700 font-medium">
+              <Clock className="w-5 h-5 mr-3 text-indigo-500" /> Appointment History
+            </Link>
+            <Link to="/book" onClick={() => setIsSidebarOpen(false)} className="flex items-center p-3 rounded-xl hover:bg-indigo-50 text-indigo-600 font-bold">
+              <BookOpen className="w-5 h-5 mr-3" /> Book New Appointment
+            </Link>
+          </div>
+
+          <button onClick={handleLogout} className="mt-auto flex items-center justify-center p-4 w-full bg-red-50 text-red-600 font-bold rounded-2xl hover:bg-red-100 transition duration-200">
+            Logout
+          </button>
+        </div>
+      </div>
+
+      {isSidebarOpen && <div className="fixed inset-0 bg-black/20 z-[90] backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)} />}
+
+      {/* --- NAVBAR --- */}
       <nav className="bg-white shadow-sm sticky top-0 z-10 border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <div className="flex items-center space-x-3 text-gray-800 font-semibold text-xl">
-            <img src="https://cdn-icons-png.flaticon.com/512/103/103386.png" alt="Logo" className="w-6 h-6" /> 
+            <ExternalLogo />
             <span>Menchie's Dental Clinic</span>
           </div>
           
@@ -90,28 +179,21 @@ const Home = () => {
             <NavLink to="/" className={({ isActive }) => isActive ? 'text-indigo-600 font-bold' : 'text-gray-600 hover:text-indigo-600 transition'}>Home</NavLink>
             <NavLink to="/about" className={({ isActive }) => isActive ? 'text-indigo-600 font-bold' : 'text-gray-600 hover:text-indigo-600 transition'}>About Us</NavLink> 
             <NavLink to="/services" className={({ isActive }) => isActive ? 'text-indigo-600 font-bold' : 'text-gray-600 hover:text-indigo-600 transition'}>Services</NavLink>
-            <Link to="/my-records" className="text-indigo-600 font-semibold transition">My Records</Link> 
           </div>
 
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center">
             {!loading && (
               <>
                 {user ? (
-                  <div className="flex items-center space-x-3">
-                    <Link to="/book" className="flex items-center px-5 py-2.5 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 transition duration-200 text-base">
-                      <BookOpen className="w-5 h-5 mr-2" />
-                      Book Appointment
-                    </Link>
-                    <button 
-                      onClick={handleLogout}
-                      className="flex items-center px-5 py-2.5 border-2 border-red-100 text-red-500 font-bold rounded-xl hover:bg-red-50 hover:border-red-200 transition duration-200 text-base"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                      </svg>
-                      Logout
-                    </button>
-                  </div>
+                  <button 
+                    onClick={() => setIsSidebarOpen(true)}
+                    className="flex items-center space-x-2 p-1 pl-3 border border-gray-200 rounded-full hover:shadow-md transition bg-white group"
+                  >
+                    <span className="font-semibold text-gray-700 hidden sm:block">Profile</span>
+                    <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white overflow-hidden">
+                       {user?.photoURL ? <img src={user.photoURL} alt="Avatar" className="w-full h-full object-cover" /> : <UserIcon className="w-5 h-5" />}
+                    </div>
+                  </button>
                 ) : (
                   <Link to="/auth" className="flex items-center px-8 py-2.5 border-2 border-indigo-600 text-indigo-600 font-extrabold rounded-xl hover:bg-indigo-50 transition duration-200 text-base">
                     Sign In
@@ -134,16 +216,10 @@ const Home = () => {
           </p>
           
           <div className="flex space-x-4 pt-6">
-            <button 
-              onClick={() => setIsHoursOpen(true)}
-              className="flex items-center px-6 py-3 bg-gray-800 text-white font-medium rounded-xl shadow-xl hover:bg-gray-900 transition text-lg"
-            >
+            <button onClick={() => setIsHoursOpen(true)} className="flex items-center px-6 py-3 bg-gray-800 text-white font-medium rounded-xl shadow-xl hover:bg-gray-900 transition text-lg">
               <Clock className="w-5 h-5 mr-2" /> Working Hours
             </button>
-            <button 
-              onClick={() => setIsContactOpen(true)} 
-              className="flex items-center px-6 py-3 bg-white text-gray-800 border-2 border-gray-300 font-medium rounded-xl hover:bg-gray-100 transition text-lg"
-            >
+            <button onClick={() => setIsContactOpen(true)} className="flex items-center px-6 py-3 bg-white text-gray-800 border-2 border-gray-300 font-medium rounded-xl hover:bg-gray-100 transition text-lg">
               <Phone className="w-5 h-5 mr-2" /> Contact Us
             </button>
           </div>
@@ -169,12 +245,10 @@ const Home = () => {
         </section>
       </main>
 
-      {/* --- MODALS --- */}
-
-      {/* Working Hours Modal */}
+      {/* --- MODALS (Hours & Contact) --- */}
       {isHoursOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsHoursOpen(false)}>
-          <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-8 relative animate-in zoom-in" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsHoursOpen(false)}>
+          <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-8 relative" onClick={e => e.stopPropagation()}>
             <h2 className="text-2xl font-bold mb-6 flex items-center">
               <Clock className="w-6 h-6 mr-2 text-indigo-600" /> Opening Hours
             </h2>
@@ -188,47 +262,26 @@ const Home = () => {
         </div>
       )}
 
-      {/* Contact Us Modal */}
       {isContactOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsContactOpen(false)}>
-          <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-8 relative animate-in zoom-in" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsContactOpen(false)}>
+          <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-8 relative" onClick={e => e.stopPropagation()}>
             <button onClick={() => setIsContactOpen(false)} className="absolute top-4 right-4 text-gray-400 text-xl">✕</button>
-            
             <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
               <Phone className="w-6 h-6 mr-2 text-indigo-600" /> Get in Touch
             </h2>
-
             <div className="space-y-6">
               <div className="flex items-start space-x-4">
                 <div className="p-3 bg-indigo-50 rounded-lg text-indigo-600"><Phone className="w-6 h-6" /></div>
-                <div>
-                  <p className="text-sm text-gray-500 font-medium">Call/Text</p>
-                  <a href="tel:+1234567890" className="text-lg font-bold text-gray-900 hover:text-indigo-600 transition">(123) 456-7890</a>
-                </div>
+                <div><p className="text-sm text-gray-500 font-medium">Call/Text</p><a href="tel:+1234567890" className="text-lg font-bold text-gray-900 hover:text-indigo-600 transition">(123) 456-7890</a></div>
               </div>
-
               <div className="flex items-start space-x-4">
                 <div className="p-3 bg-indigo-50 rounded-lg text-indigo-600"><Mail className="w-6 h-6" /></div>
-                <div>
-                  <p className="text-sm text-gray-500 font-medium">Email</p>
-                  <a href="mailto:hello@menchiesdental.com" className="text-lg font-bold text-gray-900 hover:text-indigo-600 transition">info@menchiedental.com</a>
-                </div>
-              </div>
-
-              <div className="flex items-start space-x-4">
-                <div className="p-3 bg-indigo-50 rounded-lg text-indigo-600"><MapPin className="w-6 h-6" /></div>
-                <div>
-                  <p className="text-sm text-gray-500 font-medium">Location</p>
-                  <p className="text-lg font-bold text-gray-900 leading-tight">baguio<br/>shopper's lane</p>
-                </div>
+                <div><p className="text-sm text-gray-500 font-medium">Email</p><a href="mailto:info@menchiedental.com" className="text-lg font-bold text-gray-900 hover:text-indigo-600 transition">info@menchiedental.com</a></div>
               </div>
             </div>
-
             <a href="https://www.facebook.com/menchieamor.a.dangla" target="_blank" rel="noopener noreferrer">
-            <button className="w-full mt-8 py-4 bg-indigo-600 text-white rounded-xl font-bold flex justify-center items-center hover:bg-indigo-700 transition">
-              Message Us Directly
-            </button>
-          </a>
+              <button className="w-full mt-8 py-4 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition">Message Us Directly</button>
+            </a>
           </div>
         </div>
       )}

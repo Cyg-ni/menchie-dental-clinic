@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, Link } from 'react-router-dom';
-import { auth } from '../firebase-config'; // Ensure this path is correct
-import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { auth, storage } from '../firebase-config'; 
+import { onAuthStateChanged, signOut, updateProfile } from 'firebase/auth';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 // --- Icon Components ---
 
@@ -10,6 +11,26 @@ const BookOpen = (props) => (
     <path d="M2 17a5 5 0 0 1 5-5h10a5 5 0 0 1 5 5v3a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z" />
     <path d="M20 17H4" />
     <path d="M7 12V3h5l4 4v5" />
+  </svg>
+);
+
+const UserIcon = (props) => (
+  <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+    <circle cx="12" cy="7" r="4" />
+  </svg>
+);
+
+const Clock = (props) => (
+  <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <polyline points="12 6 12 12 16 14" />
+  </svg>
+);
+
+const CameraIcon = (props) => (
+  <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>
   </svg>
 );
 
@@ -34,13 +55,14 @@ const HeartIcon = (props) => (
     </svg>
 );
 
-
 // --- Main Component ---
 const AboutUs = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef(null);
 
-  // Listen for Auth State
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -51,56 +73,119 @@ const AboutUs = () => {
 
   const handleLogout = () => {
     if (window.confirm("Are you sure you want to logout?")) {
-      signOut(auth).catch((error) => console.error("Logout error:", error));
+      signOut(auth).then(() => setIsSidebarOpen(false)).catch((error) => console.error("Logout error:", error));
+    }
+  };
+
+  const handlePhotoUpdate = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !user) return;
+
+    try {
+      setIsUploading(true);
+      const storageRef = ref(storage, `user_profiles/${user.uid}`);
+      await uploadBytes(storageRef, file);
+      const photoURL = await getDownloadURL(storageRef);
+      
+      await updateProfile(auth.currentUser, { photoURL });
+      setUser({ ...auth.currentUser, photoURL }); 
+      alert("Profile photo updated!");
+    } catch (error) {
+      console.error("Error updating photo:", error);
+      alert("Failed to upload photo.");
+    } finally {
+      setIsUploading(false);
     }
   };
 
   const ExternalLogo = ({ size = 'w-6 h-6', className = '' }) => (
-    <img 
-      src="https://cdn-icons-png.flaticon.com/512/103/103386.png" 
-      alt="Dental Clinic Logo" 
-      className={`${size} ${className}`} 
-      onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/24x24/f5f5f5/a0aec0?text=Logo" }}
-    />
-  );
+  <img 
+    src="https://cdn-icons-png.flaticon.com/512/103/103386.png" 
+    alt="Dental Clinic Logo" 
+    className={`${size} ${className}`} 
+    onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/24x24/f5f5f5/a0aec0?text=Logo" }}
+  />
+);
+
 
   return (
-    <div className="min-h-screen bg-gray-50 font-inter">
+    <div className="min-h-screen bg-gray-50 font-inter overflow-x-hidden">
+
+      {/* --- PROFILE SIDEBAR --- */}
+      <div className={`fixed inset-y-0 right-0 z-[100] w-80 bg-white shadow-2xl transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+        <div className="p-6 h-full flex flex-col">
+          <button onClick={() => setIsSidebarOpen(false)} className="self-end p-2 text-gray-400 hover:text-gray-600 transition">✕</button>
+          
+          <div className="flex flex-col items-center mt-4 mb-8">
+            <div className="relative group">
+              <div className="w-20 h-20 rounded-full bg-indigo-100 flex items-center justify-center border-4 border-white shadow-md overflow-hidden relative">
+                 {isUploading && (
+                   <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-10">
+                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                   </div>
+                 )}
+                 {user?.photoURL ? <img src={user.photoURL} alt="Avatar" className="w-full h-full object-cover" /> : <UserIcon className="w-10 h-10 text-indigo-600" />}
+              </div>
+              {/* Edit Button */}
+              <button 
+                onClick={() => fileInputRef.current.click()}
+                className="absolute bottom-0 right-0 bg-indigo-600 text-white p-1.5 rounded-full shadow-lg hover:bg-indigo-700 transition transform hover:scale-110"
+              >
+                <CameraIcon className="w-3.5 h-3.5" />
+              </button>
+              <input type="file" ref={fileInputRef} onChange={handlePhotoUpdate} className="hidden" accept="image/*" />
+            </div>
+            
+            <h3 className="font-bold text-xl text-gray-900 text-center mt-4">{user?.displayName || "Patient"}</h3>
+            <p className="text-gray-500 text-sm truncate w-full text-center">{user?.email}</p>
+          </div>
+
+          <div className="flex-1 space-y-2">
+            <Link to="/my-records" onClick={() => setIsSidebarOpen(false)} className="flex items-center p-3 rounded-xl hover:bg-gray-50 text-gray-700 font-medium">
+              <Clock className="w-5 h-5 mr-3 text-indigo-500" /> Appointment History
+            </Link>
+            <Link to="/book" onClick={() => setIsSidebarOpen(false)} className="flex items-center p-3 rounded-xl hover:bg-indigo-50 text-indigo-600 font-bold">
+              <BookOpen className="w-5 h-5 mr-3" /> Book New Appointment
+            </Link>
+          </div>
+
+          <button onClick={handleLogout} className="w-full py-4 mt-auto border-t border-gray-100 flex items-center justify-center text-red-500 font-bold hover:bg-red-50 transition rounded-xl">
+             Logout
+          </button>
+        </div>
+      </div>
+
+      {isSidebarOpen && <div className="fixed inset-0 bg-black/20 z-[90] backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)} />}
 
       {/* --- NAVBAR --- */}
-      <section className="bg-white shadow-sm sticky top-0 z-10 border-b border-gray-200">
+      <nav className="bg-white shadow-sm sticky top-0 z-10 border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <div className="flex items-center space-x-3 text-gray-800 font-semibold text-xl">
             <ExternalLogo size="w-6 h-6" />
             <span>Menchie's Dental Clinic</span>
           </div>
-          <nav className="hidden md:flex space-x-8 text-lg font-medium">
-            <NavLink to="/" className={({ isActive }) => isActive ? 'text-indigo-600 font-bold transition duration-150' : 'text-gray-600 hover:text-indigo-600 transition duration-150'}>Home</NavLink>
-            <NavLink to="/about" className={({ isActive }) => isActive ? 'text-indigo-600 font-bold transition duration-150' : 'text-gray-600 hover:text-indigo-600 transition duration-150'}>About Us</NavLink> 
-            <NavLink to="/services" className={({ isActive }) => isActive ? 'text-indigo-600 font-bold transition duration-150' : 'text-gray-600 hover:text-indigo-600 transition duration-150'}>Services</NavLink>
-            <Link to="/my-records" className="text-indigo-600 font-semibold transition">My Records</Link> 
-          </nav>
-          <div className="flex items-center space-x-4">
+          
+          <div className="hidden md:flex space-x-8 text-lg font-medium">
+            <NavLink to="/" className={({ isActive }) => isActive ? 'text-indigo-600 font-bold' : 'text-gray-600 hover:text-indigo-600 transition'}>Home</NavLink>
+            <NavLink to="/about" className={({ isActive }) => isActive ? 'text-indigo-600 font-bold' : 'text-gray-600 hover:text-indigo-600 transition'}>About Us</NavLink> 
+            <NavLink to="/services" className={({ isActive }) => isActive ? 'text-gray-600 hover:text-indigo-600 transition' : 'text-gray-600 hover:text-indigo-600 transition'}>Services</NavLink>
+          </div>
+
+          <div className="flex items-center">
             {!loading && (
               <>
                 {user ? (
-                  <div className="flex items-center space-x-3">
-                    <Link to="/book" className="flex items-center px-5 py-2.5 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 transition duration-200 text-base">
-                      <BookOpen className="w-5 h-5 mr-2" />
-                      Book Appointment
-                    </Link>
-                    <button 
-                      onClick={handleLogout}
-                      className="flex items-center px-5 py-2.5 border-2 border-red-100 text-red-500 font-bold rounded-xl hover:bg-red-50 hover:border-red-200 transition duration-200 text-base"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                      </svg>
-                      Logout
-                    </button>
-                  </div>
+                  <button 
+                    onClick={() => setIsSidebarOpen(true)}
+                    className="flex items-center space-x-2 p-1 pl-3 border border-gray-200 rounded-full hover:shadow-md transition bg-white group"
+                  >
+                    <span className="font-semibold text-gray-700 hidden sm:block">Profile</span>
+                    <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white overflow-hidden">
+                       {user?.photoURL ? <img src={user.photoURL} alt="Avatar" className="w-full h-full object-cover" /> : <UserIcon className="w-5 h-5" />}
+                    </div>
+                  </button>
                 ) : (
-                  <Link to="/auth" className="flex items-center px-8 py-2.5 border-2 border-indigo-600 text-indigo-600 font-extrabold rounded-xl hover:bg-indigo-50 transition duration-200 text-base">
+                  <Link to="/auth" className="px-6 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition">
                     Sign In
                   </Link>
                 )}
@@ -108,7 +193,7 @@ const AboutUs = () => {
             )}
           </div>
         </div>
-      </section>
+      </nav>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         
@@ -120,11 +205,7 @@ const AboutUs = () => {
             <p className="text-lg text-gray-700 leading-relaxed">
               At Menchie's Dental Clinic, we are committed to providing exceptional dental care that prioritizes your health, comfort, and peace of mind. Our mission is to foster lasting relationships with our patients by delivering personalized treatments in a welcoming and state-of-the-art environment.
             </p>
-            <p className="text-lg text-gray-700 leading-relaxed">
-              Founded on principles of integrity and excellence, our clinic continually invests in the latest dental technologies and ongoing education for our team. This ensures that you receive the most effective and advanced treatments available, from routine checkups to complex restorative and cosmetic procedures. We believe everyone deserves a healthy, radiant smile.
-            </p>
             
-            {/* Specific Address Badge */}
             <div className="bg-indigo-50 border-l-4 border-indigo-600 p-4 rounded-r-xl">
                <p className="text-indigo-900 font-bold uppercase text-xs tracking-wider mb-1">Visit us at:</p>
                <p className="text-indigo-800 font-medium">
@@ -133,20 +214,16 @@ const AboutUs = () => {
                </p>
             </div>
           </div>
-             {/* Functional Map with Shopper's Lane Pin */}
           <div className="bg-white rounded-3xl h-[450px] overflow-hidden shadow-2xl relative border-4 border-white">
             <iframe
-              title="Google Maps Shopper's Lane Location"
+              title="Google Maps Location"
               width="100%"
               height="100%"
               style={{ border: 0 }}
               loading="lazy"
-              allowFullScreen
-              referrerPolicy="no-referrer-when-downgrade"
-              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3827.1328475263623!2d120.5960413!3d16.4180425!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3391a16639c7162d%3A0xc3f5c7866d5854b7!2sShopper's%20Lane%20Bldg!5e0!3m2!1sen!2sph!4v1700000000000"
+              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3827.066468087912!2d120.5960309!3d16.4111306!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3391a166297371d3%3A0xc3f9a791a8775494!2sShopper's%20Lane!5e0!3m2!1sen!2sph!4v1700000000000"
             ></iframe>
           </div>
-                   
         </section>
 
         <section className="text-center mb-20">
@@ -154,57 +231,29 @@ const AboutUs = () => {
           <div className="grid md:grid-cols-3 gap-8">
             <div className="bg-white p-8 rounded-3xl shadow-lg flex flex-col items-center">
               <SmileIcon className="w-12 h-12 text-indigo-500 mb-6" />
-              <h3 className="text-2xl font-semibold text-gray-800 mb-4">Stress-Free Environment</h3>
+              <h3 className="text-2xl font-semibold text-gray-800 mb-4">Stress-Free</h3>
               <p className="text-gray-600 text-center leading-relaxed">
-                We understand dental visits can be daunting. Our clinic is designed to be a calming oasis, with comfortable amenities and a gentle approach to make every appointment as relaxing as possible.
+                Our clinic is designed to be a calming oasis, with comfortable amenities and a gentle approach.
               </p>
             </div>
             
             <div className="bg-white p-8 rounded-3xl shadow-lg flex flex-col items-center">
               <WalletIcon className="w-12 h-12 text-indigo-500 mb-6" />
-              <h3 className="text-2xl font-semibold text-gray-800 mb-4">Accessible & Affordable</h3>
+              <h3 className="text-2xl font-semibold text-gray-800 mb-4">Affordable</h3>
               <p className="text-gray-600 text-center leading-relaxed">
-                Quality dental care shouldn't break the bank. We offer transparent pricing, flexible payment options, and help with insurance claims to ensure our services are accessible to everyone.
+                Quality dental care shouldn't break the bank. We offer transparent pricing and flexible options.
               </p>
             </div>
             
             <div className="bg-white p-8 rounded-3xl shadow-lg flex flex-col items-center">
               <HeartIcon className="w-12 h-12 text-indigo-500 mb-6" />
-              <h3 className="text-2xl font-semibold text-gray-800 mb-4">Personalized Care</h3>
+              <h3 className="text-2xl font-semibold text-gray-800 mb-4">Personalized</h3>
               <p className="text-gray-600 text-center leading-relaxed">
-                Every smile is unique, and so is our approach. We take the time to understand your individual needs and goals, crafting bespoke treatment plans for the best possible outcomes.
+                Every smile is unique. We craft bespoke treatment plans for the best possible outcomes.
               </p>
             </div>
           </div>
         </section>
-
-        <section className="bg-gray-100 p-10 rounded-3xl shadow-inner grid md:grid-cols-4 gap-8 items-center mt-20">
-            <div className="flex flex-col items-center justify-center p-4">
-                <ExternalLogo size="w-12 h-12" className="mb-4" /> 
-                <span className="font-semibold text-lg text-gray-800 text-center">Menchie's Dental Clinic</span>
-            </div>
-            
-            <div className="text-center md:text-left space-y-2">
-                <h4 className="font-bold text-lg text-gray-800 mb-2">Contact Us</h4>
-                <p className="text-gray-600">Phone: (123) 456-7890</p>
-                <p className="text-gray-600">Email: info@menchiedental.com</p>
-                <p className="text-gray-600">Emergencies: Call us 24/7</p>
-            </div>
-
-            <div className="text-center md:text-left space-y-2">
-                <h4 className="font-bold text-lg text-gray-800 mb-2">Connect Online</h4>
-                <a href="#" className="block text-indigo-600 hover:underline">Facebook</a>
-                <a href="#" className="block text-indigo-600 hover:underline">Instagram</a>
-            </div>
-
-            <div className="text-center md:text-left space-y-2">
-                <h4 className="font-bold text-lg text-gray-800 mb-2">Our Location</h4>
-                <p className="text-gray-600 font-medium text-sm">Unit 17-A Shopper's Lane Building</p>
-                <p className="text-gray-600 text-sm">Lower General Luna Road</p>
-                <p className="text-gray-600 text-sm">Baguio City, Philippines</p>
-            </div>
-        </section>
-
       </main>
 
       <footer className="w-full py-4 text-center text-gray-500 text-sm border-t border-gray-200 bg-white">
