@@ -85,9 +85,9 @@ const ReportsModal = ({ onClose, appointments = [], displayDate }) => {
 
     // 2. Define how service types map to the four display categories
     const serviceCategories = {
-        'Dental Exams': ['Teeth Whitening (Cosmetic)', 'Orthodontics Consultation'],
+        'Dental Exams': ['Teeth Whitening (Cosmetic)', 'Orthodontics Consultation', 'Align teeth', 'Apply Retainer'],
         'Surgeries': ['Emergency Visit (Pain/Injury)'],
-        'Consultations': ['Dental Implants Consultation', 'Other / Not Sure'],
+        'Consultations': ['Dental Implants Consultation', 'Other / Not Sure', 'Dental Filling', 'tooth cleaning', 'tooth removal', 'teeth whitening'],
         'Tooth Cleaning': ['Routine Check-up & Cleaning'],
     };
 

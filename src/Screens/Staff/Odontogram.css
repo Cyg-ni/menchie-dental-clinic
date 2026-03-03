@@ -237,6 +237,15 @@
     transform: translateZ(1px);
 }
 
+.condition-crooked {
+    transform: translateZ(2px);
+    background-color: rgba(200, 200, 200, 0.2);
+}
+
+.tooth-selected .condition-crooked {
+    transform: rotate(15deg) translateZ(2px) !important;
+}
+
 .condition-whitening {
     background: linear-gradient(
         to right,

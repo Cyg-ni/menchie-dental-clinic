@@ -6,12 +6,20 @@ import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 // Paths to external assets
 const TEETH_MODEL_PATH = "/models/Teeth.obj"; 
 const TEETH_TEXTURE_PATH = "/models/AlysonTeeth.png"; 
+const ADHESIVE_MODEL_PATH = "/models/dental adhesive.obj";
+const BRACKET_MODEL_PATH = "/models/brace bracket.obj";
+const WIRES_MODEL_PATH = "/models/dental wires.obj";
+const RETAINERS_MODEL_PATH = "/models/orthodontic retainers.obj";
+const DENTAL_FILLING_PATH = "/models/dental filling.obj";
 
 // --- ANIMATION CONSTANTS ---
 const REMOVAL_DURATION = 2.5;
 const REMOVAL_DISTANCE = 20; 
 const WHITENING_DURATION = 3.0;
 const CLEANING_DURATION = 3.0;
+const BRACES_STEP_DURATION = 2.0; // Duration for each step of the braces animation
+const RETAINER_DURATION = 2.0; // Duration for retainer insertion animation
+const FILLING_DURATION = 3.0; // Duration for falling droplets filling
 
 export default function TeethModelViewer({ 
     className = "", 
@@ -49,6 +57,8 @@ export default function TeethModelViewer({
   const COLOR_DIM = new THREE.Color(0x444444); 
   const COLOR_MISSING = new THREE.Color(0x9e9e9e);
   const COLOR_CLEANING_TARGET = new THREE.Color(0xffffff);
+  const COLOR_CROOKED = new THREE.Color(0xdcdcdc); // Light grey/bone color for crooked
+  const COLOR_CORRODED = new THREE.Color(0x2c2c2c); // Very dark, almost black for corroded interior
   
   // --- ANIMATION TRACKING ---
   const animationStateRef = React.useRef({
@@ -56,9 +66,14 @@ export default function TeethModelViewer({
     whiteningMeshes: [],
     removalMeshes: [],
     cleaningMeshes: [],
+    bracesMeshes: [], // Meshes undergoing braces treatment
+    retainerMeshes: [], // Meshes undergoing retainer insertion
+    fillingMeshes: [], // Meshes undergoing dental filling (droplets)
     completedAnimations: new Set(),
     // Track animation start times
-    animationStartTimes: new Map()
+    animationStartTimes: new Map(),
+    // Store loaded models for cloning
+    cachedModels: {}
   });
 
   // Debug logging for props
@@ -170,6 +185,309 @@ export default function TeethModelViewer({
         state.removalMeshes.splice(index, 1);
       }
     });
+
+    // Update braces animations
+    state.bracesMeshes.forEach((mesh, index) => {
+        if (!mesh.userData.bracesStartTime) {
+            mesh.userData.bracesStartTime = elapsedTime;
+            mesh.userData.originalRotationXVal = mesh.rotation.x;
+            mesh.userData.originalRotationZVal = mesh.rotation.z;
+        }
+
+        const startTime = mesh.userData.bracesStartTime;
+        const totalDuration = BRACES_STEP_DURATION * 3;
+        const progress = Math.min(1, (elapsedTime - startTime) / totalDuration);
+
+        // --- STEP 1: DENTAL ADHESIVE ---
+        if (progress > 0 && !mesh.userData.adhesiveAdded && state.cachedModels.adhesive) {
+            const adhesive = state.cachedModels.adhesive.clone();
+            // Since mesh center is inside the tooth, we move it forward in Z to stick to the surface
+            // Resetting any global transformation and using local offsets
+            adhesive.position.set(0, 0, 0); 
+            adhesive.scale.set(1.0, 1.0, 1.0); 
+            adhesive.userData.isBracePart = true;
+            mesh.add(adhesive); 
+            mesh.userData.adhesive = adhesive;
+            mesh.userData.adhesiveAdded = true;
+            adhesive.traverse(child => { 
+                if(child.isMesh) {
+                    child.material = new THREE.MeshStandardMaterial({ 
+                        color: 0xeeeeee, 
+                        transparent: true, 
+                        opacity: 0,
+                        metalness: 0,
+                        roughness: 1
+                    }); 
+                }
+            });
+        }
+        if (progress > 0 && progress <= 1/3) {
+            const stepProgress = Math.min(1, progress * 3);
+            if (mesh.userData.adhesive) {
+                mesh.userData.adhesive.traverse(child => { 
+                    if(child.isMesh) child.material.opacity = stepProgress; 
+                });
+            }
+        }
+
+        // --- STEP 2: BRACE BRACKET ---
+        if (progress > 1/3 && !mesh.userData.bracketAdded && state.cachedModels.bracket) {
+            const bracket = state.cachedModels.bracket.clone();
+            // Place on top of adhesive
+            bracket.position.set(0, 0, 0); 
+            bracket.scale.set(1.0, 1.0, 1.0); 
+            bracket.userData.isBracePart = true;
+            mesh.add(bracket);
+            mesh.userData.bracket = bracket;
+            mesh.userData.bracketAdded = true;
+            bracket.traverse(child => { 
+                if(child.isMesh) {
+                    child.material = new THREE.MeshStandardMaterial({ 
+                        color: 0xcccccc, 
+                        metalness: 0.8, 
+                        roughness: 0.2, 
+                        transparent: true, 
+                        opacity: 0 
+                    }); 
+                }
+            });
+        }
+        if (progress > 1/3 && progress <= 2/3) {
+            const stepProgress = Math.min(1, (progress - 1/3) * 3);
+            if (mesh.userData.bracket) {
+                mesh.userData.bracket.traverse(child => { 
+                    if(child.isMesh) child.material.opacity = stepProgress; 
+                });
+            }
+        }
+
+        // --- STEP 3: DENTAL WIRES AND REALIGNMENT ---
+        if (progress > 2/3 && !mesh.userData.wiresAdded && state.cachedModels.wires) {
+            const wires = state.cachedModels.wires.clone();
+            // Place in center of bracket slot
+            wires.position.set(0, 0, 0); 
+            wires.scale.set(1.0, 1.0, 1.0); 
+            wires.userData.isBracePart = true;
+            mesh.add(wires);
+            mesh.userData.wires = wires;
+            mesh.userData.wiresAdded = true;
+            wires.traverse(child => { 
+                if(child.isMesh) {
+                    child.material = new THREE.MeshStandardMaterial({ 
+                        color: 0x888888, 
+                        metalness: 0.9, 
+                        roughness: 0.1, 
+                        transparent: true, 
+                        opacity: 0 
+                    }); 
+                }
+            });
+        }
+        if (progress > 2/3) {
+            const stepProgress = Math.min(1, (progress - 2/3) * 3);
+            if (mesh.userData.wires) {
+                mesh.userData.wires.traverse(child => { 
+                    if(child.isMesh) child.material.opacity = stepProgress; 
+                });
+            }
+
+            // REALIGNMENT (Straightening the crooked tooth)
+            const ease = 1 - Math.pow(1 - stepProgress, 3);
+            mesh.rotation.z = mesh.userData.originalRotationZVal * (1 - ease);
+            mesh.rotation.x = mesh.userData.originalRotationXVal * (1 - ease);
+
+            // Pivot compensation to KEEP tooth in place while rotating
+            if (mesh.userData.localCenter) {
+                const localP = mesh.userData.localCenter.clone();
+                const rotatedP = localP.clone();
+                rotatedP.applyAxisAngle(new THREE.Vector3(1, 0, 0), mesh.rotation.x);
+                rotatedP.applyAxisAngle(new THREE.Vector3(0, 0, 1), mesh.rotation.z);
+                const diff = localP.sub(rotatedP);
+                // Important: apply offset to original position to avoid cumulative error
+                mesh.position.copy(mesh.userData.originalPosition).add(diff);
+            }
+        }
+
+        if (progress >= 1) {
+            mesh.userData.bracesCompleted = true;
+            // Remove from active animation array
+            state.bracesMeshes.splice(index, 1);
+        }
+    });
+
+    // Use constant for duration to make it easier to change
+    const FILLING_DURATION = 3.0; // Wait, let's make it 3 seconds total
+
+    // Help determine if a tooth is upper or lower for positioning
+    const isUpperTooth = (name) => {
+        const idMatch = (name || "").match(/(\d{2})/);
+        const id = idMatch ? parseInt(idMatch[1]) : 0;
+        return (id >= 11 && id <= 28) || (id >= 51 && id <= 65);
+    };
+
+    // Helper for adding filling droplets to animation
+    const spawnDroplet = (mesh) => {
+        if (state.cachedModels.filling) {
+            const drop = state.cachedModels.filling.clone();
+            
+            // Calculate center of tooth to align drop with the hole
+            mesh.geometry.computeBoundingBox();
+            const c = new THREE.Vector3();
+            mesh.geometry.boundingBox.getCenter(c);
+            const { min, max } = mesh.geometry.boundingBox;
+            
+            const isUpper = isUpperTooth(mesh.name);
+            
+            // Target Y is the biting surface (where the hole is)
+            const targetY = isUpper ? min.y : max.y;
+            
+            // Start Y is CLOSE to the tooth "inside the mouth"
+            // Using 0.8 units offset instead of 4.0 or 5.0
+            const startY = isUpper ? targetY - 0.8 : targetY + 0.8;
+            
+            // Set initial position
+            drop.position.set(c.x, startY, c.z); 
+            
+            // Smaller size for continuous stream
+            drop.scale.set(0.12, 0.12, 0.12); 
+            drop.userData.isFillingPart = true;
+            
+            // Ensure material is visible
+            drop.traverse(child => {
+                if(child.isMesh) {
+                    if (child.material) {
+                         // Clone to avoid affecting the cached model
+                         child.material = child.material.clone();
+                    } else {
+                         child.material = new THREE.MeshStandardMaterial();
+                    }
+                    child.material.color.set(0xffffff);
+                    child.material.metalness = 0.8;
+                    child.material.roughness = 0.2;
+                    child.material.emissive.set(0x666666);
+                    child.material.emissiveIntensity = 0.4;
+                    child.material.transparent = true;
+                    child.material.opacity = 1.0;
+                    child.visible = true; // FORCE VISIBILITY
+                }
+            });
+            drop.visible = true; // FORCE VISIBILITY ON PARENT
+
+            mesh.add(drop);
+            if (!mesh.userData.fillingDrops) mesh.userData.fillingDrops = [];
+            
+            mesh.userData.fillingDrops.push({
+                mesh: drop,
+                startTime: clockRef.current.getElapsedTime(),
+                startY: startY,
+                targetY: targetY,
+                landed: false
+            });
+        }
+    };
+
+    // Update filling animations (droplets)
+    for (let i = state.fillingMeshes.length - 1; i >= 0; i--) {
+        const mesh = state.fillingMeshes[i];
+        
+        if (!mesh.userData.fillingStartTime) {
+            mesh.userData.fillingStartTime = elapsedTime;
+            mesh.userData.lastDropTime = 0;
+            // Ensure drops array initializes
+            mesh.userData.fillingDrops = mesh.userData.fillingDrops || [];
+        }
+
+        const startTime = mesh.userData.fillingStartTime;
+        const totalProgress = Math.min(1, (elapsedTime - startTime) / FILLING_DURATION);
+        const elapsedSinceStart = elapsedTime - startTime;
+
+        // CONTINUOUS STREAM LOGIC
+        // Drop frequently (every 0.15s) until 90% completion
+        // FORCE SPAWN if no drops exist yet
+        if (totalProgress < 0.9) { 
+            const shouldSpawn = !mesh.userData.lastDropTime || (elapsedSinceStart - mesh.userData.lastDropTime) > 0.15;
+            if (shouldSpawn) {
+                spawnDroplet(mesh);
+                mesh.userData.lastDropTime = elapsedSinceStart;
+            }
+        }
+        
+        // Initial force spawn just in case
+        if (elapsedSinceStart > 0 && (!mesh.userData.fillingDrops || mesh.userData.fillingDrops.length === 0)) {
+             spawnDroplet(mesh);
+             mesh.userData.lastDropTime = elapsedSinceStart;
+        }
+
+        // Animate existing drops falling VERTICALLY
+        if (mesh.userData.fillingDrops) {
+            const DROP_FALL_DURATION = 0.35; // Fast fall for short distance
+            
+            mesh.userData.fillingDrops.forEach(dropObj => {
+                const dropElapsed = elapsedTime - dropObj.startTime;
+                
+                if (!dropObj.landed) {
+                    const dropProgress = Math.min(1, dropElapsed / DROP_FALL_DURATION);
+                    // Linear fall is fine for short distance, but ease-in looks heavier
+                    const eased = dropProgress * dropProgress;
+                    dropObj.mesh.position.y = dropObj.startY + (dropObj.targetY - dropObj.startY) * eased;
+
+                    if (dropProgress >= 1) {
+                        dropObj.landed = true;
+                        // Flatten significantly on impact
+                        dropObj.mesh.scale.set(0.25, 0.02, 0.25); 
+                        
+                        // Force update matrix to ensure visual update
+                        dropObj.mesh.updateMatrix();
+                        
+                        const isUpper = isUpperTooth(mesh.name);
+                        dropObj.mesh.position.y = dropObj.targetY + (isUpper ? -0.005 : 0.005);
+                    }
+                } else {
+                    // Start fading out the landed droplets so they don't accumulate infinitely
+                    // This simulates the material fusing into the tooth
+                    dropObj.mesh.traverse(c => {
+                        if(c.isMesh && c.material) {
+                            c.material.transparent = true;
+                            c.material.opacity = Math.max(0, c.material.opacity - 0.03);
+                            if (c.material.opacity <= 0.05) c.visible = false;
+                        }
+                    });
+                }
+            });
+        }
+
+        // Smoothly fade out the black hole continuously
+        if (mesh.userData.corrosionHole) {
+            // Map total progress (0 to 1) to opacity (1 to 0)
+            const opacity = Math.max(0, 1 - totalProgress);
+            mesh.userData.corrosionHole.material.transparent = true;
+            mesh.userData.corrosionHole.material.opacity = opacity;
+            
+            // Also shrink it
+            const scale = Math.max(0.01, 1 - totalProgress);
+            mesh.userData.corrosionHole.scale.set(scale, scale * 0.2, scale);
+        }
+
+        if (totalProgress >= 1) {
+            mesh.userData.fillingCompleted = true;
+            state.fillingMeshes.splice(i, 1);
+            
+            // Clean up: Remove drops and hole
+            if (mesh.userData.fillingDrops) {
+                mesh.userData.fillingDrops.forEach(d => mesh.remove(d.mesh));
+                mesh.userData.fillingDrops = [];
+            }
+            if (mesh.userData.corrosionHole) {
+                mesh.remove(mesh.userData.corrosionHole);
+                mesh.userData.corrosionHole = null;
+            }
+            
+            // FINAL STATE: Clean white tooth
+            mesh.material.color.set(COLOR_DEFAULT); 
+            mesh.material.emissive.set(0x000000);
+            console.log("✅ FILLING SEQUENCE FINISHED");
+        }
+    }
   }, [status]);
 
   React.useEffect(() => {
@@ -214,6 +532,13 @@ export default function TeethModelViewer({
                 child.userData.originalPosition = child.position.clone();
                 child.userData.originalScale = child.scale.clone();
                 child.userData.originalOpacity = 1;
+
+                // Pre-calculate geometry center for "rotate in place" logic
+                child.geometry.computeBoundingBox();
+                const localCenter = new THREE.Vector3();
+                child.geometry.boundingBox.getCenter(localCenter);
+                child.userData.localCenter = localCenter;
+
                 const name = (child.name || "").toLowerCase();
                 const match = name.match(/(\d{2})/);
                 if (match && match[1]) {
@@ -245,6 +570,28 @@ export default function TeethModelViewer({
     }, undefined, (err) => {
         console.error("FATAL ERROR: Failed to load anatomical OBJ model.", err);
         setStatus("error");
+    });
+
+    // CACHE BRACES MODELS
+    objLoader.load(ADHESIVE_MODEL_PATH, (obj) => { 
+        obj.scale.set(1.0, 1.0, 1.0); 
+        animationStateRef.current.cachedModels.adhesive = obj; 
+    });
+    objLoader.load(BRACKET_MODEL_PATH, (obj) => { 
+        obj.scale.set(1.0, 1.0, 1.0); 
+        animationStateRef.current.cachedModels.bracket = obj; 
+    });
+    objLoader.load(WIRES_MODEL_PATH, (obj) => { 
+        obj.scale.set(1.0, 1.0, 1.0); 
+        animationStateRef.current.cachedModels.wires = obj; 
+    });
+    objLoader.load(RETAINERS_MODEL_PATH, (obj) => { 
+        obj.scale.set(1.0, 1.0, 1.0); 
+        animationStateRef.current.cachedModels.retainer = obj; 
+    });
+    objLoader.load(DENTAL_FILLING_PATH, (obj) => { 
+        obj.scale.set(0.05, 0.05, 0.05); // Assume filling model is normal size, scale it small for droplets
+        animationStateRef.current.cachedModels.filling = obj; 
     });
 
     // Animation loop
@@ -341,6 +688,50 @@ export default function TeethModelViewer({
         prevViewModeRef.current = viewMode;
     }
 
+    const getMeshes = (id) => map[String(id)] || [];
+
+    // Reset all teeth to default state first
+    Object.values(map).flat().forEach(mesh => {
+        if (!mesh.userData.removalCompleted) {
+            mesh.visible = true;
+            mesh.position.copy(mesh.userData.originalPosition || new THREE.Vector3(0, 0, 0));
+            mesh.scale.copy(mesh.userData.originalScale || new THREE.Vector3(1, 1, 1));
+            mesh.rotation.set(0, 0, 0); // Explicitly reset all axes
+            mesh.material.opacity = mesh.userData.originalOpacity || 1;
+            mesh.material.transparent = false;
+            mesh.material.emissive.setHex(0x000000); 
+            mesh.material.emissiveIntensity = 0;
+
+            // Only remove braces sub-meshes if not currently in treatment animation
+            // This prevents them from being deleted and re-added every frame, which kills the animation
+            const isAnimatingBrace = state.bracesMeshes.includes(mesh) || mesh.userData.bracesCompleted;
+            
+            if (!isAnimatingBrace) {
+                if (mesh.userData.adhesive) mesh.remove(mesh.userData.adhesive);
+                if (mesh.userData.bracket) mesh.remove(mesh.userData.bracket);
+                if (mesh.userData.wires) mesh.remove(mesh.userData.wires);
+
+                const toRemove = [];
+                mesh.children.forEach(child => {
+                    if (child.userData?.isBracePart === true) toRemove.push(child);
+                });
+                toRemove.forEach(child => mesh.remove(child));
+
+                mesh.userData.adhesive = null;
+                mesh.userData.bracket = null;
+                mesh.userData.wires = null;
+                mesh.userData.adhesiveAdded = false;
+                mesh.userData.bracketAdded = false;
+                mesh.userData.wiresAdded = false;
+            }
+            
+            if (viewMode !== 'treatment') {
+                mesh.userData.bracesCompleted = false;
+                mesh.userData.bracesStartTime = undefined;
+            }
+        }
+    });
+
     // NEW: Highlight timeline selected tooth
     if (timelineSelectedTooth) {
         console.log(`🔍 Timeline selected tooth: ${timelineSelectedTooth}`);
@@ -359,21 +750,6 @@ export default function TeethModelViewer({
             }
         });
     }
-
-    const getMeshes = (id) => map[String(id)] || [];
-
-    // Reset all teeth to default state first
-    Object.values(map).flat().forEach(mesh => {
-        if (!mesh.userData.removalCompleted) {
-            mesh.visible = true;
-            mesh.position.copy(mesh.userData.originalPosition || new THREE.Vector3(0, 0, 0));
-            mesh.scale.copy(mesh.userData.originalScale || new THREE.Vector3(1, 1, 1));
-            mesh.material.opacity = mesh.userData.originalOpacity || 1;
-            mesh.material.transparent = false;
-            mesh.material.emissive.setHex(0x000000); 
-            mesh.material.emissiveIntensity = 0;
-        }
-    });
 
     const setupWhitening = (mesh) => {
         if (!state.whiteningMeshes.includes(mesh) && !mesh.userData.whiteningCompleted) {
@@ -406,6 +782,28 @@ export default function TeethModelViewer({
         }
     };
     
+    const setupFilling = (mesh) => {
+        // Ensure corrosion hole exists visually to start the fade effect
+        if (!mesh.userData.corrosionHoleAdded) {
+            setupCorrosionHole(mesh);
+        }
+        
+        // Prepare the hole material for fading
+        if (mesh.userData.corrosionHole) {
+             const mat = mesh.userData.corrosionHole.material;
+             mat.transparent = true;
+             mat.opacity = 1;
+        }
+
+        if (!state.fillingMeshes.includes(mesh) && !mesh.userData.fillingCompleted) {
+            console.log("🦷 SETTING UP FILLING ANIMATION");
+            state.fillingMeshes.push(mesh);
+            mesh.userData.fillingStartTime = undefined;
+            mesh.userData.fillingCompleted = false;
+            mesh.userData.fillingDrops = []; 
+        }
+    };
+    
     const setupCleaning = (mesh) => {
         if (!state.cleaningMeshes.includes(mesh) && !mesh.userData.cleaningCompleted) {
             console.log("🧼 Setting up cleaning animation - will fade to white");
@@ -422,11 +820,254 @@ export default function TeethModelViewer({
         }
     };
 
+    const setupBraces = (mesh) => {
+        if (!state.bracesMeshes.includes(mesh) && !mesh.userData.bracesCompleted) {
+            console.log("🦷 SETTING UP BRACES ANIMATION");
+            mesh.userData.bracesStartTime = undefined;
+            mesh.userData.bracesCompleted = false;
+            mesh.userData.adhesiveAdded = false;
+            mesh.userData.bracketAdded = false;
+            mesh.userData.wiresAdded = false;
+            
+            // CLEAN FIRST (Remove any old props if they still exist)
+            if (mesh.userData.adhesive) mesh.remove(mesh.userData.adhesive);
+            if (mesh.userData.bracket) mesh.remove(mesh.userData.bracket);
+            if (mesh.userData.wires) mesh.remove(mesh.userData.wires);
+            
+            // Deep clean for any orphan parts
+            const toRemove = [];
+            mesh.children.forEach(child => {
+                if (child.userData?.isBracePart === true) toRemove.push(child);
+            });
+            toRemove.forEach(child => mesh.remove(child));
+
+            mesh.userData.adhesive = null; 
+            mesh.userData.bracket = null; 
+            mesh.userData.wires = null;
+            
+            if (!state.bracesMeshes.includes(mesh)) {
+                state.bracesMeshes.push(mesh);
+            }
+        }
+    };
+
+    const setupRetainers = (mesh) => {
+        if (!mesh.userData.retainerAdded && state.cachedModels.retainer) {
+            console.log("🦷 SETTING UP RETAINERS VISUAL");
+            const retainer = state.cachedModels.retainer.clone();
+            // Start from an offset position and animate in
+            retainer.position.set(0, -5, 15); 
+            retainer.scale.set(0.8, 0.8, 0.8); 
+            retainer.userData.isRetainerPart = true;
+            mesh.add(retainer);
+            mesh.userData.retainer = retainer;
+            mesh.userData.retainerAdded = true;
+            mesh.userData.retainerStartTime = undefined;
+            mesh.userData.retainerCompleted = false;
+
+            if (!state.retainerMeshes.includes(mesh)) {
+                state.retainerMeshes.push(mesh);
+            }
+            
+            retainer.traverse(child => {
+                if (child.isMesh) {
+                    child.material = new THREE.MeshStandardMaterial({
+                        color: 0xcccccc,
+                        metalness: 0.8,
+                        roughness: 0.2,
+                        transparent: true,
+                        opacity: 0
+                    });
+                }
+            });
+        }
+    };
+
+    const setupCorrosionHole = (mesh) => {
+        if (!mesh.userData.corrosionHoleAdded) {
+            console.log("🦷 SETTING UP CORROSION HOLE for", mesh.name);
+            
+            // Compute bounding box to find the surface
+            mesh.geometry.computeBoundingBox();
+            const { min, max } = mesh.geometry.boundingBox;
+            const c = new THREE.Vector3();
+            mesh.geometry.boundingBox.getCenter(c);
+
+            // Determine orientation based on position in arch (Radial logic)
+            // If the tooth acts as a "Side" tooth, place on the outer X face.
+            // If "Front", place on outer Z face.
+            
+            const holePos = new THREE.Vector3(c.x, c.y, c.z);
+            let rotationY = 0;
+
+            // Heuristic for Arch Position:
+            // Abs(X) > Abs(Z) implies side teeth (Molars/Premolars)
+            // Abs(Z) > Abs(X) + threshold? Usually front teeth are around X=0, Z=Front.
+            
+            // Note: We want "Buccal" (Cheek) surface.
+            
+            // NEW LOGIC: Place on the Occlusal Surface (Top/Biting surface) in the Center
+            const match = (mesh.name || "").match(/(\d{2})/);
+            const id = match ? parseInt(match[1]) : 0;
+            const isUpper = (id >= 11 && id <= 28) || (id >= 51 && id <= 65);
+
+            // Use a TINY sphere radius
+            const holeGeometry = new THREE.SphereGeometry(0.004, 16, 16); 
+            holeGeometry.scale(1, 0.2, 1); // Flatten vertically
+
+            const holeMaterial = new THREE.MeshStandardMaterial({
+                color: 0x000000, 
+                roughness: 1,
+                metalness: 0
+            });
+            const hole = new THREE.Mesh(holeGeometry, holeMaterial);
+            
+            // Position on the Occlusal surface (Center X, Center Z)
+            // Lower teeth (31-48): Biting surface is at +Y (Max Y)
+            // Upper teeth (11-28): Biting surface is at -Y (Min Y)
+            
+            holePos.x = c.x;
+            holePos.z = c.z;
+
+            if (isUpper) {
+                 // Upper tooth - Place at bottom (biting surface)
+                 // Typically min.y is the tip of the crown for upper teeth
+                 holePos.y = min.y + 0.005; 
+            } else {
+                 // Lower tooth - Place at top (biting surface)
+                 holePos.y = max.y - 0.005;
+            }
+            
+            // No rotation needed for sphere, but if we flattened it:
+            // It was flattened on Y axis (scale 1, 0.2, 1). This effectively makes it a "pancake" on the XZ plane.
+            // This is exactly what we want for top/bottom placement.
+            hole.rotation.set(0, 0, 0);
+
+            hole.position.copy(holePos);
+            
+            hole.userData.isCorrosionPart = true;
+            mesh.add(hole);
+            mesh.userData.corrosionHole = hole;
+            mesh.userData.corrosionHoleAdded = true;
+        }
+    };
+
+    const clearBraceParts = (mesh) => {
+        if (mesh.userData.adhesive) mesh.remove(mesh.userData.adhesive);
+        if (mesh.userData.bracket) mesh.remove(mesh.userData.bracket);
+        if (mesh.userData.wires) mesh.remove(mesh.userData.wires);
+        if (mesh.userData.retainer) mesh.remove(mesh.userData.retainer);
+        if (mesh.userData.corrosionHole) mesh.remove(mesh.userData.corrosionHole);
+        if (mesh.userData.fillingDrops) {
+            mesh.userData.fillingDrops.forEach(d => mesh.remove(d.mesh));
+            mesh.userData.fillingDrops = null;
+        }
+
+        const toRemove = [];
+        mesh.children.forEach(child => {
+            if (child.userData?.isBracePart === true || 
+                child.userData?.isRetainerPart === true ||
+                child.userData?.isCorrosionPart === true ||
+                child.userData?.isFillingPart === true) {
+                toRemove.push(child);
+            }
+        });
+        toRemove.forEach(child => mesh.remove(child));
+
+        mesh.userData.adhesive = null;
+        mesh.userData.bracket = null;
+        mesh.userData.wires = null;
+        mesh.userData.retainer = null;
+        mesh.userData.corrosionHole = null;
+        mesh.userData.adhesiveAdded = false;
+        mesh.userData.bracketAdded = false;
+        mesh.userData.wiresAdded = false;
+        mesh.userData.retainerAdded = false;
+        mesh.userData.corrosionHoleAdded = false;
+        mesh.userData.bracesCompleted = false;
+        mesh.userData.bracesStartTime = undefined;
+        mesh.userData.retainerStartTime = undefined;
+        mesh.userData.retainerCompleted = false;
+        mesh.userData.fillingStartTime = undefined;
+        mesh.userData.fillingCompleted = false;
+
+        state.bracesMeshes = state.bracesMeshes.filter(m => m !== mesh);
+        state.retainerMeshes = state.retainerMeshes.filter(m => m !== mesh);
+        state.fillingMeshes = state.fillingMeshes.filter(m => m !== mesh);
+    };
+
     const setVisuals = (mesh, color, pulse = false, pulseColor2 = null) => {
+        // Only clear treatment/corrosion parts if we are NOT in treatment or condition mode
+        if (viewMode !== 'treatment' && viewMode !== 'condition') {
+            // 1. CLEAR EXPLICIT REFS
+            if (mesh.userData.adhesive) mesh.remove(mesh.userData.adhesive);
+            if (mesh.userData.bracket) mesh.remove(mesh.userData.bracket);
+            if (mesh.userData.wires) mesh.remove(mesh.userData.wires);
+            if (mesh.userData.retainer) mesh.remove(mesh.userData.retainer);
+            if (mesh.userData.corrosionHole) mesh.remove(mesh.userData.corrosionHole);
+            
+            // 2. SEARCH & DESTROY ANY ORPHAN BRACE/RETAINER/CORROSION PARTS (Deep Clean)
+            const toRemove = [];
+            mesh.children.forEach(child => {
+                if (child.userData?.isBracePart === true || 
+                    child.userData?.isRetainerPart === true ||
+                    child.userData?.isCorrosionPart === true ||
+                    child.userData?.isFillingPart === true) {
+                    toRemove.push(child);
+                }
+            });
+            toRemove.forEach(child => {
+                console.log("Cleaning up orphan treatment part from", mesh.name || "tooth");
+                mesh.remove(child);
+            });
+
+            mesh.userData.adhesive = null;
+            mesh.userData.bracket = null;
+            mesh.userData.wires = null;
+            mesh.userData.retainer = null;
+            mesh.userData.corrosionHole = null;
+            mesh.userData.adhesiveAdded = false;
+            mesh.userData.bracketAdded = false;
+            mesh.userData.wiresAdded = false;
+            mesh.userData.retainerAdded = false;
+            mesh.userData.corrosionHoleAdded = false;
+            mesh.userData.bracesCompleted = false;
+            mesh.userData.bracesStartTime = undefined;
+            mesh.userData.retainerStartTime = undefined;
+            mesh.userData.retainerCompleted = false;
+            mesh.userData.fillingStartTime = undefined;
+            mesh.userData.fillingCompleted = false;
+        }
+
+        // Logic for cleaning up ONLY treatment parts if we ARE in condition mode
+        if (viewMode === 'condition') {
+            if (mesh.userData.adhesive) mesh.remove(mesh.userData.adhesive);
+            if (mesh.userData.bracket) mesh.remove(mesh.userData.bracket);
+            if (mesh.userData.wires) mesh.remove(mesh.userData.wires);
+            if (mesh.userData.retainer) mesh.remove(mesh.userData.retainer);
+
+            const treatmentParts = [];
+            mesh.children.forEach(child => {
+                if (child.userData?.isBracePart === true || 
+                    child.userData?.isRetainerPart === true) {
+                    treatmentParts.push(child);
+                }
+            });
+            treatmentParts.forEach(child => mesh.remove(child));
+            
+            mesh.userData.adhesiveAdded = false;
+            mesh.userData.bracketAdded = false;
+            mesh.userData.wiresAdded = false;
+            mesh.userData.retainerAdded = false;
+        }
+
         // Don't set visuals if tooth is currently animating
         if (state.whiteningMeshes.includes(mesh) || 
             state.removalMeshes.includes(mesh) || 
-            state.cleaningMeshes.includes(mesh)) {
+            state.cleaningMeshes.includes(mesh) ||
+            state.bracesMeshes.includes(mesh) ||
+            state.retainerMeshes.includes(mesh) ||
+            state.fillingMeshes.includes(mesh)) {
             return;
         }
         
@@ -458,6 +1099,143 @@ export default function TeethModelViewer({
 
     // Prepare a string-based set for selected teeth to avoid type mismatch (string vs number)
     const selectedSet = new Set((selectedTeeth || []).map(String));
+    const upperPermanent = [11,12,13,14,15,16,17,18,21,22,23,24,25,26,27,28];
+    const lowerPermanent = [31,32,33,34,35,36,37,38,41,42,43,44,45,46,47,48];
+    const hasUpperSelected = Array.from(selectedSet).some(id => upperPermanent.includes(parseInt(id)));
+    const hasLowerSelected = Array.from(selectedSet).some(id => lowerPermanent.includes(parseInt(id)));
+
+    // GLOBAL ANIMATION PROTECTOR: 
+    // If an arch has NO selections, we must clear it from the active animation arrays immediately.
+    if (viewMode === 'treatment') {
+        const selectedNums = Array.from(selectedSet).map(Number);
+        if (!hasUpperSelected) {
+            state.bracesMeshes = state.bracesMeshes.filter(m => {
+                const idMatch = (m.name || "").match(/(\d{2})/);
+                const id = idMatch ? parseInt(idMatch[1]) : null;
+                return !id || !upperPermanent.includes(id);
+            });
+        }
+        if (!hasLowerSelected) {
+            state.bracesMeshes = state.bracesMeshes.filter(m => {
+                const idMatch = (m.name || "").match(/(\d{2})/);
+                const id = idMatch ? parseInt(idMatch[1]) : null;
+                return !id || !lowerPermanent.includes(id);
+            });
+        }
+    }
+
+    // GLOBAL BRACES CLEANUP: Remove braces from unselected arches to prevent them from sticking
+    // on unhighlighted rows (since unselected teeth aren't otherwise processed in the loop).
+    if (viewMode === 'treatment') {
+        if (!hasUpperSelected) {
+            upperPermanent.forEach(toothNum => {
+                const meshes = getMeshes(toothNum);
+                meshes.forEach(mesh => {
+                    clearBraceParts(mesh);
+                    // EXTREME CLEANUP: Manually scan and remove any leftover brace parts
+                    const toRemove = [];
+                    mesh.children.forEach(child => {
+                        if (child.userData?.isBracePart === true) toRemove.push(child);
+                    });
+                    toRemove.forEach(child => mesh.remove(child));
+                });
+            });
+        }
+        if (!hasLowerSelected) {
+            lowerPermanent.forEach(toothNum => {
+                const meshes = getMeshes(toothNum);
+                meshes.forEach(mesh => {
+                    clearBraceParts(mesh);
+                    const toRemove = [];
+                    mesh.children.forEach(child => {
+                        if (child.userData?.isBracePart === true) toRemove.push(child);
+                    });
+                    toRemove.forEach(child => mesh.remove(child));
+                });
+            });
+        }
+
+        // NEW: Cleanup for INDIVIDUAL MISSING teeth within an active arch
+        allToothIds.forEach(toothNumStr => {
+            const num = parseInt(toothNumStr);
+            if (isToothMissing(num)) {
+                getMeshes(num).forEach(mesh => {
+                    clearBraceParts(mesh);
+                    const toRemove = [];
+                    mesh.children.forEach(c => { if(c.userData?.isBracePart) toRemove.push(c); });
+                    toRemove.forEach(c => mesh.remove(c));
+                    mesh.userData.bracesCompleted = false;
+                    mesh.userData.bracesStartTime = undefined;
+                    state.bracesMeshes = state.bracesMeshes.filter(bm => bm !== mesh);
+                });
+            }
+        });
+    }
+
+    // --- VIEWMODE RESET LOGIC ---
+    // If viewMode changed from 'treatment' to something else, CLEAN UP braces
+    if (prevViewModeRef.current === 'treatment' && viewMode !== 'treatment') {
+        console.log("🔄 VIEWMODE CHANGED: Cleaning up treatment visual effects...");
+        // Clear animation arrays
+        state.bracesMeshes = [];
+        state.whiteningMeshes = [];
+        state.cleaningMeshes = [];
+        state.removalMeshes = [];
+        
+        // Remove 3D objects from ALL teeth meshes
+        Object.values(toothMeshMapRef.current).forEach(meshes => {
+            if (Array.isArray(meshes)) {
+                meshes.forEach(mesh => {
+                    // Reset animation state
+                    mesh.userData.bracesStartTime = undefined;
+                    mesh.userData.bracesCompleted = false;
+                    mesh.userData.adhesiveAdded = false;
+                    mesh.userData.bracketAdded = false;
+                    mesh.userData.wiresAdded = false;
+                    mesh.userData.whiteningStartTime = undefined;
+                    mesh.userData.cleaningStartTime = undefined;
+                    mesh.userData.removalStartTime = undefined;
+
+                    // Remove children (braces objects)
+                    if (mesh.userData.adhesive) mesh.remove(mesh.userData.adhesive);
+                    if (mesh.userData.bracket) mesh.remove(mesh.userData.bracket);
+                    if (mesh.userData.wires) mesh.remove(mesh.userData.wires);
+                    
+                    mesh.userData.adhesive = null;
+                    mesh.userData.bracket = null;
+                    mesh.userData.wires = null;
+
+                    // Reset transformation if it was crooked/straightened
+                    mesh.rotation.set(0, 0, 0);
+                    if (mesh.userData.originalPosition) {
+                        mesh.position.copy(mesh.userData.originalPosition);
+                    }
+                    mesh.scale.set(1, 1, 1);
+                    mesh.visible = true;
+                    if (mesh.material) {
+                        mesh.material.opacity = 1;
+                        mesh.material.transparent = false;
+                    }
+                });
+            }
+        });
+    }
+
+    // Always restart braces animation when entering treatment mode
+    if (prevViewModeRef.current !== 'treatment' && viewMode === 'treatment') {
+        state.bracesMeshes = []; // Reset list so they can be re-added
+        Object.values(toothMeshMapRef.current).forEach(meshes => {
+            if (Array.isArray(meshes)) {
+                meshes.forEach(mesh => {
+                    mesh.userData.bracesCompleted = false;
+                    mesh.userData.bracesStartTime = undefined;
+                });
+            }
+        });
+    }
+
+    // Update the ref for the next render
+    prevViewModeRef.current = viewMode;
 
     console.log('=== VISUAL UPDATE ===');
     console.log('VIEW MODE:', viewMode);
@@ -473,16 +1251,48 @@ export default function TeethModelViewer({
         const isMissing = isToothMissing(toothNum);
         
         if (isMissing) {
-            console.log(`🚫 Tooth ${toothNum} is marked as MISSING - hiding in 3D view`);
+            console.log(`🚫 Tooth ${toothNum} is marked as MISSING - hiding in 3D view and cleaning braces`);
             meshes.forEach(mesh => {
                 mesh.visible = false;
-                // Remove any animations referencing this mesh
+                
+                // --- NUCLEAR MISSING TOOTH BRACES CLEANUP ---
+                // We MUST use traverse to find these if they are deep nested, 
+                // and we MUST clear the refs so they aren't re-added by the animation loop.
+                const itemsToDelete = [];
+                mesh.traverse(child => {
+                    // Check for our custom flag OR for common names used by OBJLoader
+                    if (child.userData?.isBracePart === true || 
+                        child.name.toLowerCase().includes('adhesive') || 
+                        child.name.toLowerCase().includes('bracket') || 
+                        child.name.toLowerCase().includes('wire')) {
+                        itemsToDelete.push(child);
+                    }
+                });
+
+                itemsToDelete.forEach(child => {
+                    if (child.parent) {
+                        child.parent.remove(child);
+                    }
+                });
+                
+                // Clear all individual refs and state flags
+                mesh.userData.adhesive = null;
+                mesh.userData.bracket = null;
+                mesh.userData.wires = null;
+                mesh.userData.adhesiveAdded = false;
+                mesh.userData.bracketAdded = false;
+                mesh.userData.wiresAdded = false;
+                mesh.userData.bracesCompleted = false;
+                mesh.userData.bracesStartTime = undefined;
+
+                // Scrub from all active animation lists
                 state.pulsingMeshes = state.pulsingMeshes.filter(m => m !== mesh);
                 state.whiteningMeshes = state.whiteningMeshes.filter(m => m !== mesh);
                 state.removalMeshes = state.removalMeshes.filter(m => m !== mesh);
                 state.cleaningMeshes = state.cleaningMeshes.filter(m => m !== mesh);
+                state.bracesMeshes = state.bracesMeshes.filter(m => m !== mesh);
             });
-            return; // Skip further processing for this tooth
+            return;
         }
         
         // Determine if this tooth is in the selected record
@@ -545,15 +1355,57 @@ export default function TeethModelViewer({
                 // Apply correct color based on condition
                 if (actualCondition.includes('stained')) {
                     setVisuals(mesh, COLOR_STAINED_BASE);
+                    mesh.rotation.z = 0; // Ensure no tilt for other conditions
                     console.log(`Setting tooth ${toothNum} as stained (yellow)`);
+                } else if (actualCondition.includes('corroded')) {
+                    setVisuals(mesh, COLOR_DEFAULT); // Keep the tooth white/normal
+                    setupCorrosionHole(mesh); // Add the small "hole" in the middle
+                    mesh.rotation.z = 0;
+                    console.log(`Setting tooth ${toothNum} as corroded (small hole)`);
                 } else if (actualCondition.includes('decay')) {
                     setVisuals(mesh, COLOR_DECAY);
+                    mesh.rotation.z = 0; // Ensure no tilt for other conditions
                     console.log(`Setting tooth ${toothNum} as decay (dark red)`);
                 } else if (actualCondition.includes('cavity')) {
                     setVisuals(mesh, COLOR_CAVITY);
+                    mesh.rotation.z = 0; // Ensure no tilt for other conditions
                     console.log(`Setting tooth ${toothNum} as cavity (brown)`);
+                } else if (actualCondition.includes('crooked')) {
+                    setVisuals(mesh, COLOR_CROOKED);
+                    console.log(`Setting tooth ${toothNum} as crooked (light color)`);
+                    
+                    if (selectedSet.has(String(toothNum)) && mesh.userData.localCenter) {
+                        console.log(`Applying "in-place" tilt for crooked tooth ${toothNum}`);
+                        
+                        // Varied angles based on tooth ID for more "crooked" realism.
+                        const deterministicShift = (parseInt(toothNum) % 10) * 0.01;
+                        const zAngle = 0.14 + deterministicShift; 
+                        const xAngle = 0.08 - deterministicShift; 
+                        
+                        mesh.rotation.z = zAngle;
+                        mesh.rotation.x = xAngle;
+                        
+                        // Compensation logic to keep the tooth at its gum position
+                        const localP = mesh.userData.localCenter.clone();
+                        
+                        // Apply rotation to center point (matching object rotation order)
+                        const rotatedP = localP.clone();
+                        rotatedP.applyAxisAngle(new THREE.Vector3(1, 0, 0), xAngle);
+                        rotatedP.applyAxisAngle(new THREE.Vector3(0, 0, 1), zAngle);
+                        
+                        // Subtract the change to cancel the translation component of the "orbit"
+                        const diff = localP.sub(rotatedP);
+                        mesh.position.add(diff);
+                    } else {
+                        mesh.rotation.z = 0;
+                        mesh.rotation.x = 0;
+                        mesh.rotation.y = 0;
+                    }
                 } else {
                     setVisuals(mesh, COLOR_DIM);
+                    mesh.rotation.z = 0; // Ensure no tilt for other conditions
+                    mesh.rotation.x = 0;
+                    mesh.rotation.y = 0;
                     console.log(`Setting tooth ${toothNum} as dim (no specific condition)`);
                 }
                 
@@ -563,28 +1415,96 @@ export default function TeethModelViewer({
                 // Check if tooth is selected (highlighted in odontogram)
                 const isToothSelected = selectedSet.has(String(toothNum));
                 console.log(`Tooth ${toothNum} is in selectedTeeth: ${isToothSelected}`);
+
+                // --- SPECIAL BRACES LOGIC: Apply to entire row if any tooth in that row is selected for braces ---
+                let rowTreatment = null;
+
+                const isUpper = upperPermanent.includes(toothNum);
+                const isLower = lowerPermanent.includes(toothNum);
+
+                // --- BRACES ROW PROTECTION ---
+                // If this is an upper tooth but NO upper teeth are highlighted in the odontogram,
+                // we force-clear any brace parts and prevent the treatment logic from running.
+                if (isUpper && !hasUpperSelected) {
+                    clearBraceParts(mesh);
+                    // Force complete removal of all brace visual children
+                    const braceParts = mesh.children.filter(c => c.userData?.isBracePart);
+                    braceParts.forEach(c => mesh.remove(c));
+                    
+                    // Continue with normal non-treatment visuals
+                    if (toothState === 'treated') setVisuals(mesh, COLOR_TREATED);
+                    else if (toothState === 'issue') setVisuals(mesh, COLOR_ISSUE);
+                    else setVisuals(mesh, COLOR_DIM);
+                    return;
+                }
                 
-                if (isToothSelected) {
-                    console.log(`🔄 Tooth ${toothNum} is highlighted in odontogram - determining treatment`);
+                // If this is a lower tooth but NO lower teeth are highlighted, do the same.
+                if (isLower && !hasLowerSelected) {
+                    clearBraceParts(mesh);
+                    if (toothState === 'treated') setVisuals(mesh, COLOR_TREATED);
+                    else if (toothState === 'issue') setVisuals(mesh, COLOR_ISSUE);
+                    else setVisuals(mesh, COLOR_DIM);
+                    return;
+                }
+
+                // --- SPECIAL BRACES LOGIC: Apply to entire row if any tooth in that row is selected for braces ---
+                selectedSet.forEach(selId => {
+                    const selNum = parseInt(selId);
+                    const selIsUpper = upperPermanent.includes(selNum);
+                    const selIsLower = lowerPermanent.includes(selNum);
+                    
+                    // Rule: Only apply row logic if we are checking the same dental arch (upper or lower)
+                    if ((isUpper && selIsUpper) || (isLower && selIsLower)) {
+                        // Check if this selected tooth has braces in props
+                        let t = null;
+                        if (Array.isArray(toothTreatments)) {
+                            const found = toothTreatments.find(obj => obj?.toothNumber === selNum);
+                            t = found?.treatment;
+                        } else {
+                            t = toothTreatments[selNum];
+                        }
+                        if (!t && selectedRecord?.toothNumber === selNum) t = selectedRecord.treatment;
+                        if (!t) {
+                            // Only check defaultTreatment if the tooth is EXPLICITLY selected in the odontogram
+                            const isSelToothInSet = selectedSet.has(String(selNum));
+                            if (isSelToothInSet && defaultTreatment) {
+                                t = defaultTreatment;
+                            }
+                        }
+
+                        if (t && t.toLowerCase().includes('apply dental braces')) {
+                            rowTreatment = 'apply dental braces';
+                        }
+                    }
+                });
+
+                // We show animations if:
+                // 1. The tooth itself is selected (highlighted)
+                // 2. OR it's part of a row that has braces treatment
+                if (isToothSelected || (rowTreatment === 'apply dental braces')) {
+                    console.log(`🔄 Tooth ${toothNum} is active for treatment view (selected or row-treatment)`);
                     
                     // Get treatment AND condition for this specific tooth
-                    let treatment = null;
+                    let treatment = rowTreatment || null;
                     let condition = null;
                     
-                    // 1. Get treatment from toothTreatments or selectedRecord
-                    if (toothTreatments && typeof toothTreatments === 'object') {
-                        if (Array.isArray(toothTreatments)) {
-                            const treatmentObj = toothTreatments.find(t => 
-                                t && t.toothNumber === toothNum
-                            );
-                            if (treatmentObj && treatmentObj.treatment) {
-                                treatment = treatmentObj.treatment;
-                                console.log(`📋 Found treatment in toothTreatments array: "${treatment}"`);
-                            }
-                        } else {
-                            treatment = toothTreatments[toothNum];
-                            if (treatment) {
-                                console.log(`📋 Found treatment in toothTreatments object: "${treatment}"`);
+                    // If not already set by row logic, get treatment normally
+                    if (!treatment) {
+                        // 1. Get treatment from toothTreatments or selectedRecord
+                        if (toothTreatments && typeof toothTreatments === 'object') {
+                            if (Array.isArray(toothTreatments)) {
+                                const treatmentObj = toothTreatments.find(t => 
+                                    t && t.toothNumber === toothNum
+                                );
+                                if (treatmentObj && treatmentObj.treatment) {
+                                    treatment = treatmentObj.treatment;
+                                    console.log(`📋 Found treatment in toothTreatments array: "${treatment}"`);
+                                }
+                            } else {
+                                treatment = toothTreatments[toothNum];
+                                if (treatment) {
+                                    console.log(`📋 Found treatment in toothTreatments object: "${treatment}"`);
+                                }
                             }
                         }
                     }
@@ -598,9 +1518,9 @@ export default function TeethModelViewer({
                     }
 
                     // 3. If still no treatment, use the parent's defaultTreatment (e.g. selected in side-panel)
-                    if (!treatment && defaultTreatment) {
+                    if (!treatment && defaultTreatment && isToothSelected) {
                         treatment = defaultTreatment;
-                        console.log(`📌 Using defaultTreatment prop: "${treatment}"`);
+                        console.log(`📌 Using defaultTreatment prop (because tooth is selected): "${treatment}"`);
                     }
                     
                     // Get condition for this tooth
@@ -650,6 +1570,15 @@ export default function TeethModelViewer({
                             console.log(`⚡ Staff-selected removal detected → FORCE REMOVAL ANIMATION`);
                             setupRemoval(mesh);
                         }
+                        // Dental Filling animation
+                        else if (normalizedTreatment.includes('filling') || normalizedTreatment.includes('dental filling')) {
+                            console.log(`✅ Treatment: filling → FILLING ANIMATION`);
+                            // Ensure a hole exists before filling starts
+                            if (!mesh.userData.corrosionHoleAdded) {
+                                setupCorrosionHole(mesh);
+                            }
+                            setupFilling(mesh);
+                        }
                         // Otherwise, run condition+treatment rules
                         else if ((normalizedCondition.includes('tooth cavity') || normalizedCondition.includes('cavity')) &&
                             (normalizedTreatment.includes('removal') || normalizedTreatment.includes('extraction'))) {
@@ -698,10 +1627,24 @@ export default function TeethModelViewer({
                             console.log(`✅ Condition: tooth decay, Treatment: cleaning → CLEANING ANIMATION`);
                             setupCleaning(mesh);
                         }
-                        else {
-                            // Default to cleaning animation
-                            console.log(`🦷 Default animation for: "${treatment}" → CLEANING ANIMATION`);
+                        // Apply Dental Braces animation
+                        else if (normalizedTreatment.includes('apply dental braces')) {
+                            console.log(`✅ Treatment: apply dental braces → BRACES ANIMATION`);
+                            setupBraces(mesh);
+                        }
+                        // Apply Retainers visual
+                        else if (normalizedTreatment.includes('apply retainer') || normalizedTreatment.includes('orthodontic retainer')) {
+                            console.log(`✅ Treatment: apply retainer → RETAINER VISUAL`);
+                            setupRetainers(mesh);
+                        }
+                        else if (isToothSelected) {
+                            // Only default to cleaning animation if the tooth is explicitly selected
+                            console.log(`🦷 Default animation for selected: "${treatment}" → CLEANING ANIMATION`);
                             setupCleaning(mesh);
+                        } else {
+                            // If tooth is part of row Treatment but not selected and has no specific match, just dim/color it
+                            console.log(`📭 Tooth ${toothNum} has rowTreatment but no animation match - showing dim`);
+                            setVisuals(mesh, COLOR_DIM);
                         }
                     } else {
                         // NO TREATMENT FOUND AT ALL - show dim color (no animation)
@@ -737,7 +1680,7 @@ export default function TeethModelViewer({
           color: 'red', 
           background: 'rgba(0,0,0,0.5)' 
         }}>
-          **ERROR:** Could not load Teeth.obj. Check browser console for network or file errors.
+          ERROR: Could not load Teeth.obj. Check browser console for network or file errors.
         </div>
       )}
       <div style={{ width: '100%', height: '100%' }} ref={mountRef} />

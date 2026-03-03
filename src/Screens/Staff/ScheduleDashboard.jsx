@@ -57,7 +57,13 @@ const SERVICE_DURATIONS = {
     'Dental Implants Consultation': 120, 
     'Emergency Visit (Pain/Injury)': 60, 
     'Orthodontics Consultation': 60,     
-    'Other / Not Sure': 30               
+    'Other / Not Sure': 30,
+    'Align teeth': 60,
+    'Apply Retainer': 45,
+    'Dental Filling': 60,
+    'tooth cleaning': 60,
+    'tooth removal': 45,
+    'teeth whitening': 90
 };
 
 const SERVICE_COLOR_MAP = {
@@ -66,7 +72,13 @@ const SERVICE_COLOR_MAP = {
     'Dental Implants Consultation': 'rep-blue',
     'Emergency Visit (Pain/Injury)': 'rep-red',
     'Orthodontics Consultation': 'rep-orange',
-    'Other / Not Sure': 'rep-maroon', 
+    'Other / Not Sure': 'rep-maroon',
+    'Align teeth': 'rep-orange',
+    'Apply Retainer': 'rep-orange',
+    'Dental Filling': 'rep-blue',
+    'tooth cleaning': 'rep-green',
+    'tooth removal': 'rep-red',
+    'teeth whitening': 'rep-orange'
 };
 
 
@@ -675,7 +687,7 @@ const ScheduleDashboard = () => {
 
         <div className="brand-left">
           <img src={logoImage} alt="Menchie's Dental Clinic Logo" className="brand-logo" />
-          <div className="brand-name">Dr. Menchie Amor Dangla Dental Clinic</div>
+          <div className="brand-name">Menchie's Dental Clinic</div>
         </div>
 
         <div className="user">

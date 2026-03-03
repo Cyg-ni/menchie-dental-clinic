@@ -34,6 +34,8 @@ const getToothInnerContent = (state, isSelectedForTreatment, viewMode = null, is
         );
     } else if (normalizedState === 'stained' || normalizedState === 'stainedteeth') {
         conditionVisual = <div className="condition-layer condition-stained" />;
+    } else if (normalizedState === 'crooked' || normalizedState === 'crookedteeth') {
+        conditionVisual = <div className="condition-layer condition-crooked" />;
     } else if (normalizedState === 'missing') {
         conditionVisual = <div className="condition-layer condition-missing-cross">X</div>;
     }
@@ -397,6 +399,8 @@ export default function Odontogram({
         
         if (newState === 'stained') {
             await saveConditionToFirebase(toothId, 'stained teeth');
+        } else if (newState === 'crooked') {
+            await saveConditionToFirebase(toothId, 'crooked teeth');
         } else if (newState === 'cavity') {
             await saveConditionToFirebase(toothId, 'tooth cavity');
         } else if (newState === 'decay') {

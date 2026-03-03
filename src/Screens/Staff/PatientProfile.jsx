@@ -640,7 +640,7 @@ export default function PatientProfile() {
     <div className="dashboard">
       <header className="topbar">
       <button className="icon-btn" onClick={(e) => { e.stopPropagation(); setMenuOpen(o => !o); }}> ≡ </button>
-      <div className="brand-left"> <div className="brand-logo" /> <div className="brand-name">Dr. Menchie Amor Dangla Dental Clinic</div> </div>
+      <div className="brand-left"> <div className="brand-logo" /> <div className="brand-name">Menchie's Dental Clinic</div> </div>
       <div className="user">
           <div className="avatar" style={{ backgroundImage: currentUser?.profilePictureUrl ? `url(${currentUser.profilePictureUrl})` : 'none', backgroundSize: 'cover' }} />
           <div className="user-meta">
@@ -692,13 +692,19 @@ export default function PatientProfile() {
               <div className="form-group">
                 <label htmlFor="condition" style={{color: '#333'}}>Condition <span style={{color:'#d54', fontWeight:600}}>*</span></label>
                 <select id="condition" name="condition" value={form.condition} onChange={handleFormChange} onFocus={() => setCurrentTool('treat')} required >
-                    <option value="">Select a condition</option> <option value="tooth decay">Tooth Decay</option> <option value="tooth cavity">Tooth Cavity</option> <option value="stained teeth">Stained Teeth</option>
+                    <option value="">Select a condition</option> <option value="tooth decay">Tooth Decay</option> <option value="tooth cavity">Tooth Cavity</option> <option value="stained teeth">Stained Teeth</option> <option value="crooked teeth">Crooked Teeth</option> <option value="corroded teeth">Corroded Teeth</option>
                 </select>
               </div>
               <div className="form-group">
                 <label htmlFor="procedure" style={{color: '#333'}}>Treatment <span style={{color:'#d54', fontWeight:600}}>*</span></label>
                 <select id="procedure" name="procedure" value={form.procedure} onChange={handleFormChange} onFocus={() => setCurrentTool('treat')} required >
-                    <option value="">Select Treatment</option> <option value="tooth cleaning">Tooth Cleaning</option> <option value="tooth removal">Tooth Removal</option> <option value="teeth whitening">Teeth Whitening</option>
+                    <option value="">Select Treatment</option> 
+                    <option value="tooth cleaning">Tooth Cleaning</option> 
+                    <option value="tooth removal">Tooth Removal</option> 
+                    <option value="teeth whitening">Teeth Whitening</option>
+                    <option value="Apply dental braces">Apply dental braces</option>
+                    <option value="Apply Retainer">Apply Retainer</option>
+                    <option value="Dental Filling">Dental Filling</option>
                 </select>
               </div>
               <div className="form-group">
