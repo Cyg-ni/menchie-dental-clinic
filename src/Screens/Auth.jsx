@@ -4,13 +4,11 @@ import {
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   updateProfile,
-  sendEmailVerification 
+  sendEmailVerification,
+  sendPasswordResetEmail // Added this
 } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { useNavigate, Link } from 'react-router-dom';
-
-
-
 
 const Auth = () => {
   const [isRegistering, setIsRegistering] = useState(false);
@@ -19,35 +17,49 @@ const Auth = () => {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [error, setError] = useState('');
+  const [message, setMessage] = useState(''); // Added for success messages
   const [loading, setLoading] = useState(false);
   
   const navigate = useNavigate();
 
+  // --- New Reset Password Logic ---
+  const handleResetPassword = async () => {
+    if (!email) {
+      setError("Please enter your email address first.");
+      return;
+    }
+    setError('');
+    setMessage('');
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setMessage("Password reset link sent! Check your email inbox.");
+    } catch (err) {
+      console.error("Reset Error:", err.code);
+      setError("Could not send reset email. Ensure the email is correct.");
+    }
+  };
+
   const handleAuth = async (e) => {
     e.preventDefault();
     setError('');
+    setMessage('');
     setLoading(true);
 
     try {
       if (isRegistering) {
-        // 1. Create the Auth User
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
         const fullName = `${firstName} ${lastName}`;
 
-        // 2. Send Verification Email
         await sendEmailVerification(user);
-
-        // 3. Update Firebase Auth Display Name
         await updateProfile(user, { displayName: fullName });
 
-        // 4. Create Firestore Patient Document (Matching your screenshot structure)
         await setDoc(doc(db, "patients", user.uid), {
           name: fullName,
           firstName: firstName,
           lastName: lastName,
           contactInfo: email,
-          address: "B.C", // Default placeholder
+          address: "B.C",
           age: "",
           gender: "",
           isPregnant: false,
@@ -60,22 +72,19 @@ const Auth = () => {
           createdAt: new Date().toISOString()
         });
 
-        alert("Account created! Please check your email for a verification link before logging in.");
-        setIsRegistering(false); // Switch to login view
+        alert("Account created! Please check your email for verification.");
+        setIsRegistering(false);
       } else {
-        // Login Logic
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         
-        // Optional: Check if email is verified before redirecting
         if (!userCredential.user.emailVerified) {
-          setError("Please verify your email before proceeding. Check your inbox!");
+          setError("Please verify your email before proceeding.");
           return;
         }
 
         navigate('/'); 
       }
     } catch (err) {
-      console.error("Auth Error:", err.code);
       if (err.code === 'auth/email-already-in-use') setError('This email is already registered.');
       else if (err.code === 'auth/weak-password') setError('Password should be at least 6 characters.');
       else if (err.code === 'auth/invalid-credential') setError('Invalid email or password.');
@@ -91,11 +100,11 @@ const Auth = () => {
         
         {/* Logo and Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-50 rounded-2xl mb-4">
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-indigo-50 rounded-2xl mb-4 overflow-hidden">
             <img 
-              src="https://cdn-icons-png.flaticon.com/512/103/103386.png" 
-              className="w-8 h-8" 
-              alt="Clinic Logo" 
+              src="https://i.imgur.com/K6NksfF.jpeg" // Using your requested logo
+              className="w-full h-full object-cover" 
+              alt="Menchie's Dental Clinic Logo" 
             />
           </div>
           <h2 className="text-3xl font-black text-gray-900 tracking-tight">
@@ -139,7 +148,18 @@ const Auth = () => {
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-bold text-gray-400 uppercase ml-1">Password</label>
+            <div className="flex justify-between items-center ml-1">
+              <label className="text-xs font-bold text-gray-400 uppercase">Password</label>
+              {!isRegistering && (
+                <button 
+                  type="button"
+                  onClick={handleResetPassword}
+                  className="text-[10px] font-bold text-indigo-500 hover:underline uppercase"
+                >
+                  Forgot Password?
+                </button>
+              )}
+            </div>
             <input 
               type="password" required
               className="w-full px-5 py-3 rounded-2xl bg-gray-50 border-none ring-1 ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition"
@@ -149,8 +169,14 @@ const Auth = () => {
           </div>
 
           {error && (
-            <div className="p-4 rounded-2xl bg-red-50 text-red-600 text-sm font-semibold border border-red-100 animate-pulse">
+            <div className="p-4 rounded-2xl bg-red-50 text-red-600 text-sm font-semibold border border-red-100">
               {error}
+            </div>
+          )}
+
+          {message && (
+            <div className="p-4 rounded-2xl bg-green-50 text-green-600 text-sm font-semibold border border-green-100">
+              {message}
             </div>
           )}
 
@@ -166,7 +192,7 @@ const Auth = () => {
 
         <div className="mt-8 text-center space-y-4">
           <button 
-            onClick={() => { setError(''); setIsRegistering(!isRegistering); }}
+            onClick={() => { setError(''); setMessage(''); setIsRegistering(!isRegistering); }}
             className="text-indigo-600 font-bold hover:text-indigo-800 transition text-sm"
           >
             {isRegistering ? 'Already a patient? Login here' : 'New patient? Register here'}

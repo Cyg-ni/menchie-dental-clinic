@@ -40,7 +40,7 @@ const PatientPortal = () => {
         const statesObj = {};
         
         const formattedRecords = rawTreatments.map((record, index) => {
-          // Logic: Map conditions to specific tooth numbers for the 3D model
+          
           if (record.teeth) {
             record.teeth.forEach(tNum => {
               statesObj[tNum] = record.condition?.toLowerCase() || 'healthy';
@@ -99,7 +99,6 @@ const PatientPortal = () => {
 
         <header className="border-b border-gray-100 pb-6">
           <h1 className="text-3xl font-black text-gray-900 tracking-tight">Patient Dashboard</h1>
-          <p className="text-gray-500 font-medium">Welcome back, <span className="text-indigo-600 font-bold">{profile?.firstName || 'Patient'}</span></p>
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

@@ -31,11 +31,11 @@ const CheckCircle = () => (
   </svg>
 );
 
-const ExternalLogo = ({ size = 'w-6 h-6', className = '' }) => (
+  const ExternalLogo = ({ size = 'w-6 h-6', className = '' }) => (
   <img 
-    src="https://i.imgur.com/K6NksfF.jpeg" 
+    src="https://cdn-icons-png.flaticon.com/512/103/103386.png" 
     alt="Dental Clinic Logo" 
-    className={`${size} ${className} object-contain`} 
+    className={`${size} ${className}`} 
     onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/24x24/f5f5f5/a0aec0?text=Logo" }}
   />
 );
@@ -334,11 +334,11 @@ const Appointment = () => {
                 <div className="flex space-x-6">
                   <label className="flex items-center space-x-2 text-sm text-gray-700 cursor-pointer">
                     <input type="checkbox" name="isPregnant" onChange={handleChange} className="w-4 h-4 text-indigo-600 rounded" />
-                    <span>Is Pregnant?</span>
+                    <span>Tick if Pregnant</span>
                   </label>
                   <label className="flex items-center space-x-2 text-sm text-gray-700 cursor-pointer">
                     <input type="checkbox" name="isSmoking" onChange={handleChange} className="w-4 h-4 text-indigo-600 rounded" />
-                    <span>Smoker?</span>
+                    <span>Tick if Smoker</span>
                   </label>
                 </div>
               </div>
