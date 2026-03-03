@@ -57,8 +57,7 @@ const ClockIcon = (props) => (
   </svg>
 );
 
-// --- Logo Component (STRICT) ---
-const ExternalLogo = ({ size = 'w-6 h-6', className = '' }) => (
+ const ExternalLogo = ({ size = 'w-6 h-6', className = '' }) => (
   <img 
     src="https://cdn-icons-png.flaticon.com/512/103/103386.png" 
     alt="Dental Clinic Logo" 
@@ -68,14 +67,14 @@ const ExternalLogo = ({ size = 'w-6 h-6', className = '' }) => (
 );
 
 const services = [
-  { icon: Stethoscope, title: "Preventative Care", description: "Routine check-ups, cleanings, X-rays, and fluoride treatments to maintain long-term oral health.", details: "Our preventative program includes a comprehensive exam, oral cancer screening, and digital X-rays to detect issues before they become painful. Professional cleaning removes tartar and plaque that brushing alone cannot reach.", color: "text-green-500" },
-  { icon: Sparkles, title: "Cosmetic Dentistry", description: "Professional teeth whitening, veneers, and smile makeovers to boost your confidence.", details: "From laser whitening to porcelain veneers, we offer customized aesthetic plans. Veneers can correct gaps, chips, or permanent stains, giving you a symmetrical, bright smile.", color: "text-pink-500" },
-  { icon: Wrench, title: "Restorative Dentistry", description: "Repair and restore damaged teeth using fillings, crowns, bridges, and implants.", details: "We use tooth-colored composite resins for fillings and durable porcelain for crowns. If you're missing teeth, our bridge and implant solutions look and function just like natural teeth.", color: "text-blue-500" },
-  { icon: AlarmClock, title: "Emergency Care", description: "Prompt care for toothaches, broken teeth, and unexpected dental injuries.", details: "Dental emergencies don't wait. We prioritize same-day appointments for patients in pain, dealing with abscesses, or trauma to the mouth to prevent further complications.", color: "text-red-500" },
-  { icon: Wrench, title: "Root Canal Therapy", description: "Expert treatment to save a damaged or infected tooth and alleviate severe pain.", details: "Modern root canal therapy is nearly pointless. By removing the infected pulp and sealing the tooth, we stop the infection and allow you to keep your natural tooth instead of extracting it.", color: "text-indigo-500" },
-  { icon: Stethoscope, title: "Children's Dentistry", description: "Gentle and friendly dental care for children, focusing on education and comfort.", details: "We create a fun environment for kids. Our team focuses on preventative sealants and fluoride while teaching children how to brush and floss effectively to ensure a lifetime of healthy smiles.", color: "text-yellow-500" },
-  { icon: Sparkles, title: "Orthodontics", description: "Straighten your smile discreetly using clear aligners or traditional braces.", details: "Whether you prefer traditional metal braces or clear aligners, we provide solutions for crowding, spacing, and bite alignment. Every plan is mapped out digitally for precise results.", color: "text-purple-500" },
-  { icon: Wrench, title: "Gum Treatment", description: "Comprehensive care and deep cleanings to combat gum disease and bone loss.", details: "Gum health is the foundation of your smile. We provide Scaling and Root Planing (deep cleaning) to remove bacteria under the gumline and help reverse the effects of gingivitis and periodontitis.", color: "text-cyan-500" },
+  { icon: Stethoscope, title: "Preventative Care", estimate: "₱500 - ₱1,500", description: "Routine check-ups, cleanings, X-rays, and fluoride treatments.", details: "Our preventative program includes a comprehensive exam, oral cancer screening, and digital X-rays to detect issues before they become painful. Professional cleaning removes tartar and plaque that brushing alone cannot reach.", color: "text-green-500" },
+  { icon: Sparkles, title: "Cosmetic Dentistry", estimate: "₱3,000 - ₱15,000+", description: "Professional teeth whitening, veneers, and smile makeovers.", details: "From laser whitening to porcelain veneers, we offer customized aesthetic plans. Veneers can correct gaps, chips, or permanent stains, giving you a symmetrical, bright smile.", color: "text-pink-500" },
+  { icon: Wrench, title: "Restorative Dentistry", estimate: "₱1,200 - ₱8,000", description: "Repair and restore damaged teeth using fillings, crowns, and bridges.", details: "We use tooth-colored composite resins for fillings and durable porcelain for crowns. If you're missing teeth, our bridge and implant solutions look and function just like natural teeth.", color: "text-blue-500" },
+  { icon: AlarmClock, title: "Emergency Care", estimate: "₱800 - ₱2,500", description: "Prompt care for toothaches, broken teeth, and injuries.", details: "Dental emergencies don't wait. We prioritize same-day appointments for patients in pain, dealing with abscesses, or trauma to the mouth to prevent further complications.", color: "text-red-500" },
+  { icon: Wrench, title: "Root Canal Therapy", estimate: "₱5,000 - ₱12,000", description: "Expert treatment to save a damaged or infected tooth.", details: "Modern root canal therapy is nearly painless. By removing the infected pulp and sealing the tooth, we stop the infection and allow you to keep your natural tooth instead of extracting it.", color: "text-indigo-500" },
+  { icon: Stethoscope, title: "Children's Dentistry", estimate: "₱500 - ₱1,200", description: "Gentle and friendly dental care for children and toddlers.", details: "We create a fun environment for kids. Our team focuses on preventative sealants and fluoride while teaching children how to brush and floss effectively.", color: "text-yellow-500" },
+  { icon: Sparkles, title: "Orthodontics", estimate: "₱35,000 - ₱80,000", description: "Straighten your smile using clear aligners or traditional braces.", details: "Whether you prefer traditional metal braces or clear aligners, we provide solutions for crowding, spacing, and bite alignment. Every plan is mapped out digitally for precise results.", color: "text-purple-500" },
+  { icon: Wrench, title: "Gum Treatment", estimate: "₱1,500 - ₱4,000", description: "Comprehensive care and deep cleanings to combat gum disease.", details: "Gum health is the foundation of your smile. We provide Scaling and Root Planing (deep cleaning) to remove bacteria under the gumline and help reverse the effects of gingivitis.", color: "text-cyan-500" },
 ];
 
 const Services = () => {
@@ -190,7 +189,7 @@ const Services = () => {
                   >
                     <span className="font-semibold text-gray-700 hidden sm:block">Profile</span>
                     <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white overflow-hidden">
-                       {user?.photoURL ? <img src={user.photoURL} alt="Avatar" className="w-full h-full object-cover" /> : <UserIcon className="w-5 h-5" />}
+                        {user?.photoURL ? <img src={user.photoURL} alt="Avatar" className="w-full h-full object-cover" /> : <UserIcon className="w-5 h-5" />}
                     </div>
                   </button>
                 ) : (
@@ -227,7 +226,13 @@ const Services = () => {
               </div>
               <h3 className="text-xl font-bold text-gray-800">{service.title}</h3>
               <p className="text-gray-600 flex-grow line-clamp-3">{service.description}</p>
-              <span className="text-indigo-600 font-bold text-sm flex items-center group-hover:translate-x-1 transition-transform">
+              
+              {/* Added Price Estimate Line */}
+              <div className="text-xs font-black uppercase tracking-widest text-indigo-500 mt-2">
+                Estimate: <span className="text-gray-900">{service.estimate}</span>
+              </div>
+
+              <span className="text-indigo-600 font-bold text-sm pt-4 flex items-center group-hover:translate-x-1 transition-transform">
                 View Details 
                 <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
               </span>
@@ -245,11 +250,17 @@ const Services = () => {
               <div className={`w-16 h-16 p-4 rounded-2xl bg-indigo-50 mb-6 ${selectedService.color}`}>
                 <selectedService.icon className="w-full h-full" />
               </div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-4">{selectedService.title}</h2>
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">{selectedService.title}</h2>
+              
+              {/* Modal Price Display */}
+              <div className="inline-block bg-indigo-50 text-indigo-600 px-4 py-1.5 rounded-full text-sm font-black mb-6 uppercase tracking-wider">
+                 Starts at: {selectedService.estimate.split('-')[0]}
+              </div>
+
               <p className="text-gray-700 text-lg leading-relaxed mb-8">{selectedService.details}</p>
               <div className="flex space-x-3">
-                <Link to="/book" className="flex-1 bg-indigo-600 text-white text-center py-4 rounded-2xl font-bold hover:bg-indigo-700 transition">Book This Service</Link>
-                <button onClick={() => setSelectedService(null)} className="flex-1 border-2 border-gray-200 text-gray-600 py-4 rounded-2xl font-bold hover:bg-gray-50 transition">Go Back</button>
+                <Link to="/book" className="flex-1 bg-indigo-600 text-white text-center py-4 rounded-2xl font-bold hover:bg-indigo-700 transition shadow-lg shadow-indigo-100">Book Now</Link>
+                <button onClick={() => setSelectedService(null)} className="flex-1 border-2 border-gray-100 text-gray-500 py-4 rounded-2xl font-bold hover:bg-gray-50 transition">Close</button>
               </div>
             </div>
           </div>
