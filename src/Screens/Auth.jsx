@@ -102,7 +102,7 @@ const Auth = () => {
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-20 h-20 bg-indigo-50 rounded-2xl mb-4 overflow-hidden">
             <img 
-              src="https://i.imgur.com/K6NksfF.jpeg" // Using your requested logo
+              src="https://cdn-icons-png.flaticon.com/512/103/103386.png" 
               className="w-full h-full object-cover" 
               alt="Menchie's Dental Clinic Logo" 
             />

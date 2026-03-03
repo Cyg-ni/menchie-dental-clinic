@@ -195,6 +195,7 @@ const Appointment = () => {
             app_date: formData.date,
             app_time: formData.time,
             appointment_id: generatedId,
+            base_url: window.location.origin, 
           },
           'Bw_dLBXg4UIfg4mUh'
         );
