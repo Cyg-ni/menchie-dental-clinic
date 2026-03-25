@@ -36,6 +36,7 @@ export default function TeethModelViewer({
 }) {
   const mountRef = React.useRef(null);
   const [status, setStatus] = React.useState("loading");
+    const [modelAssetTick, setModelAssetTick] = React.useState(0);
   const toothMeshMapRef = React.useRef({}); 
   const sceneRef = React.useRef(null);
   const rendererRef = React.useRef(null);
@@ -96,6 +97,70 @@ export default function TeethModelViewer({
     
     const elapsedTime = clockRef.current.getElapsedTime();
     const state = animationStateRef.current;
+
+    const isUpperArchTooth = (mesh) => {
+        const toothIdMatch = (mesh?.name || "").match(/(\d{2})/);
+        const toothId = toothIdMatch ? parseInt(toothIdMatch[1], 10) : 0;
+        return toothId >= 11 && toothId <= 28;
+    };
+
+    const keepOnlySelectedArchParts = (object3d, keepUpperArch) => {
+        if (!object3d) return;
+        object3d.updateMatrixWorld(true);
+
+        const parseToothIdFromName = (name) => {
+            const text = (name || "").toString();
+            const matches = Array.from(text.matchAll(/(\d{2,3})/g));
+            if (!matches.length) return null;
+            const lastNumericToken = matches[matches.length - 1][1];
+            const twoDigitId = parseInt(lastNumericToken.slice(-2), 10);
+            return Number.isNaN(twoDigitId) ? null : twoDigitId;
+        };
+
+        const isUpperToothId = (id) => id >= 11 && id <= 28;
+        const isLowerToothId = (id) => id >= 31 && id <= 48;
+
+        const rootBox = new THREE.Box3().setFromObject(object3d);
+        const rootCenterY = rootBox.getCenter(new THREE.Vector3()).y;
+        const splitTolerance = Math.max(0.002, (rootBox.max.y - rootBox.min.y) * 0.05);
+
+        const partsToRemove = [];
+        object3d.traverse(child => {
+            if (!child.isMesh || !child.geometry) return;
+
+            // Primary rule: if mesh name carries tooth numbering (e.g. .038/.048),
+            // classify by tooth id so 38/48 are always lower-arch parts.
+            const childToothId = parseToothIdFromName(child.name);
+            if (childToothId !== null) {
+                const keepByToothId = keepUpperArch ? isUpperToothId(childToothId) : isLowerToothId(childToothId);
+                if (!keepByToothId) {
+                    partsToRemove.push(child);
+                }
+                return;
+            }
+
+            child.geometry.computeBoundingBox();
+            if (!child.geometry.boundingBox) return;
+
+            const localCenter = child.geometry.boundingBox.getCenter(new THREE.Vector3());
+            const worldCenter = localCenter.clone().applyMatrix4(child.matrixWorld);
+            const yDelta = worldCenter.y - rootCenterY;
+            const keepThisPart = keepUpperArch
+                // For upper arch: remove only parts that are clearly lower.
+                ? yDelta >= -splitTolerance
+                // For lower arch: remove only parts that are clearly upper.
+                : yDelta <= splitTolerance;
+
+            // Keep near-boundary parts to avoid clipping edge/end teeth geometry.
+            if (!keepThisPart) {
+                partsToRemove.push(child);
+            }
+        });
+
+        partsToRemove.forEach(part => {
+            if (part.parent) part.parent.remove(part);
+        });
+    };
 
     // Update whitening animations
     state.whiteningMeshes.forEach((mesh, index) => {
@@ -201,6 +266,7 @@ export default function TeethModelViewer({
         // --- STEP 1: DENTAL ADHESIVE ---
         if (progress > 0 && !mesh.userData.adhesiveAdded && state.cachedModels.adhesive) {
             const adhesive = state.cachedModels.adhesive.clone();
+            keepOnlySelectedArchParts(adhesive, isUpperArchTooth(mesh));
             // Since mesh center is inside the tooth, we move it forward in Z to stick to the surface
             // Resetting any global transformation and using local offsets
             adhesive.position.set(0, 0, 0); 
@@ -233,6 +299,7 @@ export default function TeethModelViewer({
         // --- STEP 2: BRACE BRACKET ---
         if (progress > 1/3 && !mesh.userData.bracketAdded && state.cachedModels.bracket) {
             const bracket = state.cachedModels.bracket.clone();
+            keepOnlySelectedArchParts(bracket, isUpperArchTooth(mesh));
             // Place on top of adhesive
             bracket.position.set(0, 0, 0); 
             bracket.scale.set(1.0, 1.0, 1.0); 
@@ -264,6 +331,7 @@ export default function TeethModelViewer({
         // --- STEP 3: DENTAL WIRES AND REALIGNMENT ---
         if (progress > 2/3 && !mesh.userData.wiresAdded && state.cachedModels.wires) {
             const wires = state.cachedModels.wires.clone();
+            keepOnlySelectedArchParts(wires, isUpperArchTooth(mesh));
             // Place in center of bracket slot
             wires.position.set(0, 0, 0); 
             wires.scale.set(1.0, 1.0, 1.0); 
@@ -312,6 +380,54 @@ export default function TeethModelViewer({
             mesh.userData.bracesCompleted = true;
             // Remove from active animation array
             state.bracesMeshes.splice(index, 1);
+        }
+    });
+
+    // Update retainer animations (arch-wide visual)
+    state.retainerMeshes.forEach((mesh, index) => {
+        const retainer = mesh.userData.retainer;
+        if (!retainer) {
+            // Nothing to animate for this tooth
+            state.retainerMeshes.splice(index, 1);
+            return;
+        }
+
+        if (!mesh.userData.retainerStartTime) {
+            mesh.userData.retainerStartTime = elapsedTime;
+            // Cache start and target positions for smooth interpolation
+            const startPos = new THREE.Vector3(0, 0, 2); // slightly forward of the tooth
+            const targetPos = new THREE.Vector3(0, 0, 0);  // seated on teeth
+            retainer.userData.startPosition = startPos;
+            retainer.userData.targetPosition = targetPos;
+            retainer.position.copy(startPos);
+        }
+
+        const startTime = mesh.userData.retainerStartTime;
+        const progress = Math.min(1, (elapsedTime - startTime) / RETAINER_DURATION);
+
+        // Smoother "slide in" using smoothstep easing (soft start + soft stop)
+        const easedProgress = progress * progress * (3 - 2 * progress);
+
+        const startPos = retainer.userData.startPosition || new THREE.Vector3(0, 0, 2);
+        const targetPos = retainer.userData.targetPosition || new THREE.Vector3(0, 0, 0);
+        const currentPos = new THREE.Vector3().lerpVectors(startPos, targetPos, easedProgress);
+
+        // Add a subtle arc for a more natural insertion feel
+        currentPos.y += Math.sin(easedProgress * Math.PI) * 0.03;
+        retainer.position.copy(currentPos);
+
+        // Fade in with eased timing so opacity matches the smoother movement
+        const opacity = easedProgress;
+        retainer.traverse(child => {
+            if (child.isMesh && child.material) {
+                child.material.transparent = true;
+                child.material.opacity = opacity;
+            }
+        });
+
+        if (progress >= 1) {
+            mesh.userData.retainerCompleted = true;
+            state.retainerMeshes.splice(index, 1);
         }
     });
 
@@ -576,22 +692,27 @@ export default function TeethModelViewer({
     objLoader.load(ADHESIVE_MODEL_PATH, (obj) => { 
         obj.scale.set(1.0, 1.0, 1.0); 
         animationStateRef.current.cachedModels.adhesive = obj; 
+        setModelAssetTick(v => v + 1);
     });
     objLoader.load(BRACKET_MODEL_PATH, (obj) => { 
         obj.scale.set(1.0, 1.0, 1.0); 
         animationStateRef.current.cachedModels.bracket = obj; 
+        setModelAssetTick(v => v + 1);
     });
     objLoader.load(WIRES_MODEL_PATH, (obj) => { 
         obj.scale.set(1.0, 1.0, 1.0); 
         animationStateRef.current.cachedModels.wires = obj; 
+        setModelAssetTick(v => v + 1);
     });
     objLoader.load(RETAINERS_MODEL_PATH, (obj) => { 
         obj.scale.set(1.0, 1.0, 1.0); 
         animationStateRef.current.cachedModels.retainer = obj; 
+        setModelAssetTick(v => v + 1);
     });
     objLoader.load(DENTAL_FILLING_PATH, (obj) => { 
         obj.scale.set(0.05, 0.05, 0.05); // Assume filling model is normal size, scale it small for droplets
         animationStateRef.current.cachedModels.filling = obj; 
+        setModelAssetTick(v => v + 1);
     });
 
     // Animation loop
@@ -702,9 +823,9 @@ export default function TeethModelViewer({
             mesh.material.emissive.setHex(0x000000); 
             mesh.material.emissiveIntensity = 0;
 
-            // Only remove braces sub-meshes if not currently in treatment animation
-            // This prevents them from being deleted and re-added every frame, which kills the animation
+            // Keep active treatment meshes intact during treatment animation updates.
             const isAnimatingBrace = state.bracesMeshes.includes(mesh) || mesh.userData.bracesCompleted;
+            const isAnimatingRetainer = state.retainerMeshes.includes(mesh) || mesh.userData.retainerCompleted;
             
             if (!isAnimatingBrace) {
                 if (mesh.userData.adhesive) mesh.remove(mesh.userData.adhesive);
@@ -724,10 +845,25 @@ export default function TeethModelViewer({
                 mesh.userData.bracketAdded = false;
                 mesh.userData.wiresAdded = false;
             }
+
+            if (!isAnimatingRetainer) {
+                if (mesh.userData.retainer) mesh.remove(mesh.userData.retainer);
+
+                const retainerParts = [];
+                mesh.children.forEach(child => {
+                    if (child.userData?.isRetainerPart === true) retainerParts.push(child);
+                });
+                retainerParts.forEach(child => mesh.remove(child));
+
+                mesh.userData.retainer = null;
+                mesh.userData.retainerAdded = false;
+            }
             
             if (viewMode !== 'treatment') {
                 mesh.userData.bracesCompleted = false;
                 mesh.userData.bracesStartTime = undefined;
+                mesh.userData.retainerCompleted = false;
+                mesh.userData.retainerStartTime = undefined;
             }
         }
     });
@@ -855,9 +991,40 @@ export default function TeethModelViewer({
         if (!mesh.userData.retainerAdded && state.cachedModels.retainer) {
             console.log("🦷 SETTING UP RETAINERS VISUAL");
             const retainer = state.cachedModels.retainer.clone();
+
+            // Keep only the selected arch from the full retainer OBJ (top or bottom)
+            const toothIdMatch = (mesh.name || "").match(/(\d{2})/);
+            const toothId = toothIdMatch ? parseInt(toothIdMatch[1], 10) : 0;
+            const keepUpperArch = toothId >= 11 && toothId <= 28;
+
+            // Compute reference center Y of the whole retainer object
+            const rootBox = new THREE.Box3().setFromObject(retainer);
+            const rootCenterY = rootBox.getCenter(new THREE.Vector3()).y;
+
+            // Remove meshes belonging to the opposite arch
+            const partsToRemove = [];
+            retainer.traverse(child => {
+                if (!child.isMesh || !child.geometry) return;
+
+                child.geometry.computeBoundingBox();
+                if (!child.geometry.boundingBox) return;
+
+                const localCenter = child.geometry.boundingBox.getCenter(new THREE.Vector3());
+                const worldCenter = localCenter.clone().applyMatrix4(child.matrixWorld);
+                const isChildUpper = worldCenter.y >= rootCenterY;
+
+                if ((keepUpperArch && !isChildUpper) || (!keepUpperArch && isChildUpper)) {
+                    partsToRemove.push(child);
+                }
+            });
+
+            partsToRemove.forEach(part => {
+                if (part.parent) part.parent.remove(part);
+            });
+
             // Start from an offset position and animate in
-            retainer.position.set(0, -5, 15); 
-            retainer.scale.set(0.8, 0.8, 0.8); 
+            retainer.position.set(0, 0, 2);
+            retainer.scale.set(1.0, 1.0, 1.0);
             retainer.userData.isRetainerPart = true;
             mesh.add(retainer);
             mesh.userData.retainer = retainer;
@@ -1090,19 +1257,86 @@ export default function TeethModelViewer({
     // Get teeth from selected record
     const teethToShow = selectedRecord ? [selectedRecord.toothNumber] : [];
     
-    // Get all teeth we need to process
-    const allToothIds = new Set([
-        ...Object.keys(toothStates),
-        ...selectedTeeth.map(String),
-        ...teethToShow.map(String)
-    ]);
-
     // Prepare a string-based set for selected teeth to avoid type mismatch (string vs number)
     const selectedSet = new Set((selectedTeeth || []).map(String));
     const upperPermanent = [11,12,13,14,15,16,17,18,21,22,23,24,25,26,27,28];
     const lowerPermanent = [31,32,33,34,35,36,37,38,41,42,43,44,45,46,47,48];
+
     const hasUpperSelected = Array.from(selectedSet).some(id => upperPermanent.includes(parseInt(id)));
     const hasLowerSelected = Array.from(selectedSet).some(id => lowerPermanent.includes(parseInt(id)));
+
+    // GLOBAL BRACES CLEANUP: This MUST run before anything else to ensure unselected arches 
+    // are stripped of 3D objects immediately.
+    if (viewMode === 'treatment') {
+        if (!hasUpperSelected) {
+            upperPermanent.forEach(num => {
+                getMeshes(num).forEach(mesh => {
+                    clearBraceParts(mesh);
+                    mesh.userData.bracesCompleted = false;
+                    mesh.userData.bracesStartTime = undefined;
+                    state.bracesMeshes = state.bracesMeshes.filter(m => m !== mesh);
+                    // Force remove children with specific keywords to be safe
+                    const toRemove = mesh.children.filter(c => 
+                        c.userData?.isBracePart || 
+                        c.name.includes("bracket") || 
+                        c.name.includes("wire") || 
+                        c.name.includes("adhesive")
+                    );
+                    toRemove.forEach(c => mesh.remove(c));
+                });
+            });
+        }
+        if (!hasLowerSelected) {
+            lowerPermanent.forEach(num => {
+                getMeshes(num).forEach(mesh => {
+                    clearBraceParts(mesh);
+                    mesh.userData.bracesCompleted = false;
+                    mesh.userData.bracesStartTime = undefined;
+                    state.bracesMeshes = state.bracesMeshes.filter(m => m !== mesh);
+                    const toRemove = mesh.children.filter(c => 
+                        c.userData?.isBracePart || 
+                        c.name.includes("bracket") || 
+                        c.name.includes("wire") || 
+                        c.name.includes("adhesive")
+                    );
+                    toRemove.forEach(c => mesh.remove(c));
+                });
+            });
+        }
+    }
+
+    // Get all teeth we need to process
+    const baseIds = [
+        ...Object.keys(toothStates),
+        ...selectedTeeth.map(String),
+        ...teethToShow.map(String)
+    ];
+
+    // If in treatment mode, ONLY include the specific arches that have selections.
+    // This prevents the code from processing (and thus dimming/blackening) teeth in an arch
+    // that the user isn't currently interested in.
+    if (viewMode === 'treatment') {
+        if (hasUpperSelected) {
+            baseIds.push(...upperPermanent.map(String));
+        } else {
+            // EXPLICITLY filter out upper teeth from processing if no selection
+            upperPermanent.forEach(id => {
+                const meshes = getMeshes(id);
+                meshes.forEach(m => clearBraceParts(m));
+            });
+        }
+        if (hasLowerSelected) {
+            baseIds.push(...lowerPermanent.map(String));
+        } else {
+            // EXPLICITLY filter out lower teeth from processing if no selection
+            lowerPermanent.forEach(id => {
+                const meshes = getMeshes(id);
+                meshes.forEach(m => clearBraceParts(m));
+            });
+        }
+    }
+
+    const allToothIds = new Set(baseIds);
 
     // GLOBAL ANIMATION PROTECTOR: 
     // If an arch has NO selections, we must clear it from the active animation arrays immediately.
@@ -1431,6 +1665,11 @@ export default function TeethModelViewer({
                     const braceParts = mesh.children.filter(c => c.userData?.isBracePart);
                     braceParts.forEach(c => mesh.remove(c));
                     
+                    // Scrub from active animation arrays
+                    state.bracesMeshes = state.bracesMeshes.filter(m => m !== mesh);
+                    mesh.userData.bracesStartTime = undefined;
+                    mesh.userData.bracesCompleted = false;
+
                     // Continue with normal non-treatment visuals
                     if (toothState === 'treated') setVisuals(mesh, COLOR_TREATED);
                     else if (toothState === 'issue') setVisuals(mesh, COLOR_ISSUE);
@@ -1441,6 +1680,12 @@ export default function TeethModelViewer({
                 // If this is a lower tooth but NO lower teeth are highlighted, do the same.
                 if (isLower && !hasLowerSelected) {
                     clearBraceParts(mesh);
+                    
+                    // Scrub from active animation arrays
+                    state.bracesMeshes = state.bracesMeshes.filter(m => m !== mesh);
+                    mesh.userData.bracesStartTime = undefined;
+                    mesh.userData.bracesCompleted = false;
+
                     if (toothState === 'treated') setVisuals(mesh, COLOR_TREATED);
                     else if (toothState === 'issue') setVisuals(mesh, COLOR_ISSUE);
                     else setVisuals(mesh, COLOR_DIM);
@@ -1475,13 +1720,16 @@ export default function TeethModelViewer({
                         if (t && t.toLowerCase().includes('apply dental braces')) {
                             rowTreatment = 'apply dental braces';
                         }
+                        if (t && (t.toLowerCase().includes('apply retainer') || t.toLowerCase().includes('orthodontic retainer'))) {
+                            rowTreatment = 'apply retainer';
+                        }
                     }
                 });
 
                 // We show animations if:
                 // 1. The tooth itself is selected (highlighted)
-                // 2. OR it's part of a row that has braces treatment
-                if (isToothSelected || (rowTreatment === 'apply dental braces')) {
+                // 2. OR it's part of a row that has braces or retainer treatment
+                if (isToothSelected || (rowTreatment === 'apply dental braces') || (rowTreatment === 'apply retainer')) {
                     console.log(`🔄 Tooth ${toothNum} is active for treatment view (selected or row-treatment)`);
                     
                     // Get treatment AND condition for this specific tooth
@@ -1629,31 +1877,50 @@ export default function TeethModelViewer({
                         }
                         // Apply Dental Braces animation
                         else if (normalizedTreatment.includes('apply dental braces')) {
-                            console.log(`✅ Treatment: apply dental braces → BRACES ANIMATION`);
-                            setupBraces(mesh);
+                            // Check arch selection again to be absolutely sure
+                            if ((isUpper && hasUpperSelected) || (isLower && hasLowerSelected)) {
+                                console.log(`✅ Treatment: apply dental braces → BRACES ANIMATION for ${toothNum}`);
+                                setupBraces(mesh);
+                            } else {
+                                console.log(`🚫 Rejecting braces for ${toothNum} - Arch selection mismatch`);
+                                clearBraceParts(mesh);
+                                setVisuals(mesh, COLOR_DIM);
+                            }
                         }
                         // Apply Retainers visual
                         else if (normalizedTreatment.includes('apply retainer') || normalizedTreatment.includes('orthodontic retainer')) {
-                            console.log(`✅ Treatment: apply retainer → RETAINER VISUAL`);
-                            setupRetainers(mesh);
+                             // Check arch selection again to be absolutely sure
+                             if ((isUpper && hasUpperSelected) || (isLower && hasLowerSelected)) {
+                                console.log(`✅ Treatment: apply retainer → RETAINER VISUAL for ${toothNum}`);
+                                setupRetainers(mesh);
+                            } else {
+                                console.log(`🚫 Rejecting retainer for ${toothNum} - Arch selection mismatch`);
+                                clearBraceParts(mesh);
+                                setVisuals(mesh, COLOR_DIM);
+                            }
                         }
                         else if (isToothSelected) {
                             // Only default to cleaning animation if the tooth is explicitly selected
                             console.log(`🦷 Default animation for selected: "${treatment}" → CLEANING ANIMATION`);
                             setupCleaning(mesh);
                         } else {
-                            // If tooth is part of row Treatment but not selected and has no specific match, just dim/color it
-                            console.log(`📭 Tooth ${toothNum} has rowTreatment but no animation match - showing dim`);
-                            setVisuals(mesh, COLOR_DIM);
+                            // SYNC: If tooth is part of a row treatment BUT not selected, 
+                            // it should remain visible with its original color/texture, not DIMmed (black).
+                            mesh.material.color.set(COLOR_DEFAULT);
+                            mesh.material.emissive.setHex(0x000000);
+                            mesh.material.emissiveIntensity = 0;
+                            console.log(`📭 Tooth ${toothNum} has rowTreatment - maintaining default material`);
                         }
                     } else {
-                        // NO TREATMENT FOUND AT ALL - show dim color (no animation)
-                        console.log(`📭 No treatment specified for tooth ${toothNum} - showing dim color`);
-                        setVisuals(mesh, COLOR_DIM);
+                        // NO TREATMENT FOUND AT ALL - but it's in an active row. 
+                        // Keep it looking normal.
+                        mesh.material.color.set(COLOR_DEFAULT);
+                        mesh.material.emissive.setHex(0x000000);
+                        console.log(`📭 No treatment specified for tooth ${toothNum} in active row - showing default`);
                     }
                 } else {
-                    // Tooth is not selected/highlighted
-                    console.log(`❌ Tooth ${toothNum} not highlighted - dimming`);
+                    // Tooth is not selected AND not in an active row - it can be dimmed.
+                    console.log(`❌ Tooth ${toothNum} not highlighted/arch-active - dimming`);
                     setVisuals(mesh, COLOR_DIM);
                 }
             }
@@ -1666,7 +1933,7 @@ export default function TeethModelViewer({
     console.log('Cleaning animations:', state.cleaningMeshes.length);
     console.log('Pulsing meshes:', state.pulsingMeshes.length);
 
-    }, [status, toothStates, selectedTeeth, viewMode, selectedRecord, timelineRecords, toothTreatments, defaultTreatment, defaultCondition, isToothMissing, timelineSelectedTooth]);
+    }, [status, modelAssetTick, toothStates, selectedTeeth, viewMode, selectedRecord, timelineRecords, toothTreatments, defaultTreatment, defaultCondition, isToothMissing, timelineSelectedTooth]);
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
