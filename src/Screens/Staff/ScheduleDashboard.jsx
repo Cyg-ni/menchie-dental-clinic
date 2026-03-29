@@ -240,6 +240,8 @@ const ScheduleDashboard = () => {
   const [menuOpen, setMenuOpen] = useState(true);
   const [showReports, setShowReports] = useState(false);
   const menuRef = useRef(null);
+  const pingAudioRef = useRef(null);
+  const lastPingedAppointmentRef = useRef(null);
 
   // Date States (using fixed formatting)
   const todayISO = useMemo(() => {
@@ -296,6 +298,29 @@ const ScheduleDashboard = () => {
       document.removeEventListener("click", closeMenu);
     }
   }, []); 
+
+  useEffect(() => {
+    const pingAudio = new Audio('/ping.mp3');
+    pingAudio.preload = 'auto';
+    pingAudioRef.current = pingAudio;
+
+    return () => {
+      pingAudio.pause();
+      pingAudioRef.current = null;
+    };
+  }, []);
+
+  const playPingSound = async () => {
+    const pingAudio = pingAudioRef.current;
+    if (!pingAudio) return;
+
+    try {
+      pingAudio.currentTime = 0;
+      await pingAudio.play();
+    } catch (error) {
+      console.warn('Ping sound playback blocked or failed:', error);
+    }
+  };
 
   // --- Serving Patient Tracker ---
   const servingPatient = useMemo(() => {
@@ -422,6 +447,8 @@ const ScheduleDashboard = () => {
         'status.isComplete': 'Serving', 
         updatedAt: Timestamp.fromDate(new Date()),
       });
+
+      await playPingSound();
 
       console.log(`Patient ${nextPatient.name} marked as serving.`);
 
@@ -666,6 +693,14 @@ const ScheduleDashboard = () => {
     if (!apptTimeObj) return false;
     return currentTime >= apptTimeObj.getTime();
   }, [servingAppointmentObject, currentTime, todayISO]);
+
+  useEffect(() => {
+    if (servingPatient || !canStart || !nextAppointmentObject) return;
+    if (lastPingedAppointmentRef.current === nextAppointmentObject.id) return;
+
+    lastPingedAppointmentRef.current = nextAppointmentObject.id;
+    playPingSound();
+  }, [servingPatient, canStart, nextAppointmentObject]);
 
 
   return (
