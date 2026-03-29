@@ -38,17 +38,65 @@ const PatientPortal = () => {
 
         const rawTreatments = data.treatments || [];
         const statesObj = {};
+
+        const toToothArray = (value) => {
+          if (value === undefined || value === null) return [];
+          const raw = Array.isArray(value) ? value : [value];
+          return raw
+            .map((item) => {
+              if (typeof item === 'object' && item !== null) {
+                return item.toothNumber ?? item.tooth ?? item.number ?? null;
+              }
+              return item;
+            })
+            .filter((item) => item !== null && item !== undefined && item !== '')
+            .map(String);
+        };
+
+        const getMissingTeethFromRecord = (record) => {
+          const candidates = [
+            record?.missingToothNumbers,
+            record?.missingTeeth,
+            record?.missing_tooth,
+            record?.missingTooth,
+            record?.missing,
+          ];
+          const merged = candidates.flatMap(toToothArray);
+          return [...new Set(merged)];
+        };
+
+        const isMissingCondition = (value) =>
+          String(value || '').toLowerCase().includes('missing');
         
         const formattedRecords = rawTreatments.map((record, index) => {
-          
-          if (record.teeth) {
-            record.teeth.forEach(tNum => {
-              statesObj[tNum] = record.condition?.toLowerCase() || 'healthy';
+          const recordTeeth = toToothArray(record.teeth);
+          const recordMissingTeeth = getMissingTeethFromRecord(record);
+
+          // Logic: Map conditions to specific tooth numbers for the 3D model
+          if (recordTeeth.length > 0) {
+            recordTeeth.forEach(tNum => {
+              const current = String(statesObj[tNum] || '').toLowerCase();
+              const nextCondition = String(record.condition || '').toLowerCase();
+              const shouldForceMissing =
+                isMissingCondition(record.condition) ||
+                recordMissingTeeth.includes(String(tNum));
+
+              // Missing state has priority and should never be overwritten by later non-missing entries.
+              if (current.includes('missing')) {
+                return;
+              }
+
+              if (shouldForceMissing) {
+                statesObj[tNum] = 'missing tooth';
+              } else {
+                statesObj[tNum] = nextCondition || 'healthy';
+              }
             });
           }
           return {
             id: index,
-            toothNumbers: record.teeth || [],
+            toothNumbers: recordTeeth,
+            missingToothNumbers: recordMissingTeeth,
             date: record.date || "N/A",
             condition: record.condition || "--",
             procedure: record.procedure || "--",
@@ -173,9 +221,32 @@ const PatientPortal = () => {
               <h2 className="text-xl font-black text-gray-800 mb-6">Treatment Records</h2>
               <div className="space-y-6">
                 {toothConditions.map((record) => (
-                  <div key={record.id} onClick={() => setSelectedRecord(record)} className={`p-6 border rounded-3xl transition-all cursor-pointer flex flex-col md:flex-row items-center gap-6 ${selectedRecord?.id === record.id ? 'border-indigo-600 bg-indigo-50/30' : 'border-gray-100 bg-gray-50/50'}`}>
-                    <div className="bg-indigo-600 text-white w-14 h-14 rounded-2xl flex items-center justify-center font-black shadow-lg shadow-indigo-100 text-lg">
-                      {record.toothNumbers.join(", ")}
+                  <div key={record.id} onClick={() => setSelectedRecord(record)} className={`p-6 border rounded-3xl transition-all cursor-pointer flex flex-col md:flex-row items-start gap-6 ${selectedRecord?.id === record.id ? 'border-indigo-600 bg-indigo-50/30' : 'border-gray-100 bg-gray-50/50'}`}>
+                    <div className={`w-full md:w-[210px] rounded-2xl border p-4 ${selectedRecord?.id === record.id ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white border-indigo-100 text-indigo-700'}`}>
+                      <div className="flex items-center justify-between mb-3">
+                        <p className={`text-[10px] font-black uppercase tracking-widest ${selectedRecord?.id === record.id ? 'text-indigo-100' : 'text-indigo-500'}`}>
+                          Teeth
+                        </p>
+                        <span className={`text-[10px] font-black px-2 py-1 rounded-full ${selectedRecord?.id === record.id ? 'bg-white/20 text-white' : 'bg-indigo-100 text-indigo-700'}`}>
+                          {record.toothNumbers.length}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {record.toothNumbers.length > 0 ? (
+                          record.toothNumbers.map((toothNum) => (
+                            <span
+                              key={`${record.id}-${toothNum}`}
+                              className={`min-w-9 h-8 px-2 rounded-lg flex items-center justify-center text-sm font-black ${selectedRecord?.id === record.id ? 'bg-white text-indigo-700' : 'bg-indigo-50 text-indigo-700'}`}
+                            >
+                              {toothNum}
+                            </span>
+                          ))
+                        ) : (
+                          <span className={`text-xs font-bold ${selectedRecord?.id === record.id ? 'text-indigo-100' : 'text-indigo-400'}`}>
+                            No teeth selected
+                          </span>
+                        )}
+                      </div>
                     </div>
                     
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 flex-1 text-sm">
