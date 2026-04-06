@@ -377,6 +377,22 @@
     align-self: flex-start;
 }
 
+.modal-title-row {
+    width: 100%;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.modal-title-meta {
+    font-size: 14px;
+    color: #3f5071;
+    font-weight: 700;
+    line-height: 1.4;
+}
+
 .patient-info {
     font-size: 12px;
     color: #666;
@@ -384,6 +400,12 @@
     padding: 4px 8px;
     border-radius: 4px;
     align-self: flex-start;
+}
+
+.record-status-inline {
+    font-size: 12px;
+    color: #4b5563;
+    font-weight: 600;
 }
 .odontogram-modal-body {
     padding: 0 24px 24px;

@@ -19,6 +19,7 @@ const formatDateLocal = (date) => {
 
 const CalendarView = ({ selectedDate, onDateSelect, bookedTimes = [], loading = false, onSlotSelect, selectedSlot }) => {
     const today = new Date();
+    const now = new Date();
     const [currentMonth, setCurrentMonth] = useState(today.getMonth());
     const [currentYear, setCurrentYear] = useState(today.getFullYear());
 
@@ -55,6 +56,13 @@ const CalendarView = ({ selectedDate, onDateSelect, bookedTimes = [], loading = 
 
     const monthName = new Date(currentYear, currentMonth).toLocaleString('default', { month: 'long' });
 
+    const getSlotDateTime = (dateString, timeString) => {
+        if (!dateString || !timeString) return null;
+        const [year, month, day] = dateString.split('-').map(Number);
+        const [hour, minute] = timeString.split(':').map(Number);
+        return new Date(year, month - 1, day, hour, minute, 0, 0);
+    };
+
     const changeMonth = (delta) => {
         let newMonth = currentMonth + delta;
         let newYear = currentYear;
@@ -89,15 +97,20 @@ const CalendarView = ({ selectedDate, onDateSelect, bookedTimes = [], loading = 
                     <div className="slots-grid">
                         {TIME_SLOTS.map(slot => {
                             const isBooked = bookedTimes.includes(slot);
+                            const todayString = formatDateLocal(now);
+                            const isPastDate = selectedDate < todayString;
+                            const slotDateTime = getSlotDateTime(selectedDate, slot);
+                            const isPastTimeToday = selectedDate === todayString && slotDateTime && slotDateTime < now;
+                            const isPast = isPastDate || isPastTimeToday;
                             const isSelected = selectedSlot === slot;
-                            const cls = `time-slot ${isBooked ? 'booked' : 'available'} ${isSelected ? 'selected-slot' : ''}`;
+                            const cls = `time-slot ${isBooked ? 'booked' : 'available'} ${isPast ? 'past' : ''} ${isSelected ? 'selected-slot' : ''}`;
                             return (
                                 onSlotSelect ? (
-                                    <button key={slot} className={cls} disabled={isBooked} onClick={() => onSlotSelect(slot)} title={isBooked ? 'Booked' : 'Select'}>
+                                    <button key={slot} className={cls} disabled={isBooked || isPast} onClick={() => onSlotSelect(slot)} title={isBooked ? 'Booked' : isPast ? 'Past time' : 'Select'}>
                                         {slot}
                                     </button>
                                 ) : (
-                                    <span key={slot} className={cls} title={isBooked ? 'Booked' : 'Available'}>
+                                    <span key={slot} className={cls} title={isBooked ? 'Booked' : isPast ? 'Past time' : 'Available'}>
                                         {slot}
                                     </span>
                                 )

@@ -767,7 +767,16 @@ export default function PatientProfile() {
                   {form.isModelOpen && (
                       <div className="odontogram-modal-backdrop" onClick={() => setForm(f => ({ ...f, isModelOpen: false }))} role="presentation">
                           <div className="odontogram-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-                              <div className="odontogram-modal-header"> <h3>3D Teeth Visualization (Record)</h3> <button type="button" className="modal-close-btn" aria-label="Close" onClick={() => setForm(f => ({ ...f, isModelOpen: false }))}> × </button> </div>
+                          <div className="odontogram-modal-header">
+                            <div className="modal-title-row">
+                              <h3>3D Teeth Visualization (Record)</h3>
+                              <span className="modal-title-meta">
+                                Teeth No.: {(timelineSelectedTeeth && timelineSelectedTeeth.length > 0) ? [...timelineSelectedTeeth].sort((a, b) => a - b).join(', ') : 'No teeth selected'} | Condition: {selectedTreatment?.condition || form.condition || 'No condition selected'} | Treatment: {selectedTreatment?.procedure || form.procedure || 'No treatment selected'}
+                              </span>
+                            </div>
+                            <button type="button" className="modal-close-btn" aria-label="Close" onClick={() => setForm(f => ({ ...f, isModelOpen: false }))}> × </button>
+                            <div className="record-status-inline">Record Status: {selectedTreatment?.done ? 'Done' : 'Pending'}</div>
+                          </div>
                               <div className="odontogram-modal-body">
                                   {/* Container required for rendering canvas */}
                                   <div style={{ width: '100%', height: '500px' }}>

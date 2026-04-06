@@ -2,7 +2,8 @@ import React, { useState, useEffect } from "react";
 import "./AddingPatientModal.css";
 // NOTE: Adjust the import path for 'db' if your firebase.js file is not in 'src/'
 import { db } from "../../firebase"; 
-import { collection, addDoc, doc, updateDoc } from 'firebase/firestore'; 
+import { collection, addDoc, doc, updateDoc } from 'firebase/firestore';
+import { logActivity, getCurrentUserId } from "../../utils/activityLogger"; 
 
 const patientsCollectionRef = collection(db, "patients");
 
@@ -162,12 +163,30 @@ const AddingPatientModal = ({ onClose, onSuccess, patientToEdit }) => {
                 // UPDATE EXISTING PATIENT
                 const patientDoc = doc(db, "patients", formData.id);
                 await updateDoc(patientDoc, dataToSave);
+                
+                // Log activity for patient update
+                const userId = getCurrentUserId();
+                await logActivity(userId, `Updated patient information`, {
+                    patientId: formData.id,
+                    patientName: dataToSave.name,
+                    action: 'update'
+                });
+                
                 alert(`Patient ${dataToSave.name} successfully updated!`);
             } else {
                 // ADD NEW PATIENT
                 // Ensure we don't accidentally save the 'id' field if it was null
                 const { id, ...saveData } = dataToSave; 
-                await addDoc(patientsCollectionRef, saveData);
+                const newPatientRef = await addDoc(patientsCollectionRef, saveData);
+                
+                // Log activity for new patient
+                const userId = getCurrentUserId();
+                await logActivity(userId, `Created new patient record`, {
+                    patientId: newPatientRef.id,
+                    patientName: dataToSave.name,
+                    action: 'create'
+                });
+                
                 alert(`Patient ${dataToSave.name} successfully added!`);
             }
             

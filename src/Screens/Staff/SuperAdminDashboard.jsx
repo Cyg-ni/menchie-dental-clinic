@@ -36,6 +36,8 @@ const SuperAdminDashboard = () => {
     profilePicture: null,
     profilePictureUrl: ''
   });
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [oldPassword, setOldPassword] = useState(''); // Track old password when editing
 
   // Fetch all users
   const fetchUsers = useCallback(async () => {
@@ -89,6 +91,8 @@ const SuperAdminDashboard = () => {
       profilePicture: null,
       profilePictureUrl: ''
     });
+    setFieldErrors({});
+    setOldPassword('');
     setShowModal(true);
   };
 
@@ -99,26 +103,25 @@ const SuperAdminDashboard = () => {
       const snapshot = await getDocs(q);
       const logsList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
-      // If collection is empty, provide some sample data for demonstration if user is one of the screenshots
       if (logsList.length === 0) {
         return [
           {
             id: 'sample-1',
             action: 'Approved an appointment',
             patientName: 'Roberto Gomez',
-            timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), // 2 hours ago
+            timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
           },
           {
             id: 'sample-2',
             action: 'Filed a new treatment record',
             patientName: 'Maria Santos',
-            timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), // 1 day ago
+            timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
           },
           {
             id: 'sample-3',
             action: 'Updated patient profile',
             patientName: 'Juan Dela Cruz',
-            timestamp: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(), // 2 days ago
+            timestamp: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(),
           }
         ];
       }
@@ -142,6 +145,7 @@ const SuperAdminDashboard = () => {
   const handleEditUser = (user) => {
     setModalMode('edit');
     setSelectedUser(user);
+    setOldPassword(user.password || '');
     setFormData({
       username: user.username || '',
       email: user.email || '',
@@ -156,16 +160,74 @@ const SuperAdminDashboard = () => {
       profilePicture: null,
       profilePictureUrl: user.profilePictureUrl || ''
     });
+    setFieldErrors({});
     setShowModal(true);
   };
 
   // Handle form input changes
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+
+    const updateFieldError = (fieldName, fieldValue) => {
+      const error = validateField(fieldName, fieldValue);
+      setFieldErrors(prev => ({
+        ...prev,
+        [fieldName]: error || undefined
+      }));
+    };
+
+    if (name === 'firstName' || name === 'lastName') {
+      const sanitizedValue = value.replace(/[^a-zA-Z\s'-]/g, '');
+      setFormData(prev => ({
+        ...prev,
+        [name]: sanitizedValue
+      }));
+
+      if (value !== sanitizedValue) {
+        setFieldErrors(prev => ({
+          ...prev,
+          [name]: 'Only letters, spaces, hyphens, and apostrophes are allowed'
+        }));
+      } else {
+        updateFieldError(name, sanitizedValue);
+      }
+
+      return;
+    }
+
+    if (name === 'mobileNumber') {
+      const sanitizedValue = value.replace(/[^0-9+\-\s()]/g, '');
+      setFormData(prev => ({
+        ...prev,
+        [name]: sanitizedValue
+      }));
+
+      if (value !== sanitizedValue) {
+        setFieldErrors(prev => ({
+          ...prev,
+          [name]: 'Only numbers and basic formatting characters (+, -, spaces, parentheses) are allowed'
+        }));
+      } else {
+        updateFieldError(name, sanitizedValue);
+      }
+
+      return;
+    }
+
     setFormData(prev => ({
       ...prev,
       [name]: value
     }));
+
+    if (['username', 'email', 'password', 'address'].includes(name)) {
+      updateFieldError(name, value);
+    }
+  };
+
+  // Handle current password input (for edit mode comparison)
+  const handleCurrentPasswordChange = (e) => {
+    const { value } = e.target;
+    setOldPassword(value);
   };
 
   // Handle profile picture upload
@@ -191,25 +253,114 @@ const SuperAdminDashboard = () => {
     }
   };
 
+  // Real-time field validation
+  const validateField = (fieldName, value) => {
+    const trimmedValue = value.trim();
+
+    switch (fieldName) {
+      case 'username':
+        if (!trimmedValue) return "Username is required";
+        if (trimmedValue.length < 3) return "Username must be at least 3 characters";
+        if (trimmedValue.length > 20) return "Username must not exceed 20 characters";
+        if (!/^[a-zA-Z0-9_-]+$/.test(trimmedValue)) return "Only letters, numbers, underscores, hyphens allowed";
+        return null;
+
+      case 'email':
+        if (!trimmedValue) return "Email is required";
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(trimmedValue)) return "Invalid email format";
+        if (trimmedValue.length > 100) return "Email must not exceed 100 characters";
+        return null;
+
+      case 'password':
+        if (modalMode === 'create' && !trimmedValue) return "Password is required";
+        if (trimmedValue && trimmedValue.length < 6) return "Password must be at least 6 characters";
+        if (trimmedValue && trimmedValue.length > 50) return "Password must not exceed 50 characters";
+        // Check if new password is same as old password when editing
+        if (modalMode === 'edit' && trimmedValue && trimmedValue === oldPassword) {
+          return "Please enter a new password different from the existing one";
+        }
+        return null;
+
+      case 'firstName':
+        if (!trimmedValue) return "First name is required";
+        if (trimmedValue.length < 2) return "First name must be at least 2 characters";
+        if (trimmedValue.length > 50) return "First name must not exceed 50 characters";
+        if (!/^[a-zA-Z\s'-]+$/.test(trimmedValue)) return "Only letters, spaces, hyphens, apostrophes allowed";
+        return null;
+
+      case 'lastName':
+        if (!trimmedValue) return "Last name is required";
+        if (trimmedValue.length < 2) return "Last name must be at least 2 characters";
+        if (trimmedValue.length > 50) return "Last name must not exceed 50 characters";
+        if (!/^[a-zA-Z\s'-]+$/.test(trimmedValue)) return "Only letters, spaces, hyphens, apostrophes allowed";
+        return null;
+
+      case 'mobileNumber':
+        if (!trimmedValue) return "Mobile number is required";
+        if (!/^[0-9+\-\s()]+$/.test(trimmedValue)) return "Invalid phone format";
+        if (trimmedValue.replace(/\D/g, '').length < 7) return "Must contain at least 7 digits";
+        if (trimmedValue.replace(/\D/g, '').length > 15) return "Must not exceed 15 digits";
+        return null;
+
+      case 'address':
+        if (trimmedValue && trimmedValue.length > 200) return "Address must not exceed 200 characters";
+        return null;
+
+      default:
+        return null;
+    }
+  };
+
+  // Validation function for form data (complete validation)
+  const validateFormData = () => {
+    const errors = {};
+    const fieldNames = ['username', 'email', 'password', 'firstName', 'lastName', 'mobileNumber', 'address'];
+
+    fieldNames.forEach(field => {
+      const error = validateField(field, formData[field]);
+      if (error) errors[field] = error;
+    });
+
+    // Validate role
+    const validRoles = ['staff', 'dentist', 'admin'];
+    if (!validRoles.includes(formData.role)) {
+      errors.role = "Invalid role selected";
+    }
+
+    // Validate status
+    const validStatuses = ['active', 'inactive'];
+    if (!validStatuses.includes(formData.status)) {
+      errors.status = "Invalid status selected";
+    }
+
+    // Validate current password field when changing password in edit mode
+    if (modalMode === 'edit' && formData.password.trim() && !oldPassword.trim()) {
+      errors.currentPassword = "Current password is required when changing the password";
+    }
+
+    return errors;
+  };
+
   // Save user (create or update)
   const handleSaveUser = async (e) => {
     e.preventDefault();
 
-    if (!formData.username.trim() || !formData.email.trim()) {
-      setErrorMessage("Username and email are required");
+    // Perform validation
+    const errors = validateFormData();
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      const firstError = Object.values(errors)[0];
+      setErrorMessage(firstError);
       return;
     }
-
-    if (modalMode === 'create' && !formData.password.trim()) {
-      setErrorMessage("Password is required for new users");
-      return;
-    }
+    setFieldErrors({}); // Clear field errors on successful validation
 
     try {
       if (modalMode === 'create') {
         // Check if username or email already exists
-        const usernameQuery = query(usersCollectionRef, where("username", "==", formData.username));
-        const emailQuery = query(usersCollectionRef, where("email", "==", formData.email));
+        const usernameQuery = query(usersCollectionRef, where("username", "==", formData.username.trim()));
+        const emailQuery = query(usersCollectionRef, where("email", "==", formData.email.trim()));
         
         const [usernameSnapshot, emailSnapshot] = await Promise.all([
           getDocs(usernameQuery),
@@ -217,10 +368,12 @@ const SuperAdminDashboard = () => {
         ]);
 
         if (!usernameSnapshot.empty) {
+          setFieldErrors({ username: "Username already exists" });
           setErrorMessage("Username already exists");
           return;
         }
         if (!emailSnapshot.empty) {
+          setFieldErrors({ email: "Email already exists" });
           setErrorMessage("Email already exists");
           return;
         }
@@ -229,6 +382,12 @@ const SuperAdminDashboard = () => {
         const newUserId = `user_${Date.now()}`;
         const userData = {
           ...formData,
+          username: formData.username.trim(),
+          email: formData.email.trim(),
+          firstName: formData.firstName.trim(),
+          lastName: formData.lastName.trim(),
+          mobileNumber: formData.mobileNumber.trim(),
+          address: formData.address.trim(),
           profilePicture: null,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
@@ -246,6 +405,12 @@ const SuperAdminDashboard = () => {
         // Update existing user
         const updateData = {
           ...formData,
+          username: formData.username.trim(),
+          email: formData.email.trim(),
+          firstName: formData.firstName.trim(),
+          lastName: formData.lastName.trim(),
+          mobileNumber: formData.mobileNumber.trim(),
+          address: formData.address.trim(),
           updatedAt: new Date().toISOString()
         };
         
@@ -291,6 +456,11 @@ const SuperAdminDashboard = () => {
     return matchesSearch && matchesRole;
   });
 
+  const totalUsers = users.length;
+  const activeUsers = users.filter(user => user.status === 'active').length;
+  const inactiveUsers = users.filter(user => user.status === 'inactive').length;
+  const filteredCount = filteredUsers.length;
+
   const handleLogout = () => {
     localStorage.removeItem("superAdminLoggedIn");
     localStorage.removeItem("superAdminUsername");
@@ -314,7 +484,10 @@ const SuperAdminDashboard = () => {
   return (
     <div className="super-admin-dashboard">
       <header className="admin-header">
-        <h1>Super Admin - Account Management</h1>
+        <div className="header-copy">
+          <p className="eyebrow">Clinic administration</p>
+          <h1>Super Admin - Account Management</h1>
+        </div>
         <div className="header-actions">
           <button className="btn-create" onClick={handleCreateUser}>
             + Create New Account
@@ -324,6 +497,30 @@ const SuperAdminDashboard = () => {
           </button>
         </div>
       </header>
+
+      <section className="dashboard-hero">
+        <div className="hero-panel hero-panel-primary">
+          <span className="hero-label">Live overview</span>
+          <h2>{totalUsers} total accounts in the system</h2>
+          <p>
+            Track operational access across the clinic and keep the team organized.
+          </p>
+        </div>
+        <div className="hero-metrics">
+          <article className="metric-card metric-card-active">
+            <span className="metric-label">Active</span>
+            <strong>{activeUsers}</strong>
+          </article>
+          <article className="metric-card metric-card-inactive">
+            <span className="metric-label">Inactive</span>
+            <strong>{inactiveUsers}</strong>
+          </article>
+          <article className="metric-card metric-card-filtered">
+            <span className="metric-label">Visible now</span>
+            <strong>{filteredCount}</strong>
+          </article>
+        </div>
+      </section>
 
       {successMessage && (
         <div className="alert alert-success">{successMessage}</div>
@@ -451,7 +648,11 @@ const SuperAdminDashboard = () => {
                   placeholder="Enter username"
                   disabled={modalMode === 'edit'}
                   required
+                  className={fieldErrors.username ? 'input-error' : ''}
                 />
+                {fieldErrors.username && (
+                  <span className="field-error">{fieldErrors.username}</span>
+                )}
               </div>
 
               <div className="form-group">
@@ -463,7 +664,11 @@ const SuperAdminDashboard = () => {
                   onChange={handleInputChange}
                   placeholder="Enter email address"
                   required
+                  className={fieldErrors.email ? 'input-error' : ''}
                 />
+                {fieldErrors.email && (
+                  <span className="field-error">{fieldErrors.email}</span>
+                )}
               </div>
 
               <div className="form-group">
@@ -475,8 +680,32 @@ const SuperAdminDashboard = () => {
                   onChange={handleInputChange}
                   placeholder={modalMode === 'create' ? "Enter password" : "Leave blank to keep current password"}
                   required={modalMode === 'create'}
+                  className={fieldErrors.password ? 'input-error' : ''}
                 />
+                {fieldErrors.password && (
+                  <span className="field-error">{fieldErrors.password}</span>
+                )}
               </div>
+
+              {modalMode === 'edit' && formData.password && (
+                <div className="form-group">
+                  <label>Current Password (for verification) *</label>
+                  <input
+                    type="password"
+                    value={oldPassword}
+                    onChange={handleCurrentPasswordChange}
+                    placeholder="Enter current password to verify"
+                    className={fieldErrors.currentPassword ? 'input-error current-password-input' : 'current-password-input'}
+                  />
+                  {fieldErrors.currentPassword ? (
+                    <span className="field-error">{fieldErrors.currentPassword}</span>
+                  ) : (
+                    <span className="field-hint">
+                      Required when changing the password to verify you're making an intentional change
+                    </span>
+                  )}
+                </div>
+              )}
 
               <div className="form-group">
                 <label>Profile Picture</label>
@@ -495,36 +724,48 @@ const SuperAdminDashboard = () => {
 
               <div className="form-row">
                 <div className="form-group">
-                  <label>First Name</label>
+                  <label>First Name *</label>
                   <input
                     type="text"
                     name="firstName"
                     value={formData.firstName}
                     onChange={handleInputChange}
                     placeholder="Enter first name"
+                    className={fieldErrors.firstName ? 'input-error' : ''}
                   />
+                  {fieldErrors.firstName && (
+                    <span className="field-error">{fieldErrors.firstName}</span>
+                  )}
                 </div>
                 <div className="form-group">
-                  <label>Last Name</label>
+                  <label>Last Name *</label>
                   <input
                     type="text"
                     name="lastName"
                     value={formData.lastName}
                     onChange={handleInputChange}
                     placeholder="Enter last name"
+                    className={fieldErrors.lastName ? 'input-error' : ''}
                   />
+                  {fieldErrors.lastName && (
+                    <span className="field-error">{fieldErrors.lastName}</span>
+                  )}
                 </div>
               </div>
 
               <div className="form-group">
-                <label>Mobile Number</label>
+                <label>Mobile Number *</label>
                 <input
                   type="text"
                   name="mobileNumber"
                   value={formData.mobileNumber}
                   onChange={handleInputChange}
                   placeholder="Enter mobile number"
+                  className={fieldErrors.mobileNumber ? 'input-error' : ''}
                 />
+                {fieldErrors.mobileNumber && (
+                  <span className="field-error">{fieldErrors.mobileNumber}</span>
+                )}
               </div>
 
               <div className="form-group">
@@ -535,7 +776,11 @@ const SuperAdminDashboard = () => {
                   value={formData.address}
                   onChange={handleInputChange}
                   placeholder="Enter complete address"
+                  className={fieldErrors.address ? 'input-error' : ''}
                 />
+                {fieldErrors.address && (
+                  <span className="field-error">{fieldErrors.address}</span>
+                )}
               </div>
 
               <div className="form-row">
@@ -546,12 +791,15 @@ const SuperAdminDashboard = () => {
                     value={formData.role}
                     onChange={handleInputChange}
                     required
+                    className={fieldErrors.role ? 'input-error' : ''}
                   >
                     <option value="staff">Staff</option>
                     <option value="dentist">Dentist</option>
                     <option value="admin">Admin</option>
-                    <option value="super_admin">Super Admin</option>
                   </select>
+                  {fieldErrors.role && (
+                    <span className="field-error">{fieldErrors.role}</span>
+                  )}
                 </div>
                 <div className="form-group">
                   <label>Status *</label>
@@ -560,10 +808,14 @@ const SuperAdminDashboard = () => {
                     value={formData.status}
                     onChange={handleInputChange}
                     required
+                    className={fieldErrors.status ? 'input-error' : ''}
                   >
                     <option value="active">Active</option>
                     <option value="inactive">Inactive</option>
                   </select>
+                  {fieldErrors.status && (
+                    <span className="field-error">{fieldErrors.status}</span>
+                  )}
                 </div>
               </div>
 

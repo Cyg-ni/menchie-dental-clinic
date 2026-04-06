@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { db } from '../../firebase';
 import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc } from 'firebase/firestore'; 
 import { useCurrentUser } from "../../hooks/useCurrentUser";
+import { logActivity, getCurrentUserId } from "../../utils/activityLogger";
 import "./Layout.css";
 import "./PatientList.css";
 import "./AddingPatientModal.css";
@@ -299,13 +300,29 @@ export default function PatientList() {
         }
 
         try {
+            const userId = getCurrentUserId();
+            
             if (isEditing) {
                 // Update operation
                 const patientDoc = doc(db, "patients", isEditing);
                 await updateDoc(patientDoc, dataToSave);
+                
+                // Log activity for patient update
+                await logActivity(userId, `Updated patient information`, {
+                    patientId: isEditing,
+                    patientName: dataToSave.name,
+                    action: 'update'
+                });
             } else {
                 // Add operation
-                await addDoc(patientsCollectionRef, dataToSave);
+                const newPatientRef = await addDoc(patientsCollectionRef, dataToSave);
+                
+                // Log activity for new patient
+                await logActivity(userId, `Created new patient record`, {
+                    patientId: newPatientRef.id,
+                    patientName: dataToSave.name,
+                    action: 'create'
+                });
             }
             
             // Refresh the list from the database and close modal

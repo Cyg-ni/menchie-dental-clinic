@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { db } from "../../firebase";
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, updateDoc, Timestamp } from 'firebase/firestore';
 import "./Login.css"
 import logoImage from "./Images/logo.webp";
 
@@ -59,6 +59,13 @@ const Login = () => {
             localStorage.setItem("staffFirstName", user.firstName || "");
             localStorage.setItem("staffLastName", user.lastName || "");
             localStorage.setItem("staffProfilePictureUrl", user.profilePictureUrl || "");
+
+            await updateDoc(doc(db, "users", userId), {
+                lastLoginAt: Timestamp.fromDate(new Date()),
+                lastActivityAt: Timestamp.fromDate(new Date()),
+                lastActivityAction: 'Login',
+                updatedAt: new Date().toISOString()
+            });
 
             navigate("/dashboard");
         } catch (error) {

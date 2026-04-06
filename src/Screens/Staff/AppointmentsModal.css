@@ -299,3 +299,12 @@
     text-decoration: line-through;
     cursor: default;
 }
+
+.time-slot.past {
+  background-color: #f3f4f6;
+  color: #9ca3af;
+  border-color: #e5e7eb;
+  pointer-events: none;
+  cursor: not-allowed;
+  opacity: 0.9;
+}

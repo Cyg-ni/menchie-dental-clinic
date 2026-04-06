@@ -3,6 +3,7 @@ import "./Odontogram.css";
 import TeethModelViewer from "../../components/TeethModelViewer.jsx"; 
 import { db } from "../../firebase";
 import { collection, getDocs, doc, setDoc, deleteDoc } from "firebase/firestore";
+import { logActivity, getCurrentUserId } from "../../utils/activityLogger";
 
 const upperPermanentLeft  = [18, 17, 16, 15, 14, 13, 12, 11];
 const upperPermanentRight = [21, 22, 23, 24, 25, 26, 27, 28]; 
@@ -337,6 +338,16 @@ export default function Odontogram({
             
             if (condition === 'healthy' || condition === 'treated') {
                 await deleteDoc(conditionRef);
+                
+                // Log activity for deletion
+                const userId = getCurrentUserId();
+                await logActivity(userId, `Removed ${condition} condition from tooth`, {
+                    patientId: patientId,
+                    toothNumber: toothId,
+                    condition: condition,
+                    action: 'delete'
+                });
+                
                 console.log(`Deleted condition for tooth ${toothId}`);
             } else {
                 await setDoc(conditionRef, {
@@ -344,6 +355,16 @@ export default function Odontogram({
                     condition: condition,
                     updatedAt: new Date().toISOString()
                 });
+                
+                // Log activity for creation/update
+                const userId = getCurrentUserId();
+                await logActivity(userId, `Created/Updated condition for tooth ${toothId}`, {
+                    patientId: patientId,
+                    toothNumber: toothId,
+                    condition: condition,
+                    action: 'create/update'
+                });
+                
                 console.log(`Condition saved for tooth ${toothId}: ${condition}`);
             }
         } catch (error) {
@@ -358,10 +379,20 @@ export default function Odontogram({
             console.log(`Treatment: "${treatment}"`);
             
             const treatmentRef = doc(db, `patients/${patientId}/treatments`, `tooth-${toothId}`);
+            const userId = getCurrentUserId();
             
             if (!treatment || treatment === 'none') {
                 console.log(`Deleting treatment for tooth ${toothId}`);
                 await deleteDoc(treatmentRef);
+                
+                // Log activity for treatment removal
+                await logActivity(userId, `Removed treatment from tooth ${toothId}`, {
+                    patientId: patientId,
+                    toothNumber: toothId,
+                    treatment: treatment,
+                    action: 'delete'
+                });
+                
                 setToothTreatments(prev => {
                     const updated = { ...prev };
                     delete updated[toothId];
@@ -375,6 +406,16 @@ export default function Odontogram({
                     updatedAt: new Date().toISOString(),
                     status: 'pending'
                 });
+                
+                // Log activity for new treatment
+                await logActivity(userId, `Created/Updated treatment for tooth ${toothId}`, {
+                    patientId: patientId,
+                    toothNumber: toothId,
+                    treatment: treatment,
+                    status: 'pending',
+                    action: 'create/update'
+                });
+                
                 setToothTreatments(prev => ({
                     ...prev,
                     [toothId]: treatment
@@ -491,6 +532,28 @@ export default function Odontogram({
         return `action-btn ${mode}-btn ${modalViewMode === mode ? 'active-view' : ''}`;
     };
 
+    const sortedSelectedTeeth = [...selectedTeeth].sort((a, b) => a - b);
+    const selectedTeethLabel = sortedSelectedTeeth.length > 0
+        ? sortedSelectedTeeth.join(', ')
+        : timelineSelectedTooth
+            ? `${timelineSelectedTooth}`
+            : 'No teeth selected';
+
+    const selectedConditions = sortedSelectedTeeth
+        .map((tooth) => toothStates[tooth])
+        .filter((state) => state && state !== 'healthy')
+        .map((state) => String(state));
+
+    const uniqueConditions = [...new Set(selectedConditions)];
+    const conditionSummary = selectedRecord?.condition || defaultCondition || (uniqueConditions.length > 0 ? uniqueConditions.join(', ') : 'No condition selected');
+    const treatmentSummary = selectedRecord?.treatment || treatmentType || 'No treatment selected';
+    const statusSummary = selectedRecord?.status || (modalViewMode === 'status' ? 'Viewing selected teeth status' : 'N/A');
+    const titleMetaText = modalViewMode === 'status'
+        ? `Teeth No.: ${selectedTeethLabel}`
+        : modalViewMode === 'condition'
+            ? `Condition: ${conditionSummary}`
+            : `Treatment: ${treatmentSummary}`;
+
     return (
         <div className="odontogram-grid">
           
@@ -519,10 +582,17 @@ export default function Odontogram({
             <div className="odontogram-modal-backdrop" onClick={() => setIsModelOpen(false)} role="presentation" >
               <div className="odontogram-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
                   <div className="odontogram-modal-header">
-                    <h3>3D Teeth Visualization ({modalViewMode.toUpperCase()})</h3>
+                                        <div className="modal-title-row">
+                                            <h3>3D Teeth Visualization ({modalViewMode.toUpperCase()})</h3>
+                                            <span className="modal-title-meta">{titleMetaText}</span>
+                                        </div>
                     <div className="patient-info">
                       Patient ID: {patientId}
                     </div>
+
+                                        {selectedRecord?.status && (
+                                            <div className="record-status-inline">Record Status: {statusSummary}</div>
+                                        )}
                     
                     {modalViewMode === 'treatment' && timelineRecords.length > 0 && (
                         <div className="timeline-selector">

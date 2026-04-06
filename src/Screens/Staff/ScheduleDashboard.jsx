@@ -546,6 +546,7 @@ const ScheduleDashboard = () => {
     const chosenTime = rescheduleSelectedSlot || rescheduleTime;
     const newTimeObj = getTimeObject(rescheduleDate, chosenTime);
     if (!newTimeObj || isNaN(newTimeObj.getTime())) { alert('Invalid date/time.'); return; }
+    if (newTimeObj.getTime() < Date.now()) { alert('Cannot reschedule to a past time. Please choose a future slot.'); return; }
     try {
       const apptRef = doc(db, 'appointments', nextAppointment.id);
       await updateDoc(apptRef, {

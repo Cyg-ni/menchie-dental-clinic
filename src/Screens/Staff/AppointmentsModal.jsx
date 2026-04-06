@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import "./AppointmentsModal.css";
 import CalendarView from './AppointmentCalendar.jsx';
 import emailjs from '@emailjs/browser';
+import { logActivity, getCurrentUserId } from '../../utils/activityLogger';
 
 // ===============================================
 // 1. FIREBASE SETUP
@@ -188,10 +189,21 @@ const AppointmentsModal = ({ onClose, onUpdate }) => {
                     : "Declined. Please contact us for a different slot."
             });
             
-            // 2. Trigger Email with the data we found during fetch
+            // 2. Log activity
+            const userId = getCurrentUserId();
+            const actionText = action === "Approved" ? "Approved an appointment" : "Rejected an appointment";
+            await logActivity(userId, actionText, {
+                appointmentId: id,
+                patientName: apptToUpdate.patientFullName || "Unknown Patient",
+                action: action,
+                scheduledDate: apptToUpdate.scheduledDate,
+                scheduledTime: apptToUpdate.scheduledTime
+            });
+            
+            // 3. Trigger Email with the data we found during fetch
             await sendStatusEmail(apptToUpdate, action);
             
-            // 3. UI Refresh
+            // 4. UI Refresh
             await fetchPendingAppointments();
             if (action === "Approved" && apptToUpdate.scheduledDate === selectedDate) {
                 fetchBookedSlots(selectedDate);
