@@ -48,12 +48,7 @@ const serviceOptions = [
   "Root Canal Therapy",
   "Children's Dentistry",
   "Orthodontics & Aligners",
-  "Gum Disease Treatment",
-  "Routine Check-up & Cleaning",
-  "Teeth Whitening (Cosmetic)",
-  "Dental Implants Consultation",
-  "Orthodontics Consultation",
-  "Other / Not Sure"
+  "Gum Disease Treatment"
 ];
 
 const TIME_SLOTS = ["08:30", "09:45", "11:00", "13:00", "14:30", "15:45", "17:00"];
