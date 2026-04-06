@@ -95,7 +95,7 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 font-inter">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 font-inter animate-fade-in">
       <div className="max-w-md w-full bg-white rounded-[2.5rem] shadow-2xl p-10 border border-gray-100">
         
         {/* Logo and Header */}

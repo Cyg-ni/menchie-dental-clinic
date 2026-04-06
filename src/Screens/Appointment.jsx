@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { db, storage, auth } from '../firebase-config'; // Added auth
-import { collection, addDoc, Timestamp, query, where, getDocs } from 'firebase/firestore';
+import { collection, addDoc, Timestamp, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { onAuthStateChanged } from 'firebase/auth'; // Added for profile photo detection
 import emailjs from '@emailjs/browser'; 
@@ -41,10 +41,17 @@ const CheckCircle = () => (
 );
 
 const serviceOptions = [
+  "Preventative Care & Hygiene",
+  "Cosmetic Dentistry",
+  "Restorative Dentistry",
+  "Emergency Dental Services",
+  "Root Canal Therapy",
+  "Children's Dentistry",
+  "Orthodontics & Aligners",
+  "Gum Disease Treatment",
   "Routine Check-up & Cleaning",
   "Teeth Whitening (Cosmetic)",
   "Dental Implants Consultation",
-  "Emergency Visit (Pain/Injury)",
   "Orthodontics Consultation",
   "Other / Not Sure"
 ];
@@ -54,11 +61,14 @@ const appointmentsCollectionRef = collection(db, "appointments");
 
 const Appointment = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const queryService = new URLSearchParams(location.search).get('service') || '';
+
   const [formData, setFormData] = useState({
     firstName: '', lastName: '', email: '', phone: '', age: '', gender: '',
     occupation: '', maritalStatus: '', address: '', allergies: '',
     conditionNotes: '', currentMeds: '', isPregnant: false, isSmoking: false,
-    service: '', date: new Date().toISOString().split('T')[0], time: '', message: ''
+    service: queryService, date: new Date().toISOString().split('T')[0], time: '', message: ''
   });
 
   // --- Image States ---
@@ -73,12 +83,40 @@ const Appointment = () => {
   const [fetchingTimes, setFetchingTimes] = useState(false);
   const [errors, setErrors] = useState({});
 
-  // NEW: Detect if user is logged in and has a profile photo
+  // NEW: Detect if user is logged in, then load profile data and photo
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user && user.photoURL) {
-        setImagePreview(user.photoURL);
-      }
+      if (!user) return;
+
+      const loadPatientProfile = async () => {
+        try {
+          const patientDoc = await getDoc(doc(db, 'patients', user.uid));
+          const profileData = patientDoc.exists() ? patientDoc.data() : {};
+          const displayName = user.displayName || `${profileData.firstName || ''} ${profileData.lastName || ''}`.trim();
+          const nameParts = displayName.split(' ').filter(Boolean);
+
+          
+          setImagePreview(profileData.photoURL || profileData.photo || null);
+          setFormData(prev => {
+            const firstNameValue = prev.firstName || nameParts[0] || profileData.firstName || '';
+            const lastNameValue = prev.lastName || nameParts.slice(1).join(' ') || profileData.lastName || '';
+            return {
+              ...prev,
+              firstName: firstNameValue,
+              lastName: lastNameValue,
+              email: prev.email || user.email || profileData.email || '',
+              age: prev.age || profileData.age || '',
+              gender: prev.gender || profileData.gender || '',
+              address: prev.address || profileData.address || '',
+              phone: prev.phone || profileData.phone || ''
+            };
+          });
+        } catch (error) {
+          console.error('Failed to load patient profile:', error);
+        }
+      };
+
+      loadPatientProfile();
     });
     return () => unsubscribe();
   }, []);
@@ -138,11 +176,20 @@ const Appointment = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    const requiredChecks = [
+      validateField('firstName', formData.firstName),
+      validateField('lastName', formData.lastName),
+      validateField('email', formData.email),
+      validateField('phone', formData.phone),
+      formData.age ? validateField('age', formData.age) : true,
+    ];
+
     const hasErrors = Object.values(errors).some(err => err !== '');
-    if (hasErrors || !formData.time) {
+    if (hasErrors || requiredChecks.includes(false) || !formData.time) {
       setSubmitStatus({ 
         type: 'error', 
-        message: !formData.time ? 'Please select a time slot.' : 'Please fix the errors.' 
+        message: !formData.time ? 'Please select a time slot.' : 'Please fix the errors before submitting.' 
       });
       return;
     }
@@ -156,29 +203,47 @@ const Appointment = () => {
 
       // 1. UPLOAD NEW IMAGE IF SELECTED
       if (imageFile) {
-        const storageRef = ref(storage, `patientPhotos/${Date.now()}_${imageFile.name}`);
-        const uploadTask = await uploadBytes(storageRef, imageFile);
-        photoURL = await getDownloadURL(uploadTask.ref);
+        const reader = new FileReader();
+        photoURL = await new Promise((resolve, reject) => {
+          reader.onload = () => {
+            const base64String = reader.result;
+            console.log('Image converted to base64, size:', base64String.length);
+            resolve(base64String);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(imageFile);
+        });
       }
 
       // 2. SAVE TO FIREBASE
+      const currentUser = auth.currentUser;
+      const normalizedEmail = formData.email?.trim().toLowerCase();
       const appointmentData = {
         createdAt: Timestamp.fromDate(new Date()),
         dateTime: Timestamp.fromDate(new Date(`${formData.date}T${formData.time}:00`)),
         scheduledDate: formData.date,
         scheduledTime: formData.time,
+        patientUid: currentUser?.uid || null,
         patientFirstName: formData.firstName,
         patientLastName: formData.lastName,
         patientFullName: `${formData.firstName} ${formData.lastName}`,
-        patientEmail: formData.email,
+        patientEmail: normalizedEmail,
         patientPhone: formData.phone,
         patientPhoto: photoURL, 
         serviceType: formData.service,
         status: { isPending: "Approval Pending", isScheduled: "Appointment Requested" },
+        age: formData.age,
+        gender: formData.gender,
+        medicalHistory: {
+          Allergies: { conditionNotes: formData.allergies || formData.conditionNotes || '' },
+          isSmoking: formData.isSmoking,
+          isPregnant: formData.isPregnant,
+        },
       };
-
       const docRef = await addDoc(appointmentsCollectionRef, appointmentData);
       const generatedId = docRef.id; 
+      
+      console.log('Appointment saved with data:', appointmentData);
       
       setNewAppointmentId(generatedId);
       setTakenTimes(prev => [...prev, formData.time]);
@@ -219,7 +284,7 @@ const Appointment = () => {
   }`;
 
   return (
-    <div className="min-h-screen bg-gray-50 font-inter text-gray-900 relative">
+    <div className="min-h-screen bg-gray-50 font-inter text-gray-900 relative animate-fade-in">
       
       {/* SUCCESS MODAL */}
       {showModal && (
@@ -297,27 +362,27 @@ const Appointment = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <input type="text" name="firstName" placeholder="First Name" autoComplete="given-name" onChange={handleChange} required className={inputClass('firstName')} />
+                  <input type="text" name="firstName" placeholder="First Name" value={formData.firstName} autoComplete="given-name" onChange={handleChange} required className={inputClass('firstName')} />
                   {errors.firstName && <p className="text-xs text-red-500">{errors.firstName}</p>}
                 </div>
                 <div className="space-y-1">
-                  <input type="text" name="lastName" placeholder="Last Name" autoComplete="family-name" onChange={handleChange} required className={inputClass('lastName')} />
+                  <input type="text" name="lastName" placeholder="Last Name" value={formData.lastName} autoComplete="family-name" onChange={handleChange} required className={inputClass('lastName')} />
                   {errors.lastName && <p className="text-xs text-red-500">{errors.lastName}</p>}
                 </div>
                 <div className="sm:col-span-2 space-y-1">
-                  <input type="email" name="email" placeholder="Email Address" autoComplete="email" onChange={handleChange} required className={inputClass('email')} />
+                  <input type="email" name="email" placeholder="Email Address" value={formData.email} autoComplete="email" onChange={handleChange} required className={inputClass('email')} />
                   {errors.email && <p className="text-xs text-red-500">{errors.email}</p>}
                 </div>
                 <div className="space-y-1">
-                  <input type="tel" name="phone" placeholder="Phone Number" autoComplete="tel" onChange={handleChange} required className={inputClass('phone')} />
+                  <input type="tel" name="phone" placeholder="Phone Number" value={formData.phone} autoComplete="tel" onChange={handleChange} required className={inputClass('phone')} />
                   {errors.phone && <p className="text-xs text-red-500">{errors.phone}</p>}
                 </div>
                 <div className="space-y-1">
-                  <input type="number" name="age" placeholder="Age" onChange={handleChange} className={inputClass('age')} />
+                  <input type="number" name="age" placeholder="Age" value={formData.age} onChange={handleChange} className={inputClass('age')} />
                   {errors.age && <p className="text-xs text-red-500">{errors.age}</p>}
                 </div>
-                <input type="text" name="address" placeholder="Home Address" autoComplete="street-address" onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg sm:col-span-2" />
-                <select name="gender" onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white">
+                <input type="text" name="address" placeholder="Home Address" value={formData.address} autoComplete="street-address" onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg sm:col-span-2" />
+                <select name="gender" value={formData.gender} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white">
                   <option value="">Gender</option>
                   <option value="Male">Male</option>
                   <option value="Female">Female</option>
@@ -329,9 +394,9 @@ const Appointment = () => {
             <div>
               <h2 className="text-2xl font-bold mb-6 border-t pt-6">Medical History</h2>
               <div className="space-y-4">
-                <input type="text" name="allergies" placeholder="Allergies (e.g. Penicillin)" onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg" />
-                <input type="text" name="currentMeds" placeholder="Current Medications" onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg" />
-                <textarea name="conditionNotes" placeholder="Medical Condition Notes" onChange={handleChange} rows="2" className="w-full px-4 py-2 border border-gray-300 rounded-lg"></textarea>
+                <input type="text" name="allergies" placeholder="Allergies (e.g. Penicillin)" value={formData.allergies} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg" />
+                <input type="text" name="currentMeds" placeholder="Current Medications" value={formData.currentMeds} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg" />
+                <textarea name="conditionNotes" placeholder="Medical Condition Notes" value={formData.conditionNotes} onChange={handleChange} rows="2" className="w-full px-4 py-2 border border-gray-300 rounded-lg"></textarea>
                 <div className="flex space-x-6">
                   <label className="flex items-center space-x-2 text-sm text-gray-700 cursor-pointer">
                     <input type="checkbox" name="isPregnant" onChange={handleChange} className="w-4 h-4 text-indigo-600 rounded" />
@@ -352,7 +417,7 @@ const Appointment = () => {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Select Service</label>
-                <select name="service" onChange={handleChange} required className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white focus:ring-indigo-500">
+                <select name="service" value={formData.service} onChange={handleChange} required className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white focus:ring-indigo-500">
                   <option value="">-- Choose a Service --</option>
                   {serviceOptions.map((opt, i) => <option key={i} value={opt}>{opt}</option>)}
                 </select>

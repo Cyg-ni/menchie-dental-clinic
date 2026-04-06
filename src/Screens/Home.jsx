@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, NavLink } from 'react-router-dom'; 
-import { auth, storage } from '../firebase-config';
+import { auth, storage, db } from '../firebase-config';
 import { onAuthStateChanged, signOut, updateProfile } from 'firebase/auth';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 // --- Icon Components ---
 const BookOpen = (props) => (
@@ -81,8 +82,24 @@ const Home = () => {
   ];
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser) {
+        // Fetch profile photo from Firestore
+        try {
+          const patientDoc = await getDoc(doc(db, 'patients', currentUser.uid));
+          const patientData = patientDoc.data();
+          if (patientData?.photoURL) {
+            setUser({ ...currentUser, photoURL: patientData.photoURL });
+          } else {
+            setUser(currentUser);
+          }
+        } catch (error) {
+          console.error('Error fetching profile photo:', error);
+          setUser(currentUser);
+        }
+      } else {
+        setUser(null);
+      }
       setLoading(false);
     });
     return () => unsubscribe();
@@ -99,11 +116,21 @@ const Home = () => {
     if (!file || !user) return;
     try {
       setIsUploading(true);
-      const storageRef = ref(storage, `user_profiles/${user.uid}`);
-      await uploadBytes(storageRef, file);
-      const photoURL = await getDownloadURL(storageRef);
-      await updateProfile(auth.currentUser, { photoURL });
-      setUser({ ...auth.currentUser, photoURL }); 
+      const reader = new FileReader();
+      const photoURL = await new Promise((resolve, reject) => {
+        reader.onload = () => {
+          const base64String = reader.result;
+          console.log('Image converted to base64, size:', base64String.length);
+          resolve(base64String);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      
+      // Store in Firestore instead of Auth (Auth has size limits)
+      await setDoc(doc(db, 'patients', user.uid), { photoURL }, { merge: true });
+      setUser({ ...user, photoURL });
+      console.log('Profile photo saved to Firestore');
       alert("Profile photo updated!");
     } catch (error) {
       console.error("Error updating photo:", error);
@@ -121,7 +148,7 @@ const Home = () => {
   }, [carouselImages.length]);
 
   return (
-    <div className="min-h-screen bg-gray-50 font-inter text-gray-900 overflow-x-hidden">
+    <div className="min-h-screen bg-gray-50 font-inter text-gray-900 overflow-x-hidden animate-fade-in">
       
       {/* --- PROFILE SIDEBAR --- */}
       <div className={`fixed inset-y-0 right-0 z-[100] w-80 bg-white shadow-2xl transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>

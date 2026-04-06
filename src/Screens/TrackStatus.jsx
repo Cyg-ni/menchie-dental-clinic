@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { db } from '../firebase-config';
 import { doc, onSnapshot } from 'firebase/firestore';
 
 const TrackStatus = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [appointment, setAppointment] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -31,7 +32,7 @@ const TrackStatus = () => {
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 text-center">
       <h2 className="text-2xl font-bold text-gray-800">Appointment Not Found</h2>
       <p className="text-gray-600 mt-2">We couldn't find an appointment with the ID: <br/><span className="font-mono text-indigo-600">{id}</span></p>
-      <Link to="/" className="mt-6 px-6 py-2 bg-indigo-600 text-white rounded-full font-bold shadow-lg hover:bg-indigo-700 transition">Return Home</Link>
+      <button onClick={() => navigate(-1)} className="mt-6 px-6 py-2 bg-indigo-600 text-white rounded-full font-bold shadow-lg hover:bg-indigo-700 transition hover:scale-105">Go Back</button>
     </div>
   );
 
@@ -40,7 +41,7 @@ const TrackStatus = () => {
   const isComplete = appointment.status?.isComplete === "Complete";
   const isDeclined = appointment.status?.isScheduled === "Declined";
 
-  // LOGIC: Determine the message based on priority (Custom Note > Status Default)
+  // LOGIC: Determine the message based on priority (Custom Note > Status Default) 
   const getClinicMessage = () => {
     if (appointment.status?.trackingNote) return appointment.status.trackingNote;
     
@@ -51,7 +52,7 @@ const TrackStatus = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 font-inter">
+    <div className="min-h-screen bg-gray-50 py-12 px-4 font-inter animate-fade-in">
       <div className="max-w-2xl mx-auto bg-white rounded-[2.5rem] shadow-xl overflow-hidden border border-gray-100">
         
         {/* Dynamic Header */}
@@ -125,12 +126,12 @@ const TrackStatus = () => {
           </div>
 
           <div className="mt-10 text-center">
-             <Link to="/" className="inline-flex items-center gap-2 text-gray-400 hover:text-indigo-600 text-sm transition-all font-bold group">
+             <button onClick={() => navigate(-1)} className="inline-flex items-center gap-2 text-gray-400 hover:text-indigo-600 text-sm transition-all font-bold group cursor-pointer hover:scale-105">
                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4 group-hover:-translate-x-1 transition-transform">
                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
                </svg>
-               Back to Menchie's Dental Clinic
-             </Link>
+               Back to Previous Page
+             </button>
           </div>
         </div>
       </div>
