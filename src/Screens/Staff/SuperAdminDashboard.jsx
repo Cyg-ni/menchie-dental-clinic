@@ -96,37 +96,39 @@ const SuperAdminDashboard = () => {
     setShowModal(true);
   };
 
-  const fetchLogs = async (userId) => {
+  const fetchLogs = async (user) => {
     try {
       const logsRef = collection(db, "activity_logs");
-      const q = query(logsRef, where("userId", "==", userId));
-      const snapshot = await getDocs(q);
-      const logsList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      
-      if (logsList.length === 0) {
-        return [
-          {
-            id: 'sample-1',
-            action: 'Approved an appointment',
-            patientName: 'Roberto Gomez',
-            timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-          },
-          {
-            id: 'sample-2',
-            action: 'Filed a new treatment record',
-            patientName: 'Maria Santos',
-            timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-          },
-          {
-            id: 'sample-3',
-            action: 'Updated patient profile',
-            patientName: 'Juan Dela Cruz',
-            timestamp: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(),
-          }
-        ];
+      const byUserIdQuery = query(logsRef, where("userId", "==", user.id));
+      const byUserIdSnapshot = await getDocs(byUserIdQuery);
+
+      let rawLogs = byUserIdSnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+
+      // Backward-compatible fallback for older logs that may have no userId set.
+      if (rawLogs.length === 0 && user.username) {
+        const byUserNameQuery = query(logsRef, where("userName", "==", user.username));
+        const byUserNameSnapshot = await getDocs(byUserNameQuery);
+        rawLogs = byUserNameSnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
       }
 
-      return logsList.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      const normalizedLogs = rawLogs.map((log) => {
+        let logDate = null;
+        if (log.timestamp?.toDate) {
+          logDate = log.timestamp.toDate();
+        } else if (typeof log.timestamp === 'string' || typeof log.timestamp === 'number') {
+          logDate = new Date(log.timestamp);
+        } else if (log.createdAt) {
+          logDate = new Date(log.createdAt);
+        }
+
+        return {
+          ...log,
+          patientName: log.patientName || log.metadata?.patientName || '',
+          timestampDate: logDate && !Number.isNaN(logDate.getTime()) ? logDate : new Date(0),
+        };
+      });
+
+      return normalizedLogs.sort((a, b) => b.timestampDate - a.timestampDate);
     } catch (error) {
       console.error("Error fetching logs:", error);
       return [];
@@ -137,7 +139,7 @@ const SuperAdminDashboard = () => {
     setViewingUser(user);
     setViewModalTab('details');
     setShowViewModal(true);
-    const logs = await fetchLogs(user.id);
+    const logs = await fetchLogs(user);
     setUserLogs(logs);
   };
 
@@ -926,7 +928,7 @@ const SuperAdminDashboard = () => {
                               {log.patientName && <> for <strong>{log.patientName}</strong></>}
                             </p>
                             <span className="log-time">
-                              {new Date(log.timestamp).toLocaleString(undefined, {
+                              {(log.timestampDate || new Date(log.timestamp)).toLocaleString(undefined, {
                                 month: 'short',
                                 day: 'numeric',
                                 year: 'numeric',

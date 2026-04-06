@@ -290,6 +290,19 @@
     background: #fafafa;
 }
 
+.time-slot.selected-slot {
+  background: #2f4156;
+  color: #ffffff;
+  border-color: #2f4156;
+  box-shadow: 0 0 0 2px rgba(47, 65, 86, 0.2);
+  font-weight: 700;
+}
+
+.time-slot.selected-slot:hover {
+  background: #263647;
+  border-color: #263647;
+}
+
 /* GRAY OUT FILLED TIMESTAMP */
 .time-slot.booked {
     background-color: #eeeeee;

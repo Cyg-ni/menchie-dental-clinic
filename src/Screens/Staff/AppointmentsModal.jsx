@@ -7,9 +7,7 @@ import { logActivity, getCurrentUserId } from '../../utils/activityLogger';
 // ===============================================
 // 1. FIREBASE SETUP
 // ===============================================
-import { initializeApp } from "firebase/app";
 import { 
-    getFirestore, 
     collection, 
     doc, 
     updateDoc, 
@@ -19,19 +17,8 @@ import {
     getDocs,
     Timestamp 
 } from 'firebase/firestore'; 
+import { db } from '../../firebase';
 
-const firebaseConfig = {
-  apiKey: "AIzaSyCS-olCQRpJZGcYSGWG7CZ8PIpV-wBNaOE",
-  authDomain: "menchie-dental-clinic.firebaseapp.com",
-  projectId: "menchie-dental-clinic",
-  storageBucket: "menchie-dental-clinic.firebasestorage.app",
-  messagingSenderId: "1005995383687",
-  appId: "1:1005995383687:web:42301faf7bbfcb544b1122",
-  measurementId: "G-C96BVD0XY6"
-};
-
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
 const appointmentsCollectionRef = collection(db, "appointments");
 
 const formatDateLocal = (date) => {

@@ -4,6 +4,7 @@ import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { db } from '../../firebase';
 import { doc, getDoc, updateDoc, collection, query, where, getDocs, orderBy } from 'firebase/firestore'; 
 import { useCurrentUser } from "../../hooks/useCurrentUser";
+import { logActivity, getCurrentUserId } from "../../utils/activityLogger";
 
 // 👇️ COMPONENT IMPORTS
 import Odontogram from "./Odontogram.jsx";
@@ -427,6 +428,16 @@ export default function PatientProfile() {
               updated: new Date().toISOString().split('T')[0]
           });
 
+          const userId = getCurrentUserId();
+          await logActivity(userId, 'Deleted a treatment record', {
+              patientId: id,
+              patientName: patient?.name || 'Unknown Patient',
+              treatmentDate: treatment?.date || '',
+              treatmentProcedure: treatment?.procedure || '',
+              treatmentCondition: treatment?.condition || '',
+              teeth: treatment?.teeth || [],
+          });
+
           setPatient(p => ({ ...p, treatments: updatedTreatments }));
           
           if (selectedTreatment === treatment) {
@@ -494,6 +505,17 @@ export default function PatientProfile() {
             treatments: updatedTreatments,
             currentToothState: updatedToothStates,
             updated: new Date().toISOString().split('T')[0] 
+        });
+
+        const userId = getCurrentUserId();
+        await logActivity(userId, 'Created a treatment record', {
+            patientId: id,
+            patientName: patient?.name || 'Unknown Patient',
+            treatmentDate: newTreat.date,
+            treatmentProcedure: newTreat.procedure,
+            treatmentCondition: newTreat.condition,
+            teeth: newTreat.teeth,
+            done: newTreat.done,
         });
 
         setPatient(p => ({ ...p, treatments: updatedTreatments, currentToothState: updatedToothStates }));

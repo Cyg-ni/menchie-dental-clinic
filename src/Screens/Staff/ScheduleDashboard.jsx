@@ -7,11 +7,9 @@ import ReportsModal from "./ReportsModal.jsx";
 import logoImage from "./Images/logo.webp";
 
 // ===============================================
-// 1. FIREBASE SETUP & IMPORTS (Self-Contained)
+// 1. FIREBASE SETUP & IMPORTS
 // ===============================================
-import { initializeApp } from "firebase/app";
 import { 
-  getFirestore, 
   collection, 
   onSnapshot, 
   query, 
@@ -19,23 +17,38 @@ import {
   updateDoc,  
   Timestamp,
   getDocs,
-  where
+  where,
+  addDoc
 } from 'firebase/firestore'; 
+import { db } from '../../firebase';
 import CalendarView from './AppointmentCalendar.jsx';
+import { logActivity, getCurrentUserId } from '../../utils/activityLogger';
 
-const firebaseConfig = {
-  apiKey: "AIzaSyCS-olCQRpJZGcYSGWG7CZ8PIpV-wBNaOE",
-  authDomain: "menchie-dental-clinic.firebaseapp.com",
-  projectId: "menchie-dental-clinic",
-  storageBucket: "menchie-dental-clinic.firebasestorage.app",
-  messagingSenderId: "1005995383687",
-  appId: "1:1005995383687:web:42301faf7bbfcb544b1122",
-  measurementId: "G-C96BVD0XY6"
+const appointmentsCol = collection(db, "appointments");
+
+const DIRECT_FORM_INITIAL = {
+  firstName: '',
+  lastName: '',
+  email: '',
+  phone: '',
+  age: '',
+  address: '',
+  gender: '',
+  allergies: '',
+  medications: '',
+  conditionNotes: '',
+  isPregnant: false,
+  smokingStatus: false,
+  serviceType: '',
 };
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const appointmentsCol = collection(db, "appointments");
+const DIRECT_FORM_ERRORS_INITIAL = {
+  firstName: '',
+  lastName: '',
+  email: '',
+  phone: '',
+  age: '',
+};
 
 function appointmentsSnapshotListener(callback) {
   const q = query(appointmentsCol); 
@@ -65,6 +78,15 @@ const SERVICE_DURATIONS = {
     'tooth removal': 45,
     'teeth whitening': 90
 };
+
+const DIRECT_SCHEDULE_SERVICE_OPTIONS = [
+  'Routine Check-up & Cleaning',
+  'Teeth Whitening (Cosmetic)',
+  'Dental Implants Consultation',
+  'Emergency Visit (Pain/Injury)',
+  'Orthodontics Consultation',
+  'Other / Not Sure',
+];
 
 const SERVICE_COLOR_MAP = {
     'Routine Check-up & Cleaning': 'rep-green',
@@ -265,6 +287,14 @@ const ScheduleDashboard = () => {
   const [rescheduleBookedTimes, setRescheduleBookedTimes] = useState([]);
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
   const [rescheduleSelectedSlot, setRescheduleSelectedSlot] = useState('');
+  const [selectedWaitingAppointmentId, setSelectedWaitingAppointmentId] = useState('');
+  const [showDirectScheduleModal, setShowDirectScheduleModal] = useState(false);
+  const [directScheduleDate, setDirectScheduleDate] = useState(todayISO);
+  const [directScheduleBookedTimes, setDirectScheduleBookedTimes] = useState([]);
+  const [directScheduleLoading, setDirectScheduleLoading] = useState(false);
+  const [directScheduleSelectedSlot, setDirectScheduleSelectedSlot] = useState('');
+  const [directScheduleForm, setDirectScheduleForm] = useState(DIRECT_FORM_INITIAL);
+  const [directScheduleErrors, setDirectScheduleErrors] = useState(DIRECT_FORM_ERRORS_INITIAL);
 
 
   const formatDate = (dateObj) => {
@@ -486,16 +516,25 @@ const ScheduleDashboard = () => {
 
   // --- New: Drop appointment ---
   const handleDropAppointment = async () => {
-    const nextAppointment = nextAppointmentObject;
-    if (!nextAppointment) { alert('No next appointment to drop.'); return; }
-    if (!confirm(`Drop appointment for ${nextAppointment.patientFullName || 'patient'} on ${nextAppointment.scheduledDate} at ${nextAppointment.scheduledTime}?`)) return;
+    const selectedAppointment = actionTargetAppointment;
+    if (!selectedAppointment) { alert('Please select an appointment from the waiting room first.'); return; }
+    if (!confirm(`Drop appointment for ${selectedAppointment.patientFullName || 'patient'} on ${selectedAppointment.scheduledDate} at ${selectedAppointment.scheduledTime}?`)) return;
     try {
-      const apptRef = doc(db, 'appointments', nextAppointment.id);
+      const apptRef = doc(db, 'appointments', selectedAppointment.id);
       await updateDoc(apptRef, {
         'status.isScheduled': 'Cancelled',
         'status.isComplete': 'Cancelled',
         updatedAt: Timestamp.fromDate(new Date()),
       });
+
+      const userId = getCurrentUserId();
+      await logActivity(userId, 'Dropped an appointment', {
+        appointmentId: selectedAppointment.id,
+        patientName: selectedAppointment.patientFullName || 'Unknown Patient',
+        scheduledDate: selectedAppointment.scheduledDate,
+        scheduledTime: selectedAppointment.scheduledTime,
+      });
+
       alert('Appointment dropped.');
     } catch (err) {
       console.error('Failed to drop appointment', err);
@@ -505,12 +544,11 @@ const ScheduleDashboard = () => {
 
   // --- New: Reschedule appointment ---
   const handleRescheduleAppointment = async () => {
-    // open reschedule modal prefilled with next appointment
-    const nextAppointment = nextAppointmentObject;
-    if (!nextAppointment) { alert('No next appointment to reschedule.'); return; }
-    setRescheduleDate(nextAppointment.scheduledDate || '');
-    setRescheduleTime(nextAppointment.scheduledTime || '');
-    setRescheduleSelectedSlot(nextAppointment.scheduledTime || '');
+    const selectedAppointment = actionTargetAppointment;
+    if (!selectedAppointment) { alert('Please select an appointment from the waiting room first.'); return; }
+    setRescheduleDate(selectedAppointment.scheduledDate || '');
+    setRescheduleTime(selectedAppointment.scheduledTime || '');
+    setRescheduleSelectedSlot(selectedAppointment.scheduledTime || '');
     setShowRescheduleModal(true);
   };
 
@@ -540,26 +578,247 @@ const ScheduleDashboard = () => {
   }, [showRescheduleModal, rescheduleDate]);
 
   const handleConfirmReschedule = async () => {
-    const nextAppointment = nextAppointmentObject;
-    if (!nextAppointment) { alert('No appointment to reschedule.'); return; }
+    const selectedAppointment = actionTargetAppointment;
+    if (!selectedAppointment) { alert('No appointment to reschedule.'); return; }
     if (!rescheduleDate || !(rescheduleSelectedSlot || rescheduleTime)) { alert('Please choose date and time.'); return; }
     const chosenTime = rescheduleSelectedSlot || rescheduleTime;
     const newTimeObj = getTimeObject(rescheduleDate, chosenTime);
     if (!newTimeObj || isNaN(newTimeObj.getTime())) { alert('Invalid date/time.'); return; }
     if (newTimeObj.getTime() < Date.now()) { alert('Cannot reschedule to a past time. Please choose a future slot.'); return; }
     try {
-      const apptRef = doc(db, 'appointments', nextAppointment.id);
+      const previousDate = selectedAppointment.scheduledDate;
+      const previousTime = selectedAppointment.scheduledTime;
+
+      const apptRef = doc(db, 'appointments', selectedAppointment.id);
       await updateDoc(apptRef, {
         scheduledDate: rescheduleDate,
         scheduledTime: chosenTime,
         updatedAt: Timestamp.fromDate(new Date()),
       });
+
+      const userId = getCurrentUserId();
+      await logActivity(userId, 'Rescheduled an appointment', {
+        appointmentId: selectedAppointment.id,
+        patientName: selectedAppointment.patientFullName || 'Unknown Patient',
+        previousScheduledDate: previousDate,
+        previousScheduledTime: previousTime,
+        newScheduledDate: rescheduleDate,
+        newScheduledTime: chosenTime,
+      });
+
       setShowRescheduleModal(false);
       setOptionsOpen(false);
       alert('Appointment rescheduled.');
     } catch (err) {
       console.error('Failed to reschedule', err);
       alert('Failed to reschedule appointment.');
+    }
+  };
+
+  const openDirectScheduleModal = () => {
+    setDirectScheduleDate(todayISO);
+    setDirectScheduleSelectedSlot('');
+    setDirectScheduleForm(DIRECT_FORM_INITIAL);
+    setDirectScheduleErrors(DIRECT_FORM_ERRORS_INITIAL);
+    setShowDirectScheduleModal(true);
+  };
+
+  const validateDirectField = (fieldName, fieldValue) => {
+    const trimmedValue = String(fieldValue || '').trim();
+
+    if (fieldName === 'firstName') {
+      if (!trimmedValue) return 'First name is required.';
+      if (trimmedValue.length < 2) return 'First name must be at least 2 characters.';
+      if (!/^[A-Za-z][A-Za-z\s'-]*$/.test(trimmedValue)) return 'First name must contain letters only.';
+      return '';
+    }
+
+    if (fieldName === 'lastName') {
+      if (!trimmedValue) return 'Last name is required.';
+      if (trimmedValue.length < 2) return 'Last name must be at least 2 characters.';
+      if (!/^[A-Za-z][A-Za-z\s'-]*$/.test(trimmedValue)) return 'Last name must contain letters only.';
+      return '';
+    }
+
+    if (fieldName === 'age') {
+      if (!trimmedValue) return 'Age is required.';
+      const numericAge = Number(trimmedValue);
+      if (!Number.isInteger(numericAge)) return 'Age must be a whole number.';
+      if (numericAge < 1 || numericAge > 120) return 'Age must be between 1 and 120.';
+      return '';
+    }
+
+    if (fieldName === 'email') {
+      if (!trimmedValue) return '';
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedValue)) return 'Please enter a valid email address.';
+      return '';
+    }
+
+    if (fieldName === 'phone') {
+      if (!trimmedValue) return '';
+      if (!/^\+?[0-9\s()-]{7,20}$/.test(trimmedValue)) return 'Please enter a valid phone number.';
+      return '';
+    }
+
+    return '';
+  };
+
+  const validateDirectForm = () => {
+    const nextErrors = {
+      firstName: validateDirectField('firstName', directScheduleForm.firstName),
+      lastName: validateDirectField('lastName', directScheduleForm.lastName),
+      age: validateDirectField('age', directScheduleForm.age),
+      email: validateDirectField('email', directScheduleForm.email),
+      phone: validateDirectField('phone', directScheduleForm.phone),
+    };
+
+    setDirectScheduleErrors(nextErrors);
+    return Object.values(nextErrors).every((message) => !message);
+  };
+
+  const handleDirectFormChange = (event) => {
+    const { name, value, type, checked } = event.target;
+    let normalizedValue = value;
+
+    if (name === 'firstName' || name === 'lastName') {
+      // Block numbers/symbols while typing: allow letters, spaces, apostrophes, and hyphens only.
+      normalizedValue = value.replace(/[^A-Za-z\s'-]/g, '').slice(0, 50);
+    } else if (name === 'age') {
+      // Age accepts digits only.
+      normalizedValue = value.replace(/[^\d]/g, '').slice(0, 3);
+    } else if (name === 'phone') {
+      // Phone accepts common phone characters only.
+      normalizedValue = value.replace(/[^0-9+()\s-]/g, '').slice(0, 20);
+    }
+
+    setDirectScheduleForm((prev) => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : normalizedValue,
+    }));
+
+    if (type !== 'checkbox' && Object.prototype.hasOwnProperty.call(DIRECT_FORM_ERRORS_INITIAL, name)) {
+      const validationError = validateDirectField(name, normalizedValue);
+      setDirectScheduleErrors((prev) => ({ ...prev, [name]: validationError }));
+    }
+  };
+
+  const fetchBookedSlotsForDirect = async (dateString) => {
+    setDirectScheduleLoading(true);
+    setDirectScheduleBookedTimes([]);
+    try {
+      const q = query(
+        collection(db, 'appointments'),
+        where('scheduledDate', '==', dateString),
+        where('status.isScheduled', '==', 'Scheduled')
+      );
+      const snapshot = await getDocs(q);
+      const booked = snapshot.docs.map((d) => d.data().scheduledTime).filter(Boolean);
+      setDirectScheduleBookedTimes(booked);
+    } catch (err) {
+      console.error('Error fetching booked slots for direct scheduling', err);
+    } finally {
+      setDirectScheduleLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    if (showDirectScheduleModal && directScheduleDate) {
+      fetchBookedSlotsForDirect(directScheduleDate);
+    }
+  }, [showDirectScheduleModal, directScheduleDate]);
+
+  const handleDirectScheduleSubmit = async () => {
+    const isFormValid = validateDirectForm();
+    if (!isFormValid) {
+      alert('Please correct the highlighted patient details.');
+      return;
+    }
+
+    if (!String(directScheduleForm.serviceType || '').trim() || !directScheduleDate || !directScheduleSelectedSlot) {
+      alert('Please choose a Service, Date, and Time Slot.');
+      return;
+    }
+
+    const dateTimeObj = getTimeObject(directScheduleDate, directScheduleSelectedSlot);
+    if (!dateTimeObj || Number.isNaN(dateTimeObj.getTime())) {
+      alert('Invalid appointment date or time.');
+      return;
+    }
+
+    if (dateTimeObj.getTime() <= Date.now()) {
+      alert('The selected appointment time is already past. Please choose a future slot.');
+      return;
+    }
+
+    if (directScheduleBookedTimes.includes(directScheduleSelectedSlot)) {
+      alert('This time slot is already booked. Please choose another slot.');
+      return;
+    }
+
+    try {
+      const patientName = `${directScheduleForm.firstName.trim()} ${directScheduleForm.lastName.trim()}`.trim();
+      const allergyList = directScheduleForm.allergies
+        ? directScheduleForm.allergies.split(',').map((item) => item.trim()).filter(Boolean)
+        : [];
+      const medicationsList = directScheduleForm.medications
+        ? directScheduleForm.medications.split(',').map((item) => item.trim()).filter(Boolean)
+        : [];
+
+      const patientPayload = {
+        name: patientName,
+        phone_num: directScheduleForm.phone.trim(),
+        contactInfo: directScheduleForm.email.trim() || 'N/A',
+        age: directScheduleForm.age ? Number(directScheduleForm.age) : null,
+        address: directScheduleForm.address.trim() || 'N/A',
+        gender: directScheduleForm.gender || 'N/A',
+        isPregnant: directScheduleForm.isPregnant,
+        smokingStatus: directScheduleForm.smokingStatus,
+        medicalHistory: {
+          Allergies: allergyList,
+          conditionNotes: directScheduleForm.conditionNotes.trim() || '',
+          currentMedications: medicationsList,
+        },
+        updated: new Date().toISOString().slice(0, 10),
+      };
+
+      const patientRef = await addDoc(collection(db, 'patients'), patientPayload);
+
+      const appointmentPayload = {
+        patientId: patientRef.id,
+        patientFullName: patientName,
+        patientEmail: directScheduleForm.email.trim() || '',
+        phone_num: directScheduleForm.phone.trim(),
+        serviceType: directScheduleForm.serviceType,
+        scheduledDate: directScheduleDate,
+        scheduledTime: directScheduleSelectedSlot,
+        dateTime: Timestamp.fromDate(dateTimeObj),
+        createdAt: Timestamp.fromDate(new Date()),
+        updatedAt: Timestamp.fromDate(new Date()),
+        status: {
+          isPending: 'Not Pending',
+          isScheduled: 'Scheduled',
+          isComplete: 'Pending',
+          trackingNote: 'Directly scheduled by staff.',
+        },
+      };
+
+      const appointmentRef = await addDoc(collection(db, 'appointments'), appointmentPayload);
+
+      const userId = getCurrentUserId();
+      await logActivity(userId, 'Created direct scheduled appointment', {
+        appointmentId: appointmentRef.id,
+        patientId: patientRef.id,
+        patientName,
+        scheduledDate: directScheduleDate,
+        scheduledTime: directScheduleSelectedSlot,
+        serviceType: directScheduleForm.serviceType,
+      });
+
+      setShowDirectScheduleModal(false);
+      alert('Appointment is successful');
+    } catch (error) {
+      console.error('Error creating direct appointment', error);
+      alert('Failed to schedule appointment. Please try again.');
     }
   };
 
@@ -673,6 +932,23 @@ const ScheduleDashboard = () => {
     return appointments.find(a => a.id === waitingList[0].id) || null;
   }, [waitingList, appointments]);
 
+  const actionTargetAppointment = useMemo(() => {
+    if (!selectedWaitingAppointmentId) return nextAppointmentObject;
+    return appointments.find((a) => a.id === selectedWaitingAppointmentId) || nextAppointmentObject;
+  }, [selectedWaitingAppointmentId, appointments, nextAppointmentObject]);
+
+  useEffect(() => {
+    if (!waitingList || waitingList.length === 0) {
+      setSelectedWaitingAppointmentId('');
+      return;
+    }
+
+    const stillExists = waitingList.some((item) => item.id === selectedWaitingAppointmentId);
+    if (!stillExists) {
+      setSelectedWaitingAppointmentId(waitingList[0].id);
+    }
+  }, [waitingList, selectedWaitingAppointmentId]);
+
   const canStart = useMemo(() => {
     if (!nextAppointmentObject) return false;
     // only allow start when appointment date is today and current time >= scheduled time
@@ -775,6 +1051,7 @@ const ScheduleDashboard = () => {
             <section className="card calendar-card">
               <div className="section-head">
                 <div>Appointments</div>
+                <button className="direct-schedule-btn" onClick={openDirectScheduleModal}>Direct Schedule</button>
               </div>
 
               <div className="calendar-bar">
@@ -894,7 +1171,11 @@ const ScheduleDashboard = () => {
                     <div className="waiting-row"><div className="left" style={{color: '#888'}}>No patients scheduled for this day.</div></div>
                 ) : (
                     waiting.map((w, i) => (
-                        <div className="waiting-row" key={w.id || i}>
+                      <div
+                        className={`waiting-row waiting-selectable ${selectedWaitingAppointmentId === w.id ? 'selected-waiting-row' : ''}`}
+                        key={w.id || i}
+                        onClick={() => setSelectedWaitingAppointmentId(w.id)}
+                      >
                             <div className="left">
                                 <div className="avatar" />
                                 <div>{w.name}</div>
@@ -947,6 +1228,11 @@ const ScheduleDashboard = () => {
                             </div>
                           )}
                         </div>
+                        {actionTargetAppointment && (
+                          <div className="selected-appointment-hint">
+                            Selected for actions: <b>{actionTargetAppointment.patientFullName || 'Patient'}</b>
+                          </div>
+                        )}
                     </>
                 )}
                 
@@ -968,7 +1254,7 @@ const ScheduleDashboard = () => {
           <div className="reschedule-overlay">
             <div className="reschedule-modal">
               <h4>Reschedule Appointment</h4>
-              <div style={{marginBottom:8}}><b>{nextAppointmentObject?.patientFullName || 'Patient'}</b></div>
+              <div style={{marginBottom:8}}><b>{actionTargetAppointment?.patientFullName || 'Patient'}</b></div>
               <div style={{marginBottom:12}}>
                 <CalendarView
                   selectedDate={rescheduleDate}
@@ -982,6 +1268,97 @@ const ScheduleDashboard = () => {
               <div className="actions">
                 <button className="btn ghost" onClick={()=>setShowRescheduleModal(false)}>Cancel</button>
                 <button className="btn primary" onClick={handleConfirmReschedule}>Confirm</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showDirectScheduleModal && (
+          <div className="reschedule-overlay" onClick={() => setShowDirectScheduleModal(false)}>
+            <div className="direct-schedule-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="direct-schedule-header">
+                <h3>Schedule Appointment</h3>
+                <button className="modal-close" onClick={() => setShowDirectScheduleModal(false)}>×</button>
+              </div>
+
+              <div className="direct-schedule-grid">
+                <section className="direct-schedule-panel">
+                  <h4>Patient Information</h4>
+
+                  <div className="inline-inputs">
+                    <div>
+                      <input className={directScheduleErrors.firstName ? 'input-invalid' : ''} name="firstName" value={directScheduleForm.firstName} onChange={handleDirectFormChange} placeholder="First Name *" />
+                      {directScheduleErrors.firstName && <div className="field-error">{directScheduleErrors.firstName}</div>}
+                    </div>
+                    <div>
+                      <input className={directScheduleErrors.lastName ? 'input-invalid' : ''} name="lastName" value={directScheduleForm.lastName} onChange={handleDirectFormChange} placeholder="Last Name *" />
+                      {directScheduleErrors.lastName && <div className="field-error">{directScheduleErrors.lastName}</div>}
+                    </div>
+                  </div>
+
+                  <div>
+                    <input className={directScheduleErrors.email ? 'input-invalid' : ''} name="email" value={directScheduleForm.email} onChange={handleDirectFormChange} placeholder="Email Address (Optional)" />
+                    {directScheduleErrors.email && <div className="field-error">{directScheduleErrors.email}</div>}
+                  </div>
+
+                  <div className="inline-inputs">
+                    <div>
+                      <input className={directScheduleErrors.phone ? 'input-invalid' : ''} name="phone" value={directScheduleForm.phone} onChange={handleDirectFormChange} placeholder="Phone Number (Optional)" />
+                      {directScheduleErrors.phone && <div className="field-error">{directScheduleErrors.phone}</div>}
+                    </div>
+                    <div>
+                      <input className={directScheduleErrors.age ? 'input-invalid' : ''} name="age" type="text" inputMode="numeric" value={directScheduleForm.age} onChange={handleDirectFormChange} placeholder="Age *" />
+                      {directScheduleErrors.age && <div className="field-error">{directScheduleErrors.age}</div>}
+                    </div>
+                  </div>
+
+                  <input name="address" value={directScheduleForm.address} onChange={handleDirectFormChange} placeholder="Home Address" />
+
+                  <select name="gender" value={directScheduleForm.gender} onChange={handleDirectFormChange}>
+                    <option value="">Gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
+
+                  <hr />
+
+                  <h4>Medical History</h4>
+                  <input name="allergies" value={directScheduleForm.allergies} onChange={handleDirectFormChange} placeholder="Allergies (comma separated)" />
+                  <input name="medications" value={directScheduleForm.medications} onChange={handleDirectFormChange} placeholder="Current Medications (comma separated)" />
+                  <textarea name="conditionNotes" value={directScheduleForm.conditionNotes} onChange={handleDirectFormChange} placeholder="Medical Condition Notes" rows={3} />
+
+                  <div className="inline-checks">
+                    <label><input type="checkbox" name="isPregnant" checked={directScheduleForm.isPregnant} onChange={handleDirectFormChange} /> Tick if Pregnant</label>
+                    <label><input type="checkbox" name="smokingStatus" checked={directScheduleForm.smokingStatus} onChange={handleDirectFormChange} /> Tick if Smoker</label>
+                  </div>
+                </section>
+
+                <section className="direct-schedule-panel">
+                  <h4>Schedule Your Visit</h4>
+
+                  <label className="field-label">Select Service</label>
+                  <select name="serviceType" value={directScheduleForm.serviceType} onChange={handleDirectFormChange}>
+                    <option value="">-- Choose a Service --</option>
+                    {DIRECT_SCHEDULE_SERVICE_OPTIONS.map((service) => (
+                      <option key={service} value={service}>{service}</option>
+                    ))}
+                  </select>
+
+                  <CalendarView
+                    selectedDate={directScheduleDate}
+                    onDateSelect={(dateValue) => {
+                      setDirectScheduleDate(dateValue);
+                      setDirectScheduleSelectedSlot('');
+                    }}
+                    bookedTimes={directScheduleBookedTimes}
+                    loading={directScheduleLoading}
+                    onSlotSelect={(slot) => setDirectScheduleSelectedSlot(slot)}
+                    selectedSlot={directScheduleSelectedSlot}
+                  />
+
+                  <button className="direct-submit-btn" onClick={handleDirectScheduleSubmit}>Schedule Appointment</button>
+                </section>
               </div>
             </div>
           </div>
