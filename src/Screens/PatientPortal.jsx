@@ -58,14 +58,136 @@ const PatientPortal = () => {
 
   const fetchPatientData = async (uid, user) => {
     try {
-      const profileDoc = await getDoc(doc(db, "patients", uid));
+      let profileDoc = await getDoc(doc(db, "patients", uid));
       const authName = user?.displayName || auth.currentUser?.displayName || '';
+      const rawUserEmail = String(user?.email || '').trim();
+      const normalizedUserEmail = String(user?.email || '').trim().toLowerCase();
+      const normalizedUserName = String(authName || '').trim().toLowerCase();
+      const normalizePhone = (value) => String(value || '').replace(/\D/g, '');
+      const tokenizeName = (value) =>
+        String(value || '')
+          .toLowerCase()
+          .split(/[^a-z0-9]+/)
+          .filter((token) => token.length > 1);
+      const nameSimilarityScore = (a, b) => {
+        const tokensA = tokenizeName(a);
+        const tokensB = new Set(tokenizeName(b));
+        if (!tokensA.length || !tokensB.size) return 0;
+        return tokensA.reduce((count, token) => count + (tokensB.has(token) ? 1 : 0), 0);
+      };
+      const getTreatmentCount = (data) => {
+        const treatments = data?.treatments;
+        if (Array.isArray(treatments)) return treatments.length;
+        if (treatments && typeof treatments === 'object') return Object.keys(treatments).length;
+        return 0;
+      };
+      const scorePatientDoc = (docSnap) => {
+        const data = docSnap.data() || {};
+        const candidateEmail = String(data.contactInfo || data.email || '').trim().toLowerCase();
+        const candidateName = String(
+          data.patientFullName ||
+          data.fullName ||
+          data.name ||
+          `${data.patientFirstName || data.firstName || ''} ${data.patientLastName || data.lastName || ''}`
+        )
+          .trim()
+          .toLowerCase();
+        const candidatePhone = normalizePhone(data.phone_num || data.phone || '');
+        const userPhone = normalizePhone(user?.phoneNumber || '');
+        const treatmentCount = getTreatmentCount(data);
+
+        let score = 0;
+        if (docSnap.id === uid) score += 3;
+        if (normalizedUserEmail && candidateEmail && candidateEmail === normalizedUserEmail) score += 6;
+        if (normalizedUserName && candidateName && candidateName === normalizedUserName) score += 6;
+        if (normalizedUserName && candidateName && candidateName !== normalizedUserName) score -= 4;
+        if (userPhone && candidatePhone && candidatePhone === userPhone) score += 1;
+        if (treatmentCount > 0) score += 1;
+        return score;
+      };
       let profileData = { fullName: authName || 'Patient' };
+
+      const candidateDocsById = new Map();
+      if (profileDoc.exists()) {
+        candidateDocsById.set(profileDoc.id, profileDoc);
+      }
+
+      if (rawUserEmail) {
+        const emailValues = [...new Set([rawUserEmail, normalizedUserEmail].filter(Boolean))];
+        for (const emailValue of emailValues) {
+          const contactInfoQuery = query(collection(db, "patients"), where("contactInfo", "==", emailValue));
+          const contactInfoSnapshot = await getDocs(contactInfoQuery);
+          contactInfoSnapshot.docs.forEach((docSnap) => candidateDocsById.set(docSnap.id, docSnap));
+
+          const emailQuery = query(collection(db, "patients"), where("email", "==", emailValue));
+          const emailSnapshot = await getDocs(emailQuery);
+          emailSnapshot.docs.forEach((docSnap) => candidateDocsById.set(docSnap.id, docSnap));
+        }
+      }
+
+      if (candidateDocsById.size > 0) {
+        const sortedCandidates = Array.from(candidateDocsById.values()).sort((a, b) => scorePatientDoc(b) - scorePatientDoc(a));
+        profileDoc = sortedCandidates[0];
+      }
+
+      if (!profileDoc.exists()) {
+        const allPatientsSnapshot = await getDocs(collection(db, "patients"));
+        const scoredMatches = [];
+
+        allPatientsSnapshot.docs.forEach((docSnap) => {
+          let score = scorePatientDoc(docSnap);
+
+          if (score > 0) {
+            scoredMatches.push({ score, docSnap });
+          }
+        });
+
+        if (scoredMatches.length > 0) {
+          scoredMatches.sort((a, b) => b.score - a.score);
+          profileDoc = scoredMatches[0].docSnap;
+        }
+      }
 
       if (profileDoc.exists()) {
         const data = profileDoc.data();
-        const fullName = data.fullName || data.name || `${data.firstName ?? ''} ${data.lastName ?? ''}`.trim() || authName || 'Patient';
+        const fullName =
+          data.patientFullName ||
+          data.fullName ||
+          data.name ||
+          `${data.patientFirstName ?? data.firstName ?? ''} ${data.patientLastName ?? data.lastName ?? ''}`.trim() ||
+          authName ||
+          'Patient';
         profileData = { ...data, fullName };
+      }
+
+      let treatmentSourceData = profileData;
+      if (candidateDocsById.size > 0 && getTreatmentCount(profileData) === 0) {
+        const treatmentCandidates = Array.from(candidateDocsById.values())
+          .map((docSnap) => {
+            const data = docSnap.data() || {};
+            const candidateEmail = String(data.contactInfo || data.email || '').trim().toLowerCase();
+            const candidateName =
+              data.patientFullName ||
+              data.fullName ||
+              data.name ||
+              `${data.patientFirstName || data.firstName || ''} ${data.patientLastName || data.lastName || ''}`.trim();
+            const treatmentsCount = getTreatmentCount(data);
+            const similarity = nameSimilarityScore(authName, candidateName);
+            return { data, candidateEmail, treatmentsCount, similarity };
+          })
+          .filter((candidate) =>
+            candidate.treatmentsCount > 0 &&
+            normalizedUserEmail &&
+            candidate.candidateEmail === normalizedUserEmail
+          )
+          .sort((a, b) => {
+            if (b.similarity !== a.similarity) return b.similarity - a.similarity;
+            return b.treatmentsCount - a.treatmentsCount;
+          });
+
+        if (treatmentCandidates.length > 0 && treatmentCandidates[0].similarity > 0) {
+          treatmentSourceData = treatmentCandidates[0].data;
+        }
       }
 
       setProfile(profileData);
@@ -84,7 +206,34 @@ const PatientPortal = () => {
         return Number.isNaN(date.getTime()) ? null : date;
       };
 
-      const rawTreatments = normalizeTreatments(profileData.treatments);
+      const toDisplayText = (value, fallback = '--') => {
+        if (value === undefined || value === null || value === '') return fallback;
+        if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+          return String(value);
+        }
+        if (Array.isArray(value)) {
+          const joined = value.map((item) => toDisplayText(item, '')).filter(Boolean).join(', ');
+          return joined || fallback;
+        }
+        if (typeof value === 'object') {
+          const candidates = [
+            value.condition,
+            value.procedure,
+            value.treatment,
+            value.status,
+            value.isScheduled,
+            value.trackingNote,
+            value.notes,
+            value.label,
+            value.name,
+          ];
+          const firstValid = candidates.find((item) => item !== undefined && item !== null && item !== '');
+          return firstValid !== undefined ? String(firstValid) : fallback;
+        }
+        return fallback;
+      };
+
+      const rawTreatments = normalizeTreatments(treatmentSourceData.treatments);
       const statesObj = {};
 
       const toToothArray = (value) => {
@@ -125,7 +274,7 @@ const PatientPortal = () => {
         if (recordTeeth.length > 0) {
           recordTeeth.forEach(tNum => {
             const current = String(statesObj[tNum] || '').toLowerCase();
-            const nextCondition = String(record.condition || record.status || '').toLowerCase();
+            const nextCondition = toDisplayText(record.condition ?? record.status, '').toLowerCase();
             const shouldForceMissing =
               isMissingCondition(record.condition) ||
               recordMissingTeeth.includes(String(tNum));
@@ -148,9 +297,9 @@ const PatientPortal = () => {
           missingToothNumbers: recordMissingTeeth,
           date: formattedDate,
           rawDate: recordDateValue || new Date(0),
-          condition: record.condition || record.status || "--",
-          procedure: record.procedure || record.treatment || "--",
-          treatment: record.treatment || record.procedure || "--",
+          condition: toDisplayText(record.condition ?? record.status),
+          procedure: toDisplayText(record.procedure ?? record.treatment),
+          treatment: toDisplayText(record.treatment ?? record.procedure),
           done: record.done ?? false
         };
       });
@@ -158,10 +307,9 @@ const PatientPortal = () => {
       setToothStates(statesObj);
       setToothConditions(formattedRecords.sort((a, b) => b.rawDate - a.rawDate));
       
-      const normalizePhone = (value) => String(value || '').replace(/\D/g, '');
       const contactEmail = profileData.contactInfo || profileData.email || user?.email || auth.currentUser?.email;
       const normalizedEmail = contactEmail?.trim().toLowerCase();
-      const normalizedProfilePhone = normalizePhone(profileData.phone || profileData.contactInfo);
+      const normalizedProfilePhone = normalizePhone(profileData.phone || profileData.phone_num || '');
       const normalizedProfileName = String(profileData.fullName || '').trim().toLowerCase();
       const appointmentMap = new Map();
 
@@ -177,16 +325,11 @@ const PatientPortal = () => {
         emailSnapshot.docs.forEach((docSnap) => appointmentMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() }));
       }
 
-      if (!appointmentMap.size && profileData.phone) {
-        const phoneQuery = query(collection(db, "appointments"), where("patientPhone", "==", profileData.phone));
+      if (!appointmentMap.size && (profileData.phone || profileData.phone_num)) {
+        const phoneValue = profileData.phone || profileData.phone_num;
+        const phoneQuery = query(collection(db, "appointments"), where("patientPhone", "==", phoneValue));
         const phoneSnapshot = await getDocs(phoneQuery);
         phoneSnapshot.docs.forEach((docSnap) => appointmentMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() }));
-      }
-
-      if (!appointmentMap.size && profileData.fullName) {
-        const nameQuery = query(collection(db, "appointments"), where("patientFullName", "==", profileData.fullName));
-        const nameSnapshot = await getDocs(nameQuery);
-        nameSnapshot.docs.forEach((docSnap) => appointmentMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() }));
       }
 
       if (!appointmentMap.size) {
@@ -195,13 +338,11 @@ const PatientPortal = () => {
           const data = docSnap.data();
           const docEmail = String(data.patientEmail || '').trim().toLowerCase();
           const docPhone = normalizePhone(data.patientPhone || '');
-          const docName = String(data.patientFullName || '').trim().toLowerCase();
 
           if (
             (user?.uid && data.patientUid === user.uid) ||
             (normalizedEmail && docEmail === normalizedEmail) ||
-            (normalizedProfilePhone && docPhone === normalizedProfilePhone) ||
-            (normalizedProfileName && docName === normalizedProfileName)
+            (normalizedProfilePhone && docPhone === normalizedProfilePhone)
           ) {
             appointmentMap.set(docSnap.id, { id: docSnap.id, ...data });
           }
@@ -215,6 +356,78 @@ const PatientPortal = () => {
       });
 
       setAppointments(sortedAppointments);
+
+      if (!formattedRecords.length) {
+        const appointmentTreatmentRecords = sortedAppointments
+          .map((record, index) => {
+            const recordTeeth = toToothArray(record.teeth || record.toothNumbers || record.affectedTeeth);
+            const recordMissingTeeth = getMissingTeethFromRecord(record);
+            const recordDateValue = normalizeDate(record.date || record.updated || record.createdAt);
+            const clinicalCondition = toDisplayText(record.condition, '');
+            const clinicalProcedure = toDisplayText(record.procedure ?? record.treatment, '');
+            const clinicalNotes = toDisplayText(record.notes, '');
+            const hasTreatmentContent =
+              recordTeeth.length > 0 ||
+              !!clinicalCondition ||
+              !!clinicalProcedure ||
+              !!clinicalNotes;
+
+            if (!hasTreatmentContent) return null;
+
+            return {
+              id: `appt-${record.id || index}`,
+              toothNumbers: recordTeeth,
+              missingToothNumbers: recordMissingTeeth,
+              date: recordDateValue ? recordDateValue.toLocaleDateString('en-PH') : 'N/A',
+              rawDate: recordDateValue || new Date(0),
+              condition: clinicalCondition || '--',
+              procedure: clinicalProcedure || '--',
+              treatment: toDisplayText(record.treatment ?? record.procedure, '--'),
+              done: record.done ?? false,
+            };
+          })
+          .filter(Boolean);
+
+        if (appointmentTreatmentRecords.length > 0) {
+          const fallbackStates = {};
+
+          appointmentTreatmentRecords.forEach((record) => {
+            record.toothNumbers.forEach((tNum) => {
+              const current = String(fallbackStates[tNum] || '').toLowerCase();
+              const nextCondition = String(record.condition || '').toLowerCase();
+              const shouldForceMissing =
+                isMissingCondition(record.condition) ||
+                record.missingToothNumbers.includes(String(tNum));
+
+              if (current.includes('missing')) return;
+              fallbackStates[tNum] = shouldForceMissing ? 'missing tooth' : (nextCondition || 'healthy');
+            });
+          });
+
+          setToothStates(fallbackStates);
+          setToothConditions(appointmentTreatmentRecords.sort((a, b) => b.rawDate - a.rawDate));
+        } else if (profileData.currentToothState && typeof profileData.currentToothState === 'object') {
+          const mapEntries = Object.entries(profileData.currentToothState);
+          const stateMap = {};
+          const currentStateRecords = mapEntries.map(([toothNum, condition], index) => {
+            stateMap[String(toothNum)] = String(condition || 'healthy').toLowerCase();
+            return {
+              id: `state-${index}`,
+              toothNumbers: [String(toothNum)],
+              missingToothNumbers: String(condition || '').toLowerCase().includes('missing') ? [String(toothNum)] : [],
+              date: profileData.updated || 'N/A',
+              rawDate: normalizeDate(profileData.updated) || new Date(0),
+              condition: condition || '--',
+              procedure: '--',
+              treatment: '--',
+              done: false,
+            };
+          });
+
+          setToothStates(stateMap);
+          setToothConditions(currentStateRecords);
+        }
+      }
 
       // Update profile with age/gender and medical info from the most recent appointment
       if (sortedAppointments.length > 0) {
@@ -356,7 +569,7 @@ const PatientPortal = () => {
                   </button>
                 </div>
                 <span className="rounded-full bg-indigo-50 text-indigo-700 px-3 py-1 text-xs font-bold uppercase tracking-widest">
-                  {(activeSection === 'appointments' ? filteredAppointments.length : appointments.length)} {(activeSection === 'appointments' ? filteredAppointments.length : appointments.length) === 1 ? 'record' : 'records'}
+                  {(activeSection === 'appointments' ? filteredAppointments.length : toothConditions.length)} {(activeSection === 'appointments' ? filteredAppointments.length : toothConditions.length) === 1 ? 'record' : 'records'}
                 </span>
               </div>
 

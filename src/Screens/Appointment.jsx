@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { db, storage, auth } from '../firebase-config'; // Added auth
-import { collection, addDoc, Timestamp, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, addDoc, Timestamp, query, where, getDocs, doc, getDoc, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { onAuthStateChanged } from 'firebase/auth'; // Added for profile photo detection
 import emailjs from '@emailjs/browser'; 
@@ -58,6 +58,24 @@ const serviceOptions = [
 
 const TIME_SLOTS = ["08:30", "09:45", "11:00", "13:00", "14:30", "15:45", "17:00"];
 const appointmentsCollectionRef = collection(db, "appointments");
+const RETAINED_FORM_KEY = 'appointmentRetainedMedicalFields';
+
+const asDisplayText = (value) => {
+  if (Array.isArray(value)) return value.filter(Boolean).join(', ');
+  if (typeof value === 'string') return value;
+  if (value && typeof value === 'object') {
+    return value.conditionNotes || value.notes || '';
+  }
+  return '';
+};
+
+const asStringArray = (value) => {
+  if (Array.isArray(value)) return value.map(String).map(v => v.trim()).filter(Boolean);
+  if (typeof value === 'string') {
+    return value.split(',').map(v => v.trim()).filter(Boolean);
+  }
+  return [];
+};
 
 const Appointment = () => {
   const navigate = useNavigate();
@@ -82,6 +100,62 @@ const Appointment = () => {
   const [takenTimes, setTakenTimes] = useState([]);
   const [fetchingTimes, setFetchingTimes] = useState(false);
   const [errors, setErrors] = useState({});
+  const [retainedLoaded, setRetainedLoaded] = useState(false);
+
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem(RETAINED_FORM_KEY);
+      if (!cached) {
+        setRetainedLoaded(true);
+        return;
+      }
+
+      const retained = JSON.parse(cached);
+      setFormData(prev => ({
+        ...prev,
+        age: retained.age ?? prev.age,
+        gender: retained.gender ?? prev.gender,
+        allergies: retained.allergies ?? prev.allergies,
+        currentMeds: retained.currentMeds ?? prev.currentMeds,
+        conditionNotes: retained.conditionNotes ?? prev.conditionNotes,
+        isPregnant: retained.isPregnant ?? prev.isPregnant,
+        isSmoking: retained.isSmoking ?? prev.isSmoking,
+      }));
+    } catch (error) {
+      console.error('Failed to load retained appointment data:', error);
+    } finally {
+      setRetainedLoaded(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!retainedLoaded) return;
+    try {
+      localStorage.setItem(
+        RETAINED_FORM_KEY,
+        JSON.stringify({
+          age: formData.age,
+          gender: formData.gender,
+          allergies: formData.allergies,
+          currentMeds: formData.currentMeds,
+          conditionNotes: formData.conditionNotes,
+          isPregnant: formData.isPregnant,
+          isSmoking: formData.isSmoking,
+        })
+      );
+    } catch (error) {
+      console.error('Failed to save retained appointment data:', error);
+    }
+  }, [
+    formData.age,
+    formData.gender,
+    formData.allergies,
+    formData.currentMeds,
+    formData.conditionNotes,
+    formData.isPregnant,
+    formData.isSmoking,
+    retainedLoaded,
+  ]);
 
   // NEW: Detect if user is logged in, then load profile data and photo
   useEffect(() => {
@@ -92,23 +166,37 @@ const Appointment = () => {
         try {
           const patientDoc = await getDoc(doc(db, 'patients', user.uid));
           const profileData = patientDoc.exists() ? patientDoc.data() : {};
-          const displayName = user.displayName || `${profileData.firstName || ''} ${profileData.lastName || ''}`.trim();
+          const profileName =
+            profileData.patientFullName ||
+            profileData.fullName ||
+            profileData.name ||
+            `${profileData.patientFirstName || profileData.firstName || ''} ${profileData.patientLastName || profileData.lastName || ''}`.trim();
+          const displayName = user.displayName || profileName || `${profileData.firstName || ''} ${profileData.lastName || ''}`.trim();
           const nameParts = displayName.split(' ').filter(Boolean);
+          const medicalHistory = profileData.medicalHistory || {};
+          const allergiesValue = medicalHistory.Allergies ?? medicalHistory.allergies;
+          const medsValue = medicalHistory.currentMedications ?? medicalHistory.currentMeds;
+          const conditionNotesValue = medicalHistory.conditionNotes ?? medicalHistory.notes;
 
           
-          setImagePreview(profileData.photoURL || profileData.photo || null);
+          setImagePreview(profileData.photoURL || profileData.photo || profileData.image || null);
           setFormData(prev => {
-            const firstNameValue = prev.firstName || nameParts[0] || profileData.firstName || '';
-            const lastNameValue = prev.lastName || nameParts.slice(1).join(' ') || profileData.lastName || '';
+            const firstNameValue = prev.firstName || nameParts[0] || profileData.firstName || profileData.patientFirstName || '';
+            const lastNameValue = prev.lastName || nameParts.slice(1).join(' ') || profileData.lastName || profileData.patientLastName || '';
             return {
               ...prev,
               firstName: firstNameValue,
               lastName: lastNameValue,
-              email: prev.email || user.email || profileData.email || '',
+              email: prev.email || user.email || profileData.email || profileData.contactInfo || '',
               age: prev.age || profileData.age || '',
               gender: prev.gender || profileData.gender || '',
               address: prev.address || profileData.address || '',
-              phone: prev.phone || profileData.phone || ''
+              phone: prev.phone || profileData.phone || profileData.phone_num || '',
+              allergies: prev.allergies || asDisplayText(allergiesValue),
+              currentMeds: prev.currentMeds || asDisplayText(medsValue),
+              conditionNotes: prev.conditionNotes || asDisplayText(conditionNotesValue),
+              isPregnant: prev.isPregnant || profileData.isPregnant || false,
+              isSmoking: prev.isSmoking || profileData.isSmoking || profileData.smokingStatus || false,
             };
           });
         } catch (error) {
@@ -218,6 +306,8 @@ const Appointment = () => {
       // 2. SAVE TO FIREBASE
       const currentUser = auth.currentUser;
       const normalizedEmail = formData.email?.trim().toLowerCase();
+      const allergiesArray = asStringArray(formData.allergies || formData.conditionNotes);
+      const currentMedsArray = asStringArray(formData.currentMeds);
       const appointmentData = {
         createdAt: Timestamp.fromDate(new Date()),
         dateTime: Timestamp.fromDate(new Date(`${formData.date}T${formData.time}:00`)),
@@ -236,12 +326,41 @@ const Appointment = () => {
         gender: formData.gender,
         medicalHistory: {
           Allergies: { conditionNotes: formData.allergies || formData.conditionNotes || '' },
+          currentMedications: formData.currentMeds || '',
+          conditionNotes: formData.conditionNotes || '',
           isSmoking: formData.isSmoking,
           isPregnant: formData.isPregnant,
         },
       };
       const docRef = await addDoc(appointmentsCollectionRef, appointmentData);
       const generatedId = docRef.id; 
+
+      if (currentUser?.uid) {
+        const firstNameValue = formData.firstName || '';
+        const lastNameValue = formData.lastName || '';
+        const fullNameValue = `${firstNameValue} ${lastNameValue}`.trim();
+        await setDoc(doc(db, 'patients', currentUser.uid), {
+          age: formData.age || '',
+          gender: formData.gender || '',
+          contactInfo: formData.email || '',
+          phone_num: formData.phone || '',
+          patientFirstName: firstNameValue,
+          patientLastName: lastNameValue,
+          patientFullName: fullNameValue,
+          firstName: firstNameValue,
+          lastName: lastNameValue,
+          fullName: fullNameValue,
+          name: fullNameValue,
+          medicalHistory: {
+            Allergies: allergiesArray,
+            currentMedications: currentMedsArray,
+            conditionNotes: formData.conditionNotes || ''
+          },
+          isPregnant: !!formData.isPregnant,
+          smokingStatus: !!formData.isSmoking,
+          isSmoking: !!formData.isSmoking,
+        }, { merge: true });
+      }
       
       console.log('Appointment saved with data:', appointmentData);
       
@@ -399,11 +518,11 @@ const Appointment = () => {
                 <textarea name="conditionNotes" placeholder="Medical Condition Notes" value={formData.conditionNotes} onChange={handleChange} rows="2" className="w-full px-4 py-2 border border-gray-300 rounded-lg"></textarea>
                 <div className="flex space-x-6">
                   <label className="flex items-center space-x-2 text-sm text-gray-700 cursor-pointer">
-                    <input type="checkbox" name="isPregnant" onChange={handleChange} className="w-4 h-4 text-indigo-600 rounded" />
+                    <input type="checkbox" name="isPregnant" checked={formData.isPregnant} onChange={handleChange} className="w-4 h-4 text-indigo-600 rounded" />
                     <span>Tick if Pregnant</span>
                   </label>
                   <label className="flex items-center space-x-2 text-sm text-gray-700 cursor-pointer">
-                    <input type="checkbox" name="isSmoking" onChange={handleChange} className="w-4 h-4 text-indigo-600 rounded" />
+                    <input type="checkbox" name="isSmoking" checked={formData.isSmoking} onChange={handleChange} className="w-4 h-4 text-indigo-600 rounded" />
                     <span>Tick if Smoker</span>
                   </label>
                 </div>
