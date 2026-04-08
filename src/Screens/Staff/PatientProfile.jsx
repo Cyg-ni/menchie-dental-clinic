@@ -15,6 +15,8 @@ import "./Layout.css";
 import "./AddingPatientModal.css";
 import "./Odontogram.css";
 
+const EMPTY_PROFILE_IMAGE = "/empty%20profile.jpg";
+
 const appointmentsCollectionRef = collection(db, "appointments");
 
 // --- ICON COMPONENT ---
@@ -39,16 +41,6 @@ const TABS = [
   { key: "next", label: "Next Treatment" },
   { key: "medical", label: "Medical Record" }
 ];
-
-const imagePlaceholder = (
-  <div className="image-placeholder" style={{ width: 76, height: 76 }}>
-    <svg width="76" height="76" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="4" width="18" height="14" rx="2"/>
-      <path d="M7 18l3-3"/>
-      <path d="M14 18l3-3"/>
-    </svg>
-  </div>
-);
 
 // --- HELPER FUNCTIONS ---
 const formatAppointmentDate = (dateStr) => {
@@ -664,7 +656,7 @@ export default function PatientProfile() {
       <button className="icon-btn" onClick={(e) => { e.stopPropagation(); setMenuOpen(o => !o); }}> ≡ </button>
       <div className="brand-left"> <div className="brand-logo" /> <div className="brand-name">Menchie's Dental Clinic</div> </div>
       <div className="user">
-          <div className="avatar" style={{ backgroundImage: currentUser?.profilePictureUrl ? `url(${currentUser.profilePictureUrl})` : 'none', backgroundSize: 'cover' }} />
+          <div className="avatar" style={{ backgroundImage: `url(${currentUser?.profilePictureUrl || EMPTY_PROFILE_IMAGE})` }} />
           <div className="user-meta">
             <div className="user-name">{currentUser ? `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() || currentUser.username : "Loading..."}</div>
             <div className="user-role">{currentUser?.role ? currentUser.role.replace('_', ' ').toUpperCase() : "..."}</div>
@@ -685,7 +677,19 @@ export default function PatientProfile() {
         <div style={{ padding: 28, maxWidth: 1300, margin: 'auto' }}>
         <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
           <button onClick={() => navigate("/patient-list")} className="btn-secondary" style={{ marginRight: 36 }}>⟵ Back to List</button>
-          {patient.image ? ( <img src={patient.image} alt="profile" style={{ width: 76, height: 76, borderRadius: 50, border: '2px solid #ebebeb', objectFit: 'cover' }}/> ) : imagePlaceholder}
+          <img
+            src={patient.image || EMPTY_PROFILE_IMAGE}
+            alt={patient.image ? 'profile' : 'empty profile'}
+            style={{
+              width: 96,
+              height: 96,
+              borderRadius: '50%',
+              border: '2px solid #ebebeb',
+              objectFit: 'cover',
+              backgroundColor: '#f5f5f5',
+              display: 'block'
+            }}
+          />
           <div> <h2 style={{ margin: 0, color: '#333' }}>{patient.name || 'N/A'}</h2> <div style={{ color: '#555', marginTop: 4 }}>{patient.contactInfo || patient.phone_num}</div> </div>
           <div style={{ flex: 1 }} />
         </div>

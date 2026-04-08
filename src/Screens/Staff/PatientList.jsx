@@ -8,6 +8,7 @@ import "./Layout.css";
 import "./PatientList.css";
 import "./AddingPatientModal.css";
 import logoImage from "./Images/logo.webp";
+const EMPTY_PROFILE_IMAGE = "/empty%20profile.jpg";
 // Assuming AddingPatientModal.jsx is in the same directory as PatientList.jsx
 import AddingPatientModal from './AddingPatientModal.jsx'; 
 
@@ -58,12 +59,12 @@ const Icon = ({ name, active }) => {
 };
 
 const imagePlaceholder = (
-    <div className="image-placeholder">
-        <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="4" width="18" height="14" rx="2"/>
-            <path d="M7 18l3-3"/>
-            <path d="M14 18l3-3"/>
-        </svg>
+    <div className="image-placeholder" style={{ width: 160, height: 160, borderRadius: '50%', overflow: 'hidden' }}>
+        <img
+            src={EMPTY_PROFILE_IMAGE}
+            alt="Empty profile"
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+        />
     </div>
 );
 
@@ -151,7 +152,7 @@ function PatientProfileModal({ open, patient, onClose, onNavigate }) { // ðŸ’¡ï¸
                             <div className="section-title">Patient Picture</div>
                             <div className="image-upload-area">
                                 {patient.image
-                                    ? <img src={patient.image} alt="Patient" className="preview-image" />
+                                    ? <img src={patient.image} alt="Patient" className="preview-image" style={{ width: 160, height: 160, borderRadius: '50%' }} />
                                     : imagePlaceholder}
                             </div>
                             <div style={{marginTop: '20px', textAlign: 'center'}}>
@@ -355,7 +356,7 @@ export default function PatientList() {
                         <div className="brand-name">Menchie's Dental Clinic</div>
                     </div>
                     <div className="user">
-                        <div className="avatar" style={{ backgroundImage: currentUser?.profilePictureUrl ? `url(${currentUser.profilePictureUrl})` : 'none', backgroundSize: 'cover' }} />
+                        <div className="avatar" style={{ backgroundImage: `url(${currentUser?.profilePictureUrl || EMPTY_PROFILE_IMAGE})` }} />
                         <div className="user-meta">
                             <div className="user-name">{currentUser ? `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() || currentUser.username : "Loading..."}</div>
                             <div className="user-role">{currentUser?.role ? currentUser.role.replace('_', ' ').toUpperCase() : "..."}</div>

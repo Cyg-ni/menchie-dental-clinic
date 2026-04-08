@@ -24,6 +24,8 @@ import { db } from '../../firebase';
 import CalendarView from './AppointmentCalendar.jsx';
 import { logActivity, getCurrentUserId } from '../../utils/activityLogger';
 
+const EMPTY_PROFILE_IMAGE = "/empty%20profile.jpg";
+
 const appointmentsCol = collection(db, "appointments");
 
 const DIRECT_FORM_INITIAL = {
@@ -1003,7 +1005,7 @@ const ScheduleDashboard = () => {
         </div>
 
         <div className="user">
-          <div className="avatar" style={{ backgroundImage: currentUser?.profilePictureUrl ? `url(${currentUser.profilePictureUrl})` : 'none', backgroundSize: 'cover' }} />
+          <div className="avatar" style={{ backgroundImage: `url(${currentUser?.profilePictureUrl || EMPTY_PROFILE_IMAGE})` }} />
           <div className="user-meta">
             <div className="user-name">{currentUser ? `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() || currentUser.username : "Loading..."}</div>
             <div className="user-role">{currentUser?.role ? currentUser.role.replace('_', ' ').toUpperCase() : "..."}</div>

@@ -7,6 +7,8 @@ import "./Layout.css";
 import "./Settings.css";
 import logoImage from "./Images/logo.webp";
 
+const EMPTY_PROFILE_IMAGE = "/empty%20profile.jpg";
+
 const Icon = ({ name }) => {
   switch (name) {
     case "dashboard":
@@ -239,7 +241,7 @@ const Settings = () => {
         </div>
 
         <div className="user">
-          <div className="avatar" style={{ backgroundImage: currentUserData?.profilePictureUrl ? `url(${currentUserData.profilePictureUrl})` : 'none', backgroundSize: 'cover' }} />
+          <div className="avatar" style={{ backgroundImage: `url(${currentUserData?.profilePictureUrl || EMPTY_PROFILE_IMAGE})` }} />
           <div className="user-meta">
             <div className="user-name">{settings.profile.fullName}</div>
             <div className="user-role">{settings.profile.role && settings.profile.role.replace('_', ' ').toUpperCase()}</div>

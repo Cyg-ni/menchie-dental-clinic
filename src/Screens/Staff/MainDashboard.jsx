@@ -13,6 +13,8 @@ import { getMonthDummyData, getWeekDummyData, getYearDummyData } from "../../uti
 import logoImage from "./Images/logo.webp";
 import patientImage from "./Images/patienticon.png";
 
+const EMPTY_PROFILE_IMAGE = "/empty%20profile.jpg";
+
 // Define collection references
 const appointmentsCollectionRef = collection(db, "appointments");
 const patientsCollectionRef = collection(db, "patients");
@@ -464,7 +466,7 @@ const MainDashboard = () => {
         </div>
 
         <div className="user">
-          <div className="avatar" style={{ backgroundImage: currentUser?.profilePictureUrl ? `url(${currentUser.profilePictureUrl})` : 'none', backgroundSize: 'cover' }} />
+          <div className="avatar" style={{ backgroundImage: `url(${currentUser?.profilePictureUrl || EMPTY_PROFILE_IMAGE})` }} />
           <div className="user-meta">
             <div className="user-name">{currentUser ? `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() || currentUser.username : "Loading..."}</div>
             <div className="user-role">{currentUser?.role ? currentUser.role.replace('_', ' ').toUpperCase() : "..."}</div>
@@ -573,7 +575,7 @@ const MainDashboard = () => {
                 <div style={{ fontSize: '13px', color: '#666', display: 'flex', justifyContent: 'space-between' }}>
                   <span>Est. Total Volume ({predictiveTimeframe}):</span>
                   <span style={{ fontWeight: '700', color: '#A78BFA' }}>
-                    {predictiveData.reduce((acc, curr) => acc + (curr.actual || curr.predicted || 0), 0)} patients
+                    {Math.round(predictiveData.reduce((acc, curr) => acc + (curr.actual || curr.predicted || 0), 0))} patients
                   </span>
                 </div>
               </div>

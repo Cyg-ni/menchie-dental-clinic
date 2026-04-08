@@ -196,23 +196,22 @@
 }
 
 .image-placeholder {
-  width: 100%;
-  max-width: 320px;
-  height: 200px;
+  width: clamp(120px, 16vw, 160px);
+  height: clamp(120px, 16vw, 160px);
   background: #f5f5f5;
-  border-radius: 10px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   border: 2px dashed #d0d0d0;
+  overflow: hidden;
 }
 
 .preview-image {
-  width: 100%;
-  max-width: 320px;
-  height: 200px;
+  width: clamp(120px, 16vw, 160px);
+  height: clamp(120px, 16vw, 160px);
   object-fit: cover;
-  border-radius: 10px;
+  border-radius: 50%;
 }
 
 .select-image-btn {
