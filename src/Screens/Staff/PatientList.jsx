@@ -468,6 +468,7 @@ export default function PatientList() {
                             onClose={closeModal} 
                             // This prop is used by the modal's handleSubmit to refresh the patient list after a successful save
                             onSuccess={getPatients} 
+                            patientToEdit={editPatient}
                         />
                     )}
                     

@@ -30,15 +30,40 @@ const parseName = (fullName) => {
     };
 };
 
+const normalizeListField = (value) => {
+    if (Array.isArray(value)) {
+        return value.filter(Boolean).map(item => String(item).trim()).filter(Boolean);
+    }
+
+    if (typeof value === 'string') {
+        return value.split(',').map(item => item.trim()).filter(Boolean);
+    }
+
+    return [];
+};
+
+const normalizeMedicalHistory = (medicalHistory) => {
+    if (!medicalHistory || typeof medicalHistory !== 'object') {
+        return NEW_PATIENT_TEMPLATE.medicalHistory;
+    }
+
+    return {
+        ...NEW_PATIENT_TEMPLATE.medicalHistory,
+        ...medicalHistory,
+        Allergies: normalizeListField(medicalHistory.Allergies),
+        currentMedications: normalizeListField(medicalHistory.currentMedications),
+    };
+};
+
 // Utility function to generate the initial form state
 const getInitialFormData = (patient) => {
     
     // Medical History fields for initialization
-    const medicalHistory = patient?.medicalHistory || NEW_PATIENT_TEMPLATE.medicalHistory;
-    
+    const medicalHistory = normalizeMedicalHistory(patient?.medicalHistory);
+
     // Convert arrays back into single comma-separated strings for input fields
-    const allergiesArray = medicalHistory.Allergies || [];
-    const currentMedsArray = medicalHistory.currentMedications || [];
+    const allergiesArray = normalizeListField(medicalHistory.Allergies);
+    const currentMedsArray = normalizeListField(medicalHistory.currentMedications);
 
     return {
         // ID is crucial for editing, but not part of the form fields
@@ -150,7 +175,7 @@ const AddingPatientModal = ({ onClose, onSuccess, patientToEdit }) => {
 
             // --- UPDATED MEDICAL HISTORY ---
             medicalHistory: {
-                ...(isEditing ? patientToEdit.medicalHistory : NEW_PATIENT_TEMPLATE.medicalHistory),
+                ...(isEditing ? normalizeMedicalHistory(patientToEdit?.medicalHistory) : NEW_PATIENT_TEMPLATE.medicalHistory),
                 Allergies: newAllergiesArray, // Save the parsed array
                 conditionNotes: formData.conditionNotes || "", // Save Condition Notes
                 currentMedications: newMedsArray, // Save Current Medications array
@@ -200,7 +225,7 @@ const AddingPatientModal = ({ onClose, onSuccess, patientToEdit }) => {
     };
 
     // --- RENDER ---
-    const modalTitle = isEditing ? `Edit Patient: ${formData.firstName} ${formData.lastName}` : "Add New Patient";
+    const modalTitle = isEditing ? `Edit Profile: ${formData.firstName} ${formData.lastName}` : "Add New Patient";
 
     return (
         // Added onClick to overlay to close the modal if clicked outside
@@ -415,7 +440,7 @@ const AddingPatientModal = ({ onClose, onSuccess, patientToEdit }) => {
                                 {/* --- 5. Actions --- */}
                                 <div className="form-actions">
                                     <button type="submit" className="btn-primary">
-                                        {isEditing ? 'Save Changes' : 'Add User'}
+                                        {isEditing ? 'Save Profile Changes' : 'Add Patient'}
                                     </button>
                                     <button 
                                         type="button" 
