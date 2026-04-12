@@ -3,6 +3,15 @@
   padding: 0;
   max-width: none;
   text-align: initial;
+  zoom: var(--ui-scale, 1);
+}
+
+@supports not (zoom: 1) {
+  #root {
+    transform: scale(var(--ui-scale, 1));
+    transform-origin: top center;
+    width: calc(100% / var(--ui-scale, 1));
+  }
 }
 
 .logo {

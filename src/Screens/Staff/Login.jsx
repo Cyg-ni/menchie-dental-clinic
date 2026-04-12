@@ -5,6 +5,15 @@ import { collection, getDocs, query, where, doc, updateDoc, Timestamp } from 'fi
 import "./Login.css"
 import logoImage from "./Images/logo.webp";
 
+const withTimeout = (promise, timeoutMs, timeoutMessage) => {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) =>
+            setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs)
+        ),
+    ]);
+};
+
 
 const Login = () => {
     const navigate = useNavigate();
@@ -26,7 +35,11 @@ const Login = () => {
         try {
             const usersCollectionRef = collection(db, "users");
             const q = query(usersCollectionRef, where("username", "==", username));
-            const querySnapshot = await getDocs(q);
+            const querySnapshot = await withTimeout(
+                getDocs(q),
+                10000,
+                "Login request timed out. Please check your internet connection."
+            );
 
             if (querySnapshot.empty) {
                 setErrorMessage("Invalid username or password.");
@@ -60,17 +73,20 @@ const Login = () => {
             localStorage.setItem("staffLastName", user.lastName || "");
             localStorage.setItem("staffProfilePictureUrl", user.profilePictureUrl || "");
 
-            await updateDoc(doc(db, "users", userId), {
+            navigate("/dashboard");
+
+            // Non-blocking: if this write is slow/fails, user should still be able to proceed.
+            updateDoc(doc(db, "users", userId), {
                 lastLoginAt: Timestamp.fromDate(new Date()),
                 lastActivityAt: Timestamp.fromDate(new Date()),
                 lastActivityAction: 'Login',
                 updatedAt: new Date().toISOString()
+            }).catch((error) => {
+                console.warn("Unable to update login activity:", error);
             });
-
-            navigate("/dashboard");
         } catch (error) {
             console.error("Error logging in:", error);
-            setErrorMessage("An error occurred. Please try again.");
+            setErrorMessage(error?.message || "An error occurred. Please try again.");
         } finally {
             setLoading(false);
         }

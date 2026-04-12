@@ -752,26 +752,19 @@ export default function PatientProfile() {
             {(() => {
               let shadedStatus = {};
               let sectionTitle = "Odontogram (Permanent Record)";
+                const selectedTreatmentCondition = selectedTreatment?.condition || '';
+                const selectedTreatmentProcedure = selectedTreatment?.procedure || selectedTreatment?.treatment || '';
 
               // ✨ FIX: Context-Aware Odontogram
               // If a specific past treatment is selected, show details for THAT treatment only.
               if (selectedTreatment) {
                   sectionTitle = "Odontogram (Treatment Detail)";
-                  const cond = selectedTreatment.condition || '';
+                  const cond = selectedTreatmentCondition;
                   
-                  // First, check all teeth in the permanent record for missing status
-                  // and include them in shadedStatus if they're in the selected treatment
-                  const permanentState = patient.currentToothState || {};
-                  const selectedTeethSet = new Set((selectedTreatment.teeth || []).map(String));
-                  
+                  // When viewing a timeline record, show the condition stored in that record
+                  // for the selected teeth so historical values are not overridden by current state.
                   selectedTreatment.teeth.forEach(t => {
-                      const toothKey = String(t);
-                      // Check if this tooth is permanently marked as missing
-                      if (permanentState[t] === 'missing' || permanentState[toothKey] === 'missing') {
-                          shadedStatus[t] = 'missing';  // Preserve missing status
-                      } else {
-                          shadedStatus[t] = cond;  // Otherwise use the treatment condition
-                      }
+                    shadedStatus[t] = cond || 'healthy';
                   });
               } else {
                   // Default: Show the current permanent state (Global record)
@@ -788,7 +781,7 @@ export default function PatientProfile() {
                   return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 15, background: "#fff", borderRadius: 10, boxShadow: "0 2px 24px #eee", padding: 22, maxWidth: '100%', overflowX: 'auto' }}>
                   <div style={{ fontWeight: 700, color: '#223245', fontSize: 18 }}> {sectionTitle} </div>
-                  <Odontogram selectedTeeth={timelineSelectedTeeth} selectable={false} toothStates={shadedStatus} currentTool={'none'} onSelectionChange={()=>{}} treatmentType={form.procedure} defaultCondition={form.condition} />
+                  <Odontogram selectedTeeth={timelineSelectedTeeth} selectable={false} toothStates={shadedStatus} currentTool={'none'} onSelectionChange={()=>{}} treatmentType={selectedTreatmentProcedure || form.procedure} defaultCondition={selectedTreatmentCondition || form.condition} />
                   
                   {form.isModelOpen && (
                       <div className="odontogram-modal-backdrop" onClick={() => setForm(f => ({ ...f, isModelOpen: false }))} role="presentation">
@@ -806,7 +799,7 @@ export default function PatientProfile() {
                               <div className="odontogram-modal-body">
                                   {/* Container required for rendering canvas */}
                                   <div style={{ width: '100%', height: '500px' }}>
-                                      <TeethModelViewer selectedTeeth={timelineSelectedTeeth} toothStates={shadedStatus} defaultTreatment={form.procedure} defaultCondition={selectedTreatment?.condition} />
+                                    <TeethModelViewer selectedTeeth={timelineSelectedTeeth} toothStates={shadedStatus} defaultTreatment={selectedTreatmentProcedure || form.procedure} defaultCondition={selectedTreatmentCondition || form.condition} />
                                   </div>
                               </div>
                               <div className="odontogram-modal-footer"> <button type="button" className="modal-close-secondary" onClick={() => setForm(f => ({ ...f, isModelOpen: false }))}> Close </button> </div>

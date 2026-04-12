@@ -1,13 +1,16 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { db } from "../../firebase";
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { useCurrentUser } from "../../hooks/useCurrentUser";
 import "./Layout.css";
 import "./Settings.css";
 import logoImage from "./Images/logo.webp";
+import CalendarView, { TIME_SLOTS } from "./AppointmentCalendar.jsx";
+import { applyAccessibilityPreferences } from "../../utils/accessibilityPreferences";
 
 const EMPTY_PROFILE_IMAGE = "/empty%20profile.jpg";
+const CLINIC_SETTINGS_DOC = doc(db, "clinicConfig", "scheduleSettings");
 
 const Icon = ({ name }) => {
   switch (name) {
@@ -64,6 +67,7 @@ const DEFAULT_SETTINGS = {
     endHour: "18:00",
     autoAssign: true,
     defaultChair: "Chair A",
+    scheduleBlocks: [],
   },
   notifications: {
     email: true,
@@ -134,6 +138,9 @@ const Settings = () => {
   const menuRef = useRef(null);
   const [menuOpen, setMenuOpen] = useState(true);
   const [settings, setSettings] = useState(() => loadSettings());
+  const [blockDate, setBlockDate] = useState("");
+  const [blockTime, setBlockTime] = useState("all-day");
+  const [blockReason, setBlockReason] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
   const { currentUser: currentUserData } = useCurrentUser();
 
@@ -170,28 +177,64 @@ const Settings = () => {
     return () => clearTimeout(timeout);
   }, [settings]);
 
+  useEffect(() => {
+    const loadClinicSettings = async () => {
+      try {
+        const snapshot = await getDoc(CLINIC_SETTINGS_DOC);
+        if (!snapshot.exists()) return;
+
+        const remote = snapshot.data() || {};
+        setSettings((prev) => ({
+          ...prev,
+          clinic: {
+            ...prev.clinic,
+            timezone: remote.timezone || prev.clinic.timezone,
+            workWeek: remote.workWeek || prev.clinic.workWeek,
+            startHour: remote.startHour || prev.clinic.startHour,
+            endHour: remote.endHour || prev.clinic.endHour,
+            scheduleBlocks: Array.isArray(remote.scheduleBlocks) ? remote.scheduleBlocks : prev.clinic.scheduleBlocks,
+          },
+        }));
+      } catch (error) {
+        console.warn("Could not load clinic schedule settings:", error);
+      }
+    };
+
+    loadClinicSettings();
+  }, []);
+
+  useEffect(() => {
+    const persistClinicSettings = async () => {
+      try {
+        await setDoc(
+          CLINIC_SETTINGS_DOC,
+          {
+            timezone: settings.clinic.timezone,
+            workWeek: settings.clinic.workWeek,
+            startHour: settings.clinic.startHour,
+            endHour: settings.clinic.endHour,
+            scheduleBlocks: settings.clinic.scheduleBlocks || [],
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      } catch (error) {
+        console.warn("Failed to persist clinic settings:", error);
+      }
+    };
+
+    persistClinicSettings();
+  }, [
+    settings.clinic.timezone,
+    settings.clinic.workWeek,
+    settings.clinic.startHour,
+    settings.clinic.endHour,
+    settings.clinic.scheduleBlocks,
+  ]);
+
   // Accessibility: Apply high contrast, large text, reduce motion
   useEffect(() => {
-    const root = document.documentElement;
-    if (settings.accessibility.highContrast) {
-      root.style.setProperty('--contrast', '#222');
-      root.style.setProperty('--background', '#fff');
-    } else {
-      root.style.removeProperty('--contrast');
-      root.style.removeProperty('--background');
-    }
-    if (settings.accessibility.largeText) {
-      root.style.fontSize = '118%';
-    } else {
-      root.style.fontSize = '';
-    }
-    if (settings.accessibility.reduceMotion) {
-      root.style.setProperty('scroll-behavior', 'auto');
-      root.style.setProperty('transition', 'none');
-    } else {
-      root.style.removeProperty('scroll-behavior');
-      root.style.removeProperty('transition');
-    }
+    applyAccessibilityPreferences(settings.accessibility);
   }, [settings.accessibility]);
 
   useEffect(() => {
@@ -218,6 +261,55 @@ const Settings = () => {
       ["mdc-settings", "patients", "currentUser", "authToken"].forEach((key) => window.localStorage.removeItem(key));
     }
     navigate("/", { replace: true });
+  };
+
+  const addScheduleBlock = () => {
+    if (!blockDate) {
+      alert("Please choose a date to block.");
+      return;
+    }
+
+    const normalizedReason = blockReason.trim();
+    const candidate = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+      date: blockDate,
+      time: blockTime,
+      reason: normalizedReason,
+      createdAt: new Date().toISOString(),
+    };
+
+    const duplicateExists = (settings.clinic.scheduleBlocks || []).some(
+      (entry) => entry.date === candidate.date && entry.time === candidate.time
+    );
+
+    if (duplicateExists) {
+      alert("This date/time is already blocked.");
+      return;
+    }
+
+    updateSetting("clinic", "scheduleBlocks", [...(settings.clinic.scheduleBlocks || []), candidate]);
+    setBlockReason("");
+  };
+
+  const getBlockedTimesForDate = (dateString) => {
+    if (!dateString) return [];
+    return (settings.clinic.scheduleBlocks || [])
+      .filter((entry) => entry.date === dateString && entry.time && entry.time !== "all-day")
+      .map((entry) => entry.time);
+  };
+
+  const getBlockedDates = () => {
+    return (settings.clinic.scheduleBlocks || [])
+      .filter((entry) => entry.time === "all-day")
+      .map((entry) => entry.date);
+  };
+
+  const removeScheduleBlock = (blockId) => {
+    updateSetting(
+      "clinic",
+      "scheduleBlocks",
+      (settings.clinic.scheduleBlocks || []).filter((entry) => entry.id !== blockId)
+    );
   };
 
   return (
@@ -407,6 +499,16 @@ const Settings = () => {
                 />
               </label>
             </div>
+
+            <div className="clinic-signout">
+              <div className="clinic-signout-copy">
+                <h3>Sign out</h3>
+                <p>Quickly log out from this device.</p>
+              </div>
+              <button type="button" className="ghost-btn" onClick={handleLogout}>
+                Logout and return to login
+              </button>
+            </div>
           </article>
 
           <article className="settings-card">
@@ -473,19 +575,81 @@ const Settings = () => {
             </div>
           </article>
 
-          <article className="settings-card logout-card">
+          <article className="settings-card schedule-block-card">
             <header className="card-head">
               <div>
-                <h2>Sign out</h2>
-                <p>Log out of the clinic console on this device.</p>
+                <h2>Schedule Blocking</h2>
+                <p>Choose a date directly from the calendar and block the whole day or a specific slot.</p>
               </div>
             </header>
-            <p className="logout-copy">
-              You’ll immediately return to the secure login screen. We’ll also clear local data such as cached patient lists and preferences so that the next staff member can sign in safely.
-            </p>
-            <button type="button" className="logout-btn" onClick={handleLogout}>
-              Logout and return to login
-            </button>
+
+            <div className="schedule-blocking">
+              <div className="schedule-blocking-calendar-wrap">
+                <CalendarView
+                  selectedDate={blockDate}
+                  onDateSelect={(dateValue) => {
+                    setBlockDate(dateValue);
+                  }}
+                  bookedTimes={[]}
+                  blockedTimes={getBlockedTimesForDate(blockDate)}
+                  blockedDates={getBlockedDates()}
+                  onSlotSelect={(slot) => setBlockTime(slot)}
+                  selectedSlot={blockTime === "all-day" ? "" : blockTime}
+                />
+              </div>
+
+              <div className="block-actions">
+                <button
+                  type="button"
+                  className={`block-mode-btn ${blockTime === "all-day" ? "active" : ""}`}
+                  onClick={() => setBlockTime("all-day")}
+                >
+                  All day
+                </button>
+                {TIME_SLOTS.map((slot) => (
+                  <button
+                    type="button"
+                    key={slot}
+                    className={`block-mode-btn ${blockTime === slot ? "active" : ""}`}
+                    onClick={() => setBlockTime(slot)}
+                  >
+                    {slot}
+                  </button>
+                ))}
+              </div>
+
+              <label className="form-control full">
+                <span>Reason (Optional)</span>
+                <input
+                  type="text"
+                  value={blockReason}
+                  onChange={(event) => setBlockReason(event.target.value)}
+                  placeholder="Conference, leave, emergency"
+                />
+              </label>
+
+              <button type="button" className="ghost-btn" onClick={addScheduleBlock}>Add Block</button>
+
+              <div className="block-list">
+                {(settings.clinic.scheduleBlocks || []).length === 0 ? (
+                  <div className="block-empty">No blocked schedules yet.</div>
+                ) : (
+                  [...settings.clinic.scheduleBlocks]
+                    .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
+                    .map((entry) => (
+                      <div key={entry.id} className="block-item">
+                        <div>
+                          <div className="block-main">{entry.date} • {entry.time === 'all-day' ? 'All day' : entry.time}</div>
+                          {entry.reason ? <div className="block-reason">{entry.reason}</div> : null}
+                        </div>
+                        <button type="button" className="block-remove" onClick={() => removeScheduleBlock(entry.id)}>
+                          Remove
+                        </button>
+                      </div>
+                    ))
+                )}
+              </div>
+            </div>
           </article>
         </section>
       </main>

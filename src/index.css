@@ -2,6 +2,7 @@
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
+  --app-font-scale: 1;
 
   color-scheme: light dark;
   color: rgba(255, 255, 255, 0.87);
@@ -11,6 +12,54 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+html {
+  font-size: calc(16px * var(--app-font-scale));
+}
+
+html.app-large-text {
+  --app-font-scale: 1.18;
+}
+
+/* Global typography scaling for the accessibility Large Text option. */
+html.app-large-text :is(
+  h1, h2, h3, h4, h5, h6,
+  p, span, label, a, li,
+  td, th, small, strong, em,
+  button, input, select, textarea,
+  .title, .subtitle, .user-name, .user-role,
+  .tile-label, .tile-count, .tooth-label,
+  .notif-title, .notif-time, .notif-date,
+  .calendar-weekday, .calendar-day, .time-slot
+) {
+  font-size: 1.18em !important;
+}
+
+html.app-reduce-motion *,
+html.app-reduce-motion *::before,
+html.app-reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+html.app-high-contrast {
+  filter: contrast(1.08);
+}
+
+html.app-high-contrast body {
+  background: #ffffff;
+  color: #0f172a;
+}
+
+html.app-high-contrast :is(.card, .settings-card, .toggle, .calendar-day, .time-slot, input, select, textarea, button) {
+  border-color: #111827 !important;
+}
+
+html.app-high-contrast :is(.tile-label, .notif-title, .notif-time, .notif-date, .toggle-description) {
+  color: #1f2937 !important;
 }
 
 a {

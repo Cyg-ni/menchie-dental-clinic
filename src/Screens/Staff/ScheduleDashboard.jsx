@@ -25,6 +25,7 @@ import CalendarView from './AppointmentCalendar.jsx';
 import { logActivity, getCurrentUserId } from '../../utils/activityLogger';
 
 const EMPTY_PROFILE_IMAGE = "/empty%20profile.jpg";
+const CLINIC_SETTINGS_DOC = doc(db, "clinicConfig", "scheduleSettings");
 
 const appointmentsCol = collection(db, "appointments");
 
@@ -104,6 +105,49 @@ const SERVICE_COLOR_MAP = {
     'tooth removal': 'rep-red',
     'teeth whitening': 'rep-orange'
 };
+
+  const OTHER_NOT_SURE_COLOR = '#2D6A73';
+
+  const normalizeServiceCategory = (serviceType) => {
+    const raw = String(serviceType || '').trim();
+    const normalized = raw.toLowerCase();
+
+    if (!raw) return 'Other / Not Sure';
+
+    if (normalized.includes('check-up') || normalized.includes('checkup') || normalized.includes('clean')) {
+      return 'Routine Check-up & Cleaning';
+    }
+
+    if (normalized.includes('whitening') || normalized.includes('cosmetic')) {
+      return 'Teeth Whitening (Cosmetic)';
+    }
+
+    if (normalized.includes('implant')) {
+      return 'Dental Implants Consultation';
+    }
+
+    if (normalized.includes('emergency') || normalized.includes('pain') || normalized.includes('injury')) {
+      return 'Emergency Visit (Pain/Injury)';
+    }
+
+    if (normalized.includes('orthodont') || normalized.includes('align') || normalized.includes('retainer')) {
+      return 'Orthodontics Consultation';
+    }
+
+    if (raw in SERVICE_DURATIONS) {
+      if (raw === 'Align teeth' || raw === 'Apply Retainer') {
+        return 'Orthodontics Consultation';
+      }
+      if (raw === 'tooth cleaning') {
+        return 'Routine Check-up & Cleaning';
+      }
+      if (raw === 'teeth whitening') {
+        return 'Teeth Whitening (Cosmetic)';
+      }
+    }
+
+    return 'Other / Not Sure';
+  };
 
 
 // Helper function to format total seconds into M:SS or X hr Y mins
@@ -291,6 +335,7 @@ const ScheduleDashboard = () => {
   const [rescheduleSelectedSlot, setRescheduleSelectedSlot] = useState('');
   const [selectedWaitingAppointmentId, setSelectedWaitingAppointmentId] = useState('');
   const [showDirectScheduleModal, setShowDirectScheduleModal] = useState(false);
+  const [scheduleBlocks, setScheduleBlocks] = useState([]);
   const [directScheduleDate, setDirectScheduleDate] = useState(todayISO);
   const [directScheduleBookedTimes, setDirectScheduleBookedTimes] = useState([]);
   const [directScheduleLoading, setDirectScheduleLoading] = useState(false);
@@ -332,6 +377,42 @@ const ScheduleDashboard = () => {
   }, []); 
 
   useEffect(() => {
+    const unsubscribe = onSnapshot(
+      CLINIC_SETTINGS_DOC,
+      (snapshot) => {
+        const data = snapshot.exists() ? snapshot.data() : {};
+        setScheduleBlocks(Array.isArray(data?.scheduleBlocks) ? data.scheduleBlocks : []);
+      },
+      (error) => {
+        console.warn('Unable to load clinic schedule blocks:', error);
+        setScheduleBlocks([]);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  const isBlockedSchedule = React.useCallback((dateString, timeString) => {
+    if (!dateString) return false;
+    return scheduleBlocks.some((entry) =>
+      entry?.date === dateString && (entry?.time === 'all-day' || entry?.time === timeString)
+    );
+  }, [scheduleBlocks]);
+
+  const blockedAllDayDates = useMemo(() => {
+    return scheduleBlocks
+      .filter((entry) => entry?.date && entry?.time === 'all-day')
+      .map((entry) => entry.date);
+  }, [scheduleBlocks]);
+
+  const getBlockedTimesForDate = React.useCallback((dateString) => {
+    if (!dateString) return [];
+    return scheduleBlocks
+      .filter((entry) => entry?.date === dateString && entry?.time && entry.time !== 'all-day')
+      .map((entry) => entry.time);
+  }, [scheduleBlocks]);
+
+  useEffect(() => {
     const pingAudio = new Audio('/ping.mp3');
     pingAudio.preload = 'auto';
     pingAudioRef.current = pingAudio;
@@ -356,8 +437,19 @@ const ScheduleDashboard = () => {
 
   // --- Serving Patient Tracker ---
   const servingPatient = useMemo(() => {
-      // Find the one appointment that is currently marked as 'Serving'
-      const serving = appointments.find(app => app.status?.isComplete === 'Serving');
+      // Keep Serving Now in sync with the currently selected calendar date.
+      const servingForSelectedDate = appointments
+        .filter(app =>
+        app.status?.isComplete === 'Serving' &&
+        app.scheduledDate === selectedDate
+        )
+        .sort((a, b) => {
+        const timeA = a.updatedAt?.toMillis ? a.updatedAt.toMillis() : 0;
+        const timeB = b.updatedAt?.toMillis ? b.updatedAt.toMillis() : 0;
+        return timeB - timeA;
+        });
+
+      const serving = servingForSelectedDate[0];
       if (serving) {
           return {
               id: serving.id,
@@ -367,7 +459,7 @@ const ScheduleDashboard = () => {
           };
       }
       return null;
-  }, [appointments]);
+    }, [appointments, selectedDate]);
 
 
   // --- Waiting Room Logic (Live Countdown Calculation) ---
@@ -455,25 +547,30 @@ const ScheduleDashboard = () => {
 
   // --- New: Handler to move patient to Serving status ---
   const handleStartServing = async () => {
-    const waitingListPatients = waitingList;
     if (servingPatient) {
         alert(`${servingPatient.name} is already being served. Release them first.`);
         return;
     }
-    
-    if (waitingListPatients.length === 0) {
+
+    if (waitingList.length === 0) {
       alert("Waiting room is empty.");
       return;
     }
 
-    const nextPatient = waitingListPatients[0];
-    // Find the full appointment object in the main appointments list to get the ID
-    const nextAppointmentObject = appointments.find(a => a.id === nextPatient.id);
+    const targetAppointment = actionTargetAppointment || nextAppointmentObject;
+    if (!targetAppointment) {
+      alert('No appointment is available to start.');
+      return;
+    }
 
-    if (!nextAppointmentObject) return;
+    const stillInQueue = waitingList.some((item) => item.id === targetAppointment.id);
+    if (!stillInQueue) {
+      alert('Selected appointment is no longer in the waiting room.');
+      return;
+    }
 
     try {
-      const apptRef = doc(db, "appointments", nextAppointmentObject.id);
+      const apptRef = doc(db, "appointments", targetAppointment.id);
       
       await updateDoc(apptRef, {
         'status.isComplete': 'Serving', 
@@ -482,7 +579,7 @@ const ScheduleDashboard = () => {
 
       await playPingSound();
 
-      console.log(`Patient ${nextPatient.name} marked as serving.`);
+      console.log(`Patient ${targetAppointment.patientFullName || 'Patient'} marked as serving.`);
 
     } catch (error) {
       console.error("Error setting patient as serving:", error);
@@ -584,6 +681,7 @@ const ScheduleDashboard = () => {
     if (!selectedAppointment) { alert('No appointment to reschedule.'); return; }
     if (!rescheduleDate || !(rescheduleSelectedSlot || rescheduleTime)) { alert('Please choose date and time.'); return; }
     const chosenTime = rescheduleSelectedSlot || rescheduleTime;
+    if (isBlockedSchedule(rescheduleDate, chosenTime)) { alert('This schedule is blocked in clinic settings. Please choose another slot.'); return; }
     const newTimeObj = getTimeObject(rescheduleDate, chosenTime);
     if (!newTimeObj || isNaN(newTimeObj.getTime())) { alert('Invalid date/time.'); return; }
     if (newTimeObj.getTime() < Date.now()) { alert('Cannot reschedule to a past time. Please choose a future slot.'); return; }
@@ -741,6 +839,11 @@ const ScheduleDashboard = () => {
       return;
     }
 
+    if (isBlockedSchedule(directScheduleDate, directScheduleSelectedSlot)) {
+      alert('This schedule is blocked in clinic settings. Please choose another slot.');
+      return;
+    }
+
     const dateTimeObj = getTimeObject(directScheduleDate, directScheduleSelectedSlot);
     if (!dateTimeObj || Number.isNaN(dateTimeObj.getTime())) {
       alert('Invalid appointment date or time.');
@@ -838,7 +941,7 @@ const ScheduleDashboard = () => {
     { label: "Dental Implants", key: "Dental Implants Consultation", color: "#77D2FF", kind: "consultations" },
     { label: "Emergency Visit", key: "Emergency Visit (Pain/Injury)", color: "#FF6B6B", kind: "surgeries" },
     { label: "Orthodontics Consult", key: "Orthodontics Consultation", color: "#A78BFA", kind: "exams" },
-    { label: "Other / Not Sure", key: "Other / Not Sure", color: "#800000", kind: "consultations" },
+    { label: "Other / Not Sure", key: "Other / Not Sure", color: OTHER_NOT_SURE_COLOR, kind: "consultations" },
   ];
   
   const dailyAppointmentCounts = useMemo(() => {
@@ -846,12 +949,8 @@ const ScheduleDashboard = () => {
     const appointmentsOnSelectedDay = scheduledAppointments.filter(app => app.scheduledDate === selectedDate);
     serviceCategories.forEach(cat => { counts[cat.key] = 0; });
     appointmentsOnSelectedDay.forEach(app => {
-        const service = app.serviceType;
-        if (counts.hasOwnProperty(service)) {
-            counts[service] = (counts[service] || 0) + 1;
-        } else {
-             counts['Other / Not Sure'] = (counts['Other / Not Sure'] || 0) + 1;
-        }
+        const normalizedKey = normalizeServiceCategory(app.serviceType);
+        counts[normalizedKey] = (counts[normalizedKey] || 0) + 1;
     });
     return counts;
   }, [scheduledAppointments, selectedDate]);
@@ -886,12 +985,12 @@ const ScheduleDashboard = () => {
         const dayAppts = appointmentsByDay[day];
         
         // Get unique service types for this day
-        const uniqueServices = [...new Set(dayAppts.map(a => a.serviceType || 'Other / Not Sure'))];
+      const uniqueServices = [...new Set(dayAppts.map(a => normalizeServiceCategory(a.serviceType)))];
         
         // Get colors for each unique service
         const serviceColors = uniqueServices.map(service => {
             const category = serviceCategories.find(cat => cat.key === service);
-            return category ? category.color : '#D3D3D3';
+          return category ? category.color : OTHER_NOT_SURE_COLOR;
         });
         
         map[day] = serviceColors;
@@ -952,13 +1051,13 @@ const ScheduleDashboard = () => {
   }, [waitingList, selectedWaitingAppointmentId]);
 
   const canStart = useMemo(() => {
-    if (!nextAppointmentObject) return false;
+    if (!actionTargetAppointment) return false;
     // only allow start when appointment date is today and current time >= scheduled time
-    if (nextAppointmentObject.scheduledDate !== todayISO) return false;
-    const apptTimeObj = getTimeObject(nextAppointmentObject.scheduledDate, nextAppointmentObject.scheduledTime);
+    if (actionTargetAppointment.scheduledDate !== todayISO) return false;
+    const apptTimeObj = getTimeObject(actionTargetAppointment.scheduledDate, actionTargetAppointment.scheduledTime);
     if (!apptTimeObj) return false;
     return currentTime >= apptTimeObj.getTime();
-  }, [nextAppointmentObject, currentTime, todayISO]);
+  }, [actionTargetAppointment, currentTime, todayISO]);
 
   const servingAppointmentObject = useMemo(() => {
     if (!servingPatient) return null;
@@ -1262,6 +1361,8 @@ const ScheduleDashboard = () => {
                   selectedDate={rescheduleDate}
                   onDateSelect={(d)=>{ setRescheduleDate(d); setRescheduleSelectedSlot(''); }}
                   bookedTimes={rescheduleBookedTimes}
+                  blockedTimes={getBlockedTimesForDate(rescheduleDate)}
+                  blockedDates={blockedAllDayDates}
                   loading={rescheduleLoading}
                   onSlotSelect={(slot)=> setRescheduleSelectedSlot(slot)}
                   selectedSlot={rescheduleSelectedSlot}
@@ -1354,6 +1455,8 @@ const ScheduleDashboard = () => {
                       setDirectScheduleSelectedSlot('');
                     }}
                     bookedTimes={directScheduleBookedTimes}
+                    blockedTimes={getBlockedTimesForDate(directScheduleDate)}
+                    blockedDates={blockedAllDayDates}
                     loading={directScheduleLoading}
                     onSlotSelect={(slot) => setDirectScheduleSelectedSlot(slot)}
                     selectedSlot={directScheduleSelectedSlot}

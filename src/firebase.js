@@ -16,7 +16,15 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+
+try {
+  if (typeof window !== "undefined") {
+    getAnalytics(app);
+  }
+} catch (error) {
+  console.warn("Analytics initialization skipped:", error);
+}
+
 const db = getFirestore(app); 
 
 

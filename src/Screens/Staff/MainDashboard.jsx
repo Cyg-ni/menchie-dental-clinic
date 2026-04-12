@@ -121,6 +121,14 @@ const formatDateForDisplay = (dateInput) => {
     return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 };
 
+const normalizeName = (value) => String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+const resolvePatientId = (patientRef) => {
+  if (!patientRef) return '';
+  const raw = String(patientRef);
+  return raw.includes('/') ? raw.split('/').pop() : raw;
+};
+
 
 const MainDashboard = () => {
   // --- STATE MANAGEMENT ---
@@ -203,7 +211,7 @@ const MainDashboard = () => {
       );
       
       const snapshot = await getDocs(q);
-      const rawAppts = snapshot.docs.map(doc => doc.data());
+      const rawAppts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
       const recentPatientsMap = {};
       
@@ -213,12 +221,14 @@ const MainDashboard = () => {
           
           // Use appointment ID as a unique key for the activity log
           const activityId = appt.id || appt.patientId;
+          const resolvedPatientId = resolvePatientId(appt.patientId);
           
           // Deduplicate by name, only keep the newest entry for that patient
           if (name !== 'Name N/A' && !recentPatientsMap[name]) {
               recentPatientsMap[name] = {
                   id: activityId,
                   name: name,
+                  patientId: resolvedPatientId,
                   // Use the update/create date of the appointment
                   date: appt.updatedAt || appt.createdAt || new Date().toISOString().slice(0, 10),
               };
@@ -431,6 +441,39 @@ const MainDashboard = () => {
       
   }, [getPendingAppointments, getUpcomingAppointments, getTopServices, getPatientCounts, getTodaysAppointments, getRecentPatients, getPredictiveData]);
 
+  const handleRecentPatientClick = useCallback(async (recentPatient) => {
+    const displayName = recentPatient?.name || 'patient';
+
+    try {
+      const patientIdFromRecent = resolvePatientId(recentPatient?.patientId);
+      if (patientIdFromRecent) {
+        const patientSnap = await getDoc(doc(db, 'patients', patientIdFromRecent));
+        if (patientSnap.exists()) {
+          navigate(`/patient-profile/${patientIdFromRecent}`);
+          return;
+        }
+      }
+
+      const patientsSnap = await getDocs(patientsCollectionRef);
+      const normalizedTargetName = normalizeName(displayName);
+      const matched = patientsSnap.docs.find((patientDoc) => {
+        const patientData = patientDoc.data() || {};
+        const candidateName = normalizeName(patientData.name);
+        return candidateName && candidateName === normalizedTargetName;
+      });
+
+      if (matched) {
+        navigate(`/patient-profile/${matched.id}`);
+        return;
+      }
+
+      alert(`there is no ${displayName} in the patient list`);
+    } catch (error) {
+      console.error('Error opening recent patient record:', error);
+      alert(`there is no ${displayName} in the patient list`);
+    }
+  }, [navigate]);
+
 
   useEffect(() => {
     fetchDashboardData(); 
@@ -528,7 +571,7 @@ const MainDashboard = () => {
                             {/* Display formatted date */}
                             <div className="item-sub">{formatDateForDisplay(p.date)}</div> 
                         </div>
-                        <button className="chev">›</button>
+                    <button type="button" className="chev" onClick={() => handleRecentPatientClick(p)}>›</button>
                     </li>
                 ))}
             </ul>

@@ -17,7 +17,7 @@ const formatDateLocal = (date) => {
     return `${year}-${month}-${day}`;
 };
 
-const CalendarView = ({ selectedDate, onDateSelect, bookedTimes = [], loading = false, onSlotSelect, selectedSlot }) => {
+const CalendarView = ({ selectedDate, onDateSelect, bookedTimes = [], blockedTimes = [], blockedDates = [], loading = false, onSlotSelect, selectedSlot }) => {
     const today = new Date();
     const now = new Date();
     const [currentMonth, setCurrentMonth] = useState(today.getMonth());
@@ -38,16 +38,21 @@ const CalendarView = ({ selectedDate, onDateSelect, bookedTimes = [], loading = 
         const todayString = formatDateLocal(today);
         const isToday = dateString === todayString;
         const isSelected = dateString === selectedDate;
+        const isBlockedDate = blockedDates.includes(dateString);
 
         let dayClass = 'calendar-day';
         if (isToday) dayClass += ' today';
         if (isSelected) dayClass += ' selected';
+        if (isBlockedDate) dayClass += ' blocked-day';
 
         dateCells.push(
             <div 
                 key={day} 
                 className={dayClass}
-                onClick={() => onDateSelect && onDateSelect(dateString)}
+                onClick={() => {
+                    if (isBlockedDate) return;
+                    onDateSelect && onDateSelect(dateString);
+                }}
             >
                 {day}
             </div>
@@ -55,6 +60,7 @@ const CalendarView = ({ selectedDate, onDateSelect, bookedTimes = [], loading = 
     }
 
     const monthName = new Date(currentYear, currentMonth).toLocaleString('default', { month: 'long' });
+    const isSelectedDateBlockedAllDay = blockedDates.includes(selectedDate);
 
     const getSlotDateTime = (dateString, timeString) => {
         if (!dateString || !timeString) return null;
@@ -91,26 +97,41 @@ const CalendarView = ({ selectedDate, onDateSelect, bookedTimes = [], loading = 
 
             <div className="time-slots-view">
                 <h4 className="time-slots-header">Slots for {selectedDate}</h4>
+                <div className="slot-legend">
+                    <span className="legend-item"><span className="legend-dot legend-available" />Available</span>
+                    <span className="legend-item"><span className="legend-dot legend-booked" />Booked</span>
+                    <span className="legend-item"><span className="legend-dot legend-blocked" />Blocked</span>
+                    <span className="legend-item"><span className="legend-dot legend-past" />Past</span>
+                </div>
+
+                {isSelectedDateBlockedAllDay && (
+                    <div className="blocked-day-banner" role="status">
+                        This date is blocked for the whole day.
+                    </div>
+                )}
+
                 {loading ? (
                     <p className="loading-text">Loading...</p>
                 ) : (
                     <div className="slots-grid">
                         {TIME_SLOTS.map(slot => {
                             const isBooked = bookedTimes.includes(slot);
+                            const isBlockedSlot = blockedTimes.includes(slot);
                             const todayString = formatDateLocal(now);
                             const isPastDate = selectedDate < todayString;
                             const slotDateTime = getSlotDateTime(selectedDate, slot);
                             const isPastTimeToday = selectedDate === todayString && slotDateTime && slotDateTime < now;
                             const isPast = isPastDate || isPastTimeToday;
+                            const isBlocked = isSelectedDateBlockedAllDay || isBlockedSlot;
                             const isSelected = selectedSlot === slot;
-                            const cls = `time-slot ${isBooked ? 'booked' : 'available'} ${isPast ? 'past' : ''} ${isSelected ? 'selected-slot' : ''}`;
+                            const cls = `time-slot ${isBooked ? 'booked' : 'available'} ${isBlocked ? 'blocked' : ''} ${isPast ? 'past' : ''} ${isSelected ? 'selected-slot' : ''}`;
                             return (
                                 onSlotSelect ? (
-                                    <button key={slot} className={cls} disabled={isBooked || isPast} onClick={() => onSlotSelect(slot)} title={isBooked ? 'Booked' : isPast ? 'Past time' : 'Select'}>
+                                    <button key={slot} className={cls} disabled={isBooked || isBlocked || isPast} onClick={() => onSlotSelect(slot)} title={isBooked ? 'Booked' : isBlocked ? 'Blocked by clinic schedule' : isPast ? 'Past time' : 'Select'}>
                                         {slot}
                                     </button>
                                 ) : (
-                                    <span key={slot} className={cls} title={isBooked ? 'Booked' : isPast ? 'Past time' : 'Available'}>
+                                    <span key={slot} className={cls} title={isBooked ? 'Booked' : isBlocked ? 'Blocked by clinic schedule' : isPast ? 'Past time' : 'Available'}>
                                         {slot}
                                     </span>
                                 )
