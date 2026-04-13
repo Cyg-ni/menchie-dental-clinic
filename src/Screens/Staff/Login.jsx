@@ -128,12 +128,6 @@ const Login = () => {
                     </button>
                 </form>
 
-                <div className="forgot-password-container">
-                    <a href= "#" className="forgot-password-link">
-                        Forgot Password?
-                    </a>
-                </div>
-
                 <div className="admin-login-section">
                     <p className="admin-text">Are you a Super Admin?</p>
                     <button 
