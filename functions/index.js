@@ -1,6 +1,7 @@
 const admin = require('firebase-admin');
 const { setGlobalOptions } = require('firebase-functions');
 const logger = require('firebase-functions/logger');
+const { onDocumentDeleted } = require('firebase-functions/v2/firestore');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 
 admin.initializeApp();
@@ -11,6 +12,7 @@ const db = admin.firestore();
 const TARGET_ROLES = new Set(['staff', 'dentist']);
 const INACTIVE_AFTER_DAYS = 3;
 const DELETE_AFTER_DAYS = 7;
+const DELETED_RECORDS_COLLECTION = 'deleted_records';
 
 const getTimestampValue = (value) => {
   if (!value) {
@@ -49,6 +51,73 @@ const logSystemActivity = async (userId, userName, action, metadata = {}) => {
     source: 'system'
   });
 };
+
+const archiveDeletedRecord = async (sourceCollection, originalId, data) => {
+  await db.collection(DELETED_RECORDS_COLLECTION).doc(`${sourceCollection}_${originalId}`).set({
+    sourceCollection,
+    originalId,
+    data,
+    deletedAt: admin.firestore.Timestamp.now(),
+    archivedAt: new Date().toISOString(),
+  });
+};
+
+exports.archiveDeletedUser = onDocumentDeleted('users/{userId}', async (event) => {
+  const userId = event.params.userId;
+  const userData = event.data?.data();
+
+  if (!userData) {
+    return;
+  }
+
+  await archiveDeletedRecord('users', userId, userData);
+  logger.info('Archived deleted user', { userId });
+});
+
+exports.archiveDeletedActivityLog = onDocumentDeleted('activity_logs/{logId}', async (event) => {
+  const logId = event.params.logId;
+  const logData = event.data?.data();
+
+  if (!logData) {
+    return;
+  }
+
+  await archiveDeletedRecord('activity_logs', logId, logData);
+  logger.info('Archived deleted activity log', { logId });
+});
+
+exports.archiveDeletedPatient = onDocumentDeleted('patients/{patientId}', async (event) => {
+  const patientId = event.params.patientId;
+  const patientData = event.data?.data();
+
+  if (!patientData) {
+    return;
+  }
+
+  const patientRef = db.collection('patients').doc(patientId);
+  const [conditionsSnapshot, treatmentsSnapshot] = await Promise.all([
+    patientRef.collection('conditions').get(),
+    patientRef.collection('treatments').get(),
+  ]);
+
+  await archiveDeletedRecord('patients', patientId, {
+    patient: patientData,
+    conditions: conditionsSnapshot.docs.map((docSnap) => ({
+      id: docSnap.id,
+      ...docSnap.data(),
+    })),
+    treatments: treatmentsSnapshot.docs.map((docSnap) => ({
+      id: docSnap.id,
+      ...docSnap.data(),
+    })),
+  });
+
+  logger.info('Archived deleted patient', {
+    patientId,
+    conditionCount: conditionsSnapshot.size,
+    treatmentCount: treatmentsSnapshot.size,
+  });
+});
 
 exports.enforceUserInactivity = onSchedule(
   {

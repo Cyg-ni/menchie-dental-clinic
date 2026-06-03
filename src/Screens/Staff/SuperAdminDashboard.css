@@ -185,6 +185,10 @@
   border-top: 4px solid #ef4444;
 }
 
+.metric-card-on-leave {
+  border-top: 4px solid #d97706;
+}
+
 .metric-card-filtered {
   border-top: 4px solid #2563eb;
 }
@@ -842,7 +846,42 @@
 }
 
 .status-active { color: #059669; font-weight: 700; }
+.status-on-leave { color: #d97706; font-weight: 700; }
 .status-inactive { color: #dc2626; font-weight: 700; }
+
+.recovery-vault-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.recovery-vault-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.recovery-vault-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.recovery-vault-copy strong {
+  font-size: 16px;
+  color: #0f172a;
+}
+
+.recovery-vault-copy span,
+.recovery-vault-copy small {
+  color: #64748b;
+  font-size: 13px;
+}
 
 /* Logs View */
 .logs-list {

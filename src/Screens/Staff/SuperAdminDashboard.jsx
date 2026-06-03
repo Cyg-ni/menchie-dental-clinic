@@ -5,6 +5,69 @@ import { collection, getDocs, deleteDoc, doc, setDoc, updateDoc, query, where } 
 import "./SuperAdminDashboard.css";
 
 const usersCollectionRef = collection(db, "users");
+const deletedRecordsCollectionRef = collection(db, "deleted_records");
+
+const STATUS_OPTIONS = ['active', 'on-leave', 'inactive'];
+
+const getStatusLabel = (status) => {
+  switch (status) {
+    case 'active':
+      return 'Active';
+    case 'on-leave':
+      return 'On-Leave';
+    case 'inactive':
+      return 'Inactive';
+    default:
+      return status ? status.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()) : 'Unknown';
+  }
+};
+
+const getStatusBadgeColor = (status) => {
+  switch (status) {
+    case 'active':
+      return '#10b981';
+    case 'on-leave':
+      return '#d97706';
+    case 'inactive':
+      return '#ef4444';
+    default:
+      return '#6b7280';
+  }
+};
+
+const formatRecoveryLabel = (record) => {
+  if (record.sourceCollection === 'patients') {
+    return record.data?.patient?.name || record.data?.patient?.patientName || record.originalId;
+  }
+
+  if (record.sourceCollection === 'users') {
+    return record.data?.username || `${record.data?.firstName || ''} ${record.data?.lastName || ''}`.trim() || record.originalId;
+  }
+
+  if (record.sourceCollection === 'activity_logs') {
+    return record.data?.action || record.originalId;
+  }
+
+  return record.originalId;
+};
+
+const formatRecoveryMeta = (record) => {
+  if (record.sourceCollection === 'patients') {
+    const conditionCount = record.data?.conditions?.length || 0;
+    const treatmentCount = record.data?.treatments?.length || 0;
+    return `${conditionCount} conditions, ${treatmentCount} treatments`;
+  }
+
+  if (record.sourceCollection === 'users') {
+    return record.data?.role ? record.data.role.replace('_', ' ') : 'User record';
+  }
+
+  if (record.sourceCollection === 'activity_logs') {
+    return record.data?.userName || 'Activity log';
+  }
+
+  return 'Archived record';
+};
 
 const SuperAdminDashboard = () => {
   const navigate = useNavigate();
@@ -17,6 +80,10 @@ const SuperAdminDashboard = () => {
   const [viewingUser, setViewingUser] = useState(null);
   const [viewModalTab, setViewModalTab] = useState('details');
   const [userLogs, setUserLogs] = useState([]);
+  const [deletedRecords, setDeletedRecords] = useState([]);
+  const [showRecoveryModal, setShowRecoveryModal] = useState(false);
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
+  const [recoveringRecordId, setRecoveringRecordId] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('all');
   const [successMessage, setSuccessMessage] = useState('');
@@ -32,7 +99,7 @@ const SuperAdminDashboard = () => {
     address: '',
     bio: '',
     role: 'staff', // staff, dentist, admin, super_admin
-    status: 'active', // active, inactive
+    status: 'active', // active, on-leave, inactive
     profilePicture: null,
     profilePictureUrl: ''
   });
@@ -57,6 +124,77 @@ const SuperAdminDashboard = () => {
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
+
+  const fetchDeletedRecords = useCallback(async () => {
+    try {
+      setRecoveryLoading(true);
+      const snapshot = await getDocs(deletedRecordsCollectionRef);
+      const recordsList = snapshot.docs.map((recordDoc) => ({
+        id: recordDoc.id,
+        ...recordDoc.data(),
+      })).sort((a, b) => {
+        const aTime = a.archivedAt ? new Date(a.archivedAt).getTime() : 0;
+        const bTime = b.archivedAt ? new Date(b.archivedAt).getTime() : 0;
+        return bTime - aTime;
+      });
+
+      setDeletedRecords(recordsList);
+    } catch (error) {
+      console.error('Error fetching deleted records:', error);
+      setErrorMessage('Failed to load recovery vault');
+    } finally {
+      setRecoveryLoading(false);
+    }
+  }, []);
+
+  const openRecoveryVault = async () => {
+    setShowRecoveryModal(true);
+    await fetchDeletedRecords();
+  };
+
+  const restoreArchivedRecord = async (record) => {
+    if (!window.confirm(`Restore ${formatRecoveryLabel(record)}?`)) {
+      return;
+    }
+
+    try {
+      setRecoveringRecordId(record.id);
+
+      if (record.sourceCollection === 'patients') {
+        const patientData = record.data?.patient || {};
+        const patientRef = doc(db, 'patients', record.originalId);
+        await setDoc(patientRef, patientData);
+
+        await Promise.all((record.data?.conditions || []).map(async (item) => {
+          const { id, ...conditionData } = item;
+          if (!id) return;
+          await setDoc(doc(db, `patients/${record.originalId}/conditions`, id), conditionData);
+        }));
+
+        await Promise.all((record.data?.treatments || []).map(async (item) => {
+          const { id, ...treatmentData } = item;
+          if (!id) return;
+          await setDoc(doc(db, `patients/${record.originalId}/treatments`, id), treatmentData);
+        }));
+      } else {
+        await setDoc(doc(db, record.sourceCollection, record.originalId), record.data || {});
+      }
+
+      await deleteDoc(doc(db, 'deleted_records', record.id));
+      await fetchDeletedRecords();
+
+      if (record.sourceCollection === 'users') {
+        await fetchUsers();
+      }
+
+      setSuccessMessage('Record restored successfully');
+    } catch (error) {
+      console.error('Error restoring record:', error);
+      setErrorMessage('Failed to restore archived record');
+    } finally {
+      setRecoveringRecordId('');
+    }
+  };
 
   // Show success/error messages
   useEffect(() => {
@@ -331,8 +469,7 @@ const SuperAdminDashboard = () => {
     }
 
     // Validate status
-    const validStatuses = ['active', 'inactive'];
-    if (!validStatuses.includes(formData.status)) {
+    if (!STATUS_OPTIONS.includes(formData.status)) {
       errors.status = "Invalid status selected";
     }
 
@@ -460,6 +597,7 @@ const SuperAdminDashboard = () => {
 
   const totalUsers = users.length;
   const activeUsers = users.filter(user => user.status === 'active').length;
+  const onLeaveUsers = users.filter(user => user.status === 'on-leave').length;
   const inactiveUsers = users.filter(user => user.status === 'inactive').length;
   const filteredCount = filteredUsers.length;
 
@@ -479,10 +617,6 @@ const SuperAdminDashboard = () => {
     }
   };
 
-  const getStatusBadgeColor = (status) => {
-    return status === 'active' ? '#10b981' : '#ef4444';
-  };
-
   return (
     <div className="super-admin-dashboard">
       <header className="admin-header">
@@ -493,6 +627,9 @@ const SuperAdminDashboard = () => {
         <div className="header-actions">
           <button className="btn-create" onClick={handleCreateUser}>
             + Create New Account
+          </button>
+          <button className="btn-create" onClick={openRecoveryVault}>
+            Recovery Vault
           </button>
           <button className="btn-logout" onClick={handleLogout}>
             Logout
@@ -512,6 +649,10 @@ const SuperAdminDashboard = () => {
           <article className="metric-card metric-card-active">
             <span className="metric-label">Active</span>
             <strong>{activeUsers}</strong>
+          </article>
+          <article className="metric-card metric-card-on-leave">
+            <span className="metric-label">On-Leave</span>
+            <strong>{onLeaveUsers}</strong>
           </article>
           <article className="metric-card metric-card-inactive">
             <span className="metric-label">Inactive</span>
@@ -589,7 +730,7 @@ const SuperAdminDashboard = () => {
                       className="badge status-badge" 
                       style={{ backgroundColor: getStatusBadgeColor(user.status) }}
                     >
-                      {user.status?.toUpperCase()}
+                      {getStatusLabel(user.status)}
                     </span>
                   </td>
                   <td className="date-cell">
@@ -813,6 +954,7 @@ const SuperAdminDashboard = () => {
                     className={fieldErrors.status ? 'input-error' : ''}
                   >
                     <option value="active">Active</option>
+                    <option value="on-leave">On-Leave</option>
                     <option value="inactive">Inactive</option>
                   </select>
                   {fieldErrors.status && (
@@ -899,7 +1041,7 @@ const SuperAdminDashboard = () => {
                     </div>
                     <div className="detail-item">
                       <label>Account Status</label>
-                      <span className={`status-${viewingUser.status}`}>{viewingUser.status?.toUpperCase()}</span>
+                      <span className={`status-${viewingUser.status}`}>{getStatusLabel(viewingUser.status)}</span>
                     </div>
                     <div className="detail-item full-width">
                       <label>Home Address</label>
@@ -941,6 +1083,48 @@ const SuperAdminDashboard = () => {
                       ))}
                     </div>
                   )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showRecoveryModal && (
+        <div className="modal-overlay" onClick={() => setShowRecoveryModal(false)}>
+          <div className="modal view-modal" onClick={(e) => e.stopPropagation()}>
+            <header className="modal-header">
+              <h2>Recovery Vault</h2>
+              <button className="modal-close" onClick={() => setShowRecoveryModal(false)}>&times;</button>
+            </header>
+
+            <div className="view-body">
+              {recoveryLoading ? (
+                <div className="loading">Loading archived records...</div>
+              ) : deletedRecords.length === 0 ? (
+                <div className="no-logs">No archived records available for recovery.</div>
+              ) : (
+                <div className="recovery-vault-list">
+                  {deletedRecords.map((record) => (
+                    <div key={record.id} className="recovery-vault-item">
+                      <div className="recovery-vault-copy">
+                        <strong>{formatRecoveryLabel(record)}</strong>
+                        <span>{record.sourceCollection?.replace('_', ' ')}</span>
+                        <small>{formatRecoveryMeta(record)}</small>
+                        <small>
+                          Deleted: {record.archivedAt ? new Date(record.archivedAt).toLocaleString() : 'Unknown'}
+                        </small>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn-action btn-edit"
+                        onClick={() => restoreArchivedRecord(record)}
+                        disabled={recoveringRecordId === record.id}
+                      >
+                        {recoveringRecordId === record.id ? 'Restoring...' : 'Restore'}
+                      </button>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

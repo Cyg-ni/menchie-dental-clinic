@@ -140,6 +140,130 @@
 .req-actions .approve svg { stroke-width: 4; }
 .req-actions .reject svg { stroke-width: 3.5; }
 
+.decline-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 110;
+  padding: 16px;
+}
+
+.decline-modal {
+  width: min(520px, 100%);
+  background: #ffffff;
+  border-radius: 14px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.decline-modal-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid #ececec;
+}
+
+.decline-modal-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1f1f1f;
+}
+
+.decline-modal-subtitle {
+  margin-top: 4px;
+  font-size: 13px;
+  color: #666;
+}
+
+.decline-modal-close {
+  border: none;
+  background: transparent;
+  font-size: 26px;
+  line-height: 1;
+  color: #666;
+  cursor: pointer;
+  padding: 0;
+}
+
+.decline-modal-body {
+  padding: 18px 20px 20px;
+}
+
+.decline-modal-label {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+.decline-modal-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 130px;
+  border: 1px solid #d8d8d8;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font: inherit;
+  color: #222;
+  outline: none;
+  background: #fff;
+}
+
+.decline-modal-textarea:focus {
+  border-color: #5b5b5b;
+  box-shadow: 0 0 0 3px rgba(91, 91, 91, 0.12);
+}
+
+.decline-modal-help {
+  margin: 10px 0 0;
+  color: #6e6e6e;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.decline-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 0 20px 20px;
+}
+
+.decline-modal-cancel,
+.decline-modal-confirm {
+  border-radius: 10px;
+  padding: 11px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.decline-modal-cancel {
+  background: #ffffff;
+  border: 1px solid #cfcfcf;
+  color: #333;
+}
+
+.decline-modal-confirm {
+  background: #5b5b5b;
+  border: 1px solid #5b5b5b;
+  color: #ffffff;
+}
+
+.decline-modal-cancel:disabled,
+.decline-modal-confirm:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
 /* =========================================
    NEW CALENDAR CSS (APPENDED BELOW)
    ========================================= */

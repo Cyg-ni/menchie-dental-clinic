@@ -28,6 +28,34 @@ const formatDateLocal = (date) => {
     return `${year}-${month}-${day}`;
 };
 
+const getAppointmentSortValue = (appointment) => {
+    if (appointment?.dateTime?.toDate) {
+        return appointment.dateTime.toDate().getTime();
+    }
+
+    if (appointment?.dateTime) {
+        const parsedDateTime = new Date(appointment.dateTime);
+        if (!Number.isNaN(parsedDateTime.getTime())) {
+            return parsedDateTime.getTime();
+        }
+    }
+
+    if (appointment?.scheduledDate) {
+        const timePart = appointment.scheduledTime || '00:00';
+        const parsedDateTime = new Date(`${appointment.scheduledDate}T${timePart}`);
+        if (!Number.isNaN(parsedDateTime.getTime())) {
+            return parsedDateTime.getTime();
+        }
+
+        const parsedDate = new Date(`${appointment.scheduledDate}T00:00:00`);
+        if (!Number.isNaN(parsedDate.getTime())) {
+            return parsedDate.getTime();
+        }
+    }
+
+    return 0;
+};
+
 // ===============================================
 // 2. MAIN COMPONENT
 // ===============================================
@@ -37,9 +65,12 @@ const AppointmentsModal = ({ onClose, onUpdate }) => {
     const [selectedDate, setSelectedDate] = useState(formatDateLocal(new Date()));
     const [bookedTimes, setBookedTimes] = useState([]);
     const [calendarLoading, setCalendarLoading] = useState(false);
+    const [rejectingAppointment, setRejectingAppointment] = useState(null);
+    const [declineReason, setDeclineReason] = useState("");
+    const [isSubmittingDecline, setIsSubmittingDecline] = useState(false);
 
     // --- ENHANCED EMAILJS LOGIC ---
-    const sendStatusEmail = async (apptData, action) => {
+    const sendStatusEmail = async (apptData, action, reason = "") => {
         const SERVICE_ID = 'service_yei2sk7'; 
         const TEMPLATE_ID = 'template_w1rp87d';
         const PUBLIC_KEY = 'Bw_dLBXg4UIfg4mUh';
@@ -62,14 +93,17 @@ const AppointmentsModal = ({ onClose, onUpdate }) => {
             to_email: apptData.patientEmail,        
             message: action === "Approved" 
                 ? "Good news! Your appointment request has been confirmed." 
-                : "We are sorry, but we cannot accommodate your requested time slot."
+                : `We are sorry, but we cannot accommodate your requested time slot.${reason ? ` Reason: ${reason}` : ""}`,
+            rejection_reason: reason,
+            decline_reason: reason,
+            reason: reason,
         };
 
         try {
             const result = await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams, PUBLIC_KEY);
-            console.log("✅ EMAILJS SUCCESS:", result.text);
+            console.log("EMAILJS SUCCESS:", result.text);
         } catch (error) {
-            console.error("❌ EMAILJS ERROR:", error); 
+            console.error("EMAILJS ERROR:", error); 
         }
     };
     
@@ -123,6 +157,7 @@ const AppointmentsModal = ({ onClose, onUpdate }) => {
             });
             
             const pendingData = await Promise.all(pendingDataPromises);
+            pendingData.sort((left, right) => getAppointmentSortValue(left) - getAppointmentSortValue(right));
             setAppointments(pendingData);
         } catch (error) {
             console.error("Error fetching pending appointments:", error);
@@ -157,7 +192,7 @@ const AppointmentsModal = ({ onClose, onUpdate }) => {
         fetchPendingAppointments();
     }, [fetchPendingAppointments]);
 
-    const updateAppointmentStatus = async (id, action) => {
+    const updateAppointmentStatus = async (id, action, reason = "") => {
         // Find the record in our current state list so we have the email
         const apptToUpdate = appointments.find(a => a.id === id);
         if (!apptToUpdate) return;
@@ -173,7 +208,8 @@ const AppointmentsModal = ({ onClose, onUpdate }) => {
                 'updatedAt': Timestamp.fromDate(new Date()),
                 'status.trackingNote': action === "Approved" 
                     ? "Confirmed! See you at the clinic." 
-                    : "Declined. Please contact us for a different slot."
+                    : `Declined. Please contact us for a different slot.${reason ? ` Reason: ${reason}` : ""}`,
+                'status.rejectionReason': action === "Approved" ? null : reason,
             });
             
             // 2. Log activity
@@ -183,12 +219,13 @@ const AppointmentsModal = ({ onClose, onUpdate }) => {
                 appointmentId: id,
                 patientName: apptToUpdate.patientFullName || "Unknown Patient",
                 action: action,
+                reason: action === "Declined" ? reason : undefined,
                 scheduledDate: apptToUpdate.scheduledDate,
                 scheduledTime: apptToUpdate.scheduledTime
             });
             
             // 3. Trigger Email with the data we found during fetch
-            await sendStatusEmail(apptToUpdate, action);
+            await sendStatusEmail(apptToUpdate, action, reason);
             
             // 4. UI Refresh
             await fetchPendingAppointments();
@@ -206,7 +243,35 @@ const AppointmentsModal = ({ onClose, onUpdate }) => {
     }
     
     const handleApprove = (id) => updateAppointmentStatus(id, "Approved");
-    const handleDecline = (id) => updateAppointmentStatus(id, "Declined");
+    const openDeclineModal = (appointment) => {
+        setRejectingAppointment(appointment);
+        setDeclineReason("");
+    };
+
+    const closeDeclineModal = () => {
+        if (isSubmittingDecline) return;
+        setRejectingAppointment(null);
+        setDeclineReason("");
+    };
+
+    const handleSubmitDecline = async () => {
+        if (!rejectingAppointment || isSubmittingDecline) return;
+
+        const reason = declineReason.trim();
+        if (!reason) {
+            alert("Please add a reason before rejecting this appointment.");
+            return;
+        }
+
+        setIsSubmittingDecline(true);
+        try {
+            await updateAppointmentStatus(rejectingAppointment.id, "Declined", reason);
+            setRejectingAppointment(null);
+            setDeclineReason("");
+        } finally {
+            setIsSubmittingDecline(false);
+        }
+    };
 
     const formatDateTime = (timestamp) => {
         if (!timestamp) return 'N/A';
@@ -242,7 +307,7 @@ const AppointmentsModal = ({ onClose, onUpdate }) => {
                                             <button className="approve" onClick={() => handleApprove(appt.id)}>
                                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="5"><path d="M20 6L9 17l-5-5"/></svg>
                                             </button>
-                                            <button className="reject" onClick={() => handleDecline(appt.id)}>
+                                            <button className="reject" onClick={() => openDeclineModal(appt)}>
                                                 <svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="#333333" strokeWidth="3.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                                             </button>
                                         </div>
@@ -262,6 +327,57 @@ const AppointmentsModal = ({ onClose, onUpdate }) => {
                     </div>
                 </div>
             </div>
+
+            {rejectingAppointment ? (
+                <div className="decline-modal-overlay" role="presentation" onClick={closeDeclineModal}>
+                    <div
+                        className="decline-modal"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="decline-modal-title"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className="decline-modal-header">
+                            <div>
+                                <div className="decline-modal-title" id="decline-modal-title">Add rejection reason</div>
+                                <div className="decline-modal-subtitle">
+                                    {rejectingAppointment.patientFullName} | {rejectingAppointment.serviceType}
+                                </div>
+                            </div>
+                            <button className="decline-modal-close" onClick={closeDeclineModal} aria-label="Close rejection reason modal">
+                                ×
+                            </button>
+                        </div>
+
+                        <div className="decline-modal-body">
+                            <label className="decline-modal-label" htmlFor="decline-reason">
+                                Reason for declining
+                            </label>
+                            <textarea
+                                id="decline-reason"
+                                className="decline-modal-textarea"
+                                value={declineReason}
+                                onChange={(event) => setDeclineReason(event.target.value)}
+                                placeholder="Example: The requested slot is already fully booked."
+                                rows={5}
+                                autoFocus
+                            />
+                            <p className="decline-modal-help">
+                                This reason will be saved to the appointment and included in the email sent to the patient.
+                            </p>
+                        </div>
+
+                        <div className="decline-modal-actions">
+                            <button className="decline-modal-cancel" onClick={closeDeclineModal} disabled={isSubmittingDecline}>
+                                Cancel
+                            </button>
+                            <button className="decline-modal-confirm" onClick={handleSubmitDecline} disabled={isSubmittingDecline}>
+                                {isSubmittingDecline ? "Sending..." : "Send rejection"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
         </div>
     );
 };
