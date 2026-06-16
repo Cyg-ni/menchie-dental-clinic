@@ -58,6 +58,19 @@ const formatRecoveryMeta = (record) => {
     return `${conditionCount} conditions, ${treatmentCount} treatments`;
   }
 
+  if (record.sourceCollection === 'patients_conditions') {
+    return `Patient condition${record.data?.toothNumber ? ` · Tooth ${record.data.toothNumber}` : ''}`;
+  }
+
+  if (record.sourceCollection === 'patients_treatments') {
+    return `Patient treatment${record.data?.toothNumber ? ` · Tooth ${record.data.toothNumber}` : ''}`;
+  }
+
+  if (record.sourceCollection === 'patient_treatments') {
+    const treatment = record.data?.treatment || record.data || {};
+    return treatment.procedure || treatment.condition || treatment.treatment || record.originalId;
+  }
+
   if (record.sourceCollection === 'users') {
     return record.data?.role ? record.data.role.replace('_', ' ') : 'User record';
   }
@@ -68,6 +81,50 @@ const formatRecoveryMeta = (record) => {
 
   return 'Archived record';
 };
+
+const getRecoverySectionKey = (record) => {
+  if (
+    record.sourceCollection === 'patients' ||
+    record.sourceCollection === 'patients_conditions' ||
+    record.sourceCollection === 'patients_treatments' ||
+    record.sourceCollection === 'patient_treatments'
+  ) {
+    return 'patient-records';
+  }
+
+  if (record.sourceCollection === 'users') {
+    return 'deleted-accounts';
+  }
+
+  if (record.sourceCollection === 'activity_logs') {
+    return 'account-log-records';
+  }
+
+  return 'other-records';
+};
+
+const RECOVERY_SECTION_META = [
+  {
+    key: 'patient-records',
+    title: 'Patient Records',
+    description: 'Deleted patient profiles and dental history records.'
+  },
+  {
+    key: 'deleted-accounts',
+    title: 'Deleted Account Records',
+    description: 'Deleted staff, dentist, and admin account profiles.'
+  },
+  {
+    key: 'account-log-records',
+    title: 'Account Log Records',
+    description: 'Deleted activity logs and audit trail entries.'
+  },
+  {
+    key: 'other-records',
+    title: 'Other Archived Records',
+    description: 'Archived records that do not fit the standard groups.'
+  }
+];
 
 const SuperAdminDashboard = () => {
   const navigate = useNavigate();
@@ -104,7 +161,15 @@ const SuperAdminDashboard = () => {
     profilePictureUrl: ''
   });
   const [fieldErrors, setFieldErrors] = useState({});
-  const [oldPassword, setOldPassword] = useState(''); // Track old password when editing
+  const [currentPasswordInput, setCurrentPasswordInput] = useState('');
+  const groupedRecoveryRecords = deletedRecords.reduce((groups, record) => {
+    const sectionKey = getRecoverySectionKey(record);
+    if (!groups[sectionKey]) {
+      groups[sectionKey] = [];
+    }
+    groups[sectionKey].push(record);
+    return groups;
+  }, {});
 
   // Fetch all users
   const fetchUsers = useCallback(async () => {
@@ -141,7 +206,7 @@ const SuperAdminDashboard = () => {
       setDeletedRecords(recordsList);
     } catch (error) {
       console.error('Error fetching deleted records:', error);
-      setErrorMessage('Failed to load recovery vault');
+      setErrorMessage('Failed to load Recycle Bin records');
     } finally {
       setRecoveryLoading(false);
     }
@@ -176,6 +241,33 @@ const SuperAdminDashboard = () => {
           if (!id) return;
           await setDoc(doc(db, `patients/${record.originalId}/treatments`, id), treatmentData);
         }));
+      } else if (record.sourceCollection === 'patient_treatments') {
+        if (!record.parentId) {
+          throw new Error('Archived patient treatment is missing parent information');
+        }
+
+        const patientRef = doc(db, 'patients', record.parentId);
+        const patientSnap = await getDoc(patientRef);
+        if (!patientSnap.exists()) {
+          throw new Error('Patient record not found for restoration');
+        }
+
+        const patientData = patientSnap.data();
+        const restoredTreatment = record.data?.treatment || record.data || {};
+        const currentTreatments = Array.isArray(patientData.treatments) ? [...patientData.treatments] : [];
+        currentTreatments.push(restoredTreatment);
+
+        await updateDoc(patientRef, {
+          treatments: currentTreatments,
+          updated: new Date().toISOString().split('T')[0],
+        });
+      } else if (record.sourceCollection === 'patients_conditions' || record.sourceCollection === 'patients_treatments') {
+        if (!record.parentId || !record.subcollection) {
+          throw new Error('Archived patient subrecord is missing parent information');
+        }
+
+        const subrecordRef = doc(db, `patients/${record.parentId}/${record.subcollection}`, record.originalId);
+        await setDoc(subrecordRef, record.data || {});
       } else {
         await setDoc(doc(db, record.sourceCollection, record.originalId), record.data || {});
       }
@@ -230,7 +322,7 @@ const SuperAdminDashboard = () => {
       profilePictureUrl: ''
     });
     setFieldErrors({});
-    setOldPassword('');
+    setCurrentPasswordInput('');
     setShowModal(true);
   };
 
@@ -285,7 +377,7 @@ const SuperAdminDashboard = () => {
   const handleEditUser = (user) => {
     setModalMode('edit');
     setSelectedUser(user);
-    setOldPassword(user.password || '');
+    setCurrentPasswordInput('');
     setFormData({
       username: user.username || '',
       email: user.email || '',
@@ -367,7 +459,11 @@ const SuperAdminDashboard = () => {
   // Handle current password input (for edit mode comparison)
   const handleCurrentPasswordChange = (e) => {
     const { value } = e.target;
-    setOldPassword(value);
+    setCurrentPasswordInput(value);
+    setFieldErrors((prev) => ({
+      ...prev,
+      currentPassword: undefined,
+    }));
   };
 
   // Handle profile picture upload
@@ -416,10 +512,6 @@ const SuperAdminDashboard = () => {
         if (modalMode === 'create' && !trimmedValue) return "Password is required";
         if (trimmedValue && trimmedValue.length < 6) return "Password must be at least 6 characters";
         if (trimmedValue && trimmedValue.length > 50) return "Password must not exceed 50 characters";
-        // Check if new password is same as old password when editing
-        if (modalMode === 'edit' && trimmedValue && trimmedValue === oldPassword) {
-          return "Please enter a new password different from the existing one";
-        }
         return null;
 
       case 'firstName':
@@ -473,9 +565,11 @@ const SuperAdminDashboard = () => {
       errors.status = "Invalid status selected";
     }
 
-    // Validate current password field when changing password in edit mode
-    if (modalMode === 'edit' && formData.password.trim() && !oldPassword.trim()) {
-      errors.currentPassword = "Current password is required when changing the password";
+    // Validate confirmation field when changing password in edit mode
+    if (modalMode === 'edit' && formData.password.trim() && !currentPasswordInput.trim()) {
+      errors.currentPassword = "Please confirm the new password";
+    } else if (modalMode === 'edit' && formData.password.trim() && currentPasswordInput.trim() !== formData.password.trim()) {
+      errors.currentPassword = "Confirmation password must match the new password";
     }
 
     return errors;
@@ -541,18 +635,25 @@ const SuperAdminDashboard = () => {
         await setDoc(doc(db, "users", newUserId), userData);
         setSuccessMessage("User created successfully");
       } else {
-        // Update existing user
         const updateData = {
-          ...formData,
           username: formData.username.trim(),
           email: formData.email.trim(),
           firstName: formData.firstName.trim(),
           lastName: formData.lastName.trim(),
           mobileNumber: formData.mobileNumber.trim(),
           address: formData.address.trim(),
+          role: formData.role,
+          status: formData.status,
+          bio: formData.bio,
+          profilePictureUrl: formData.profilePictureUrl || '',
           updatedAt: new Date().toISOString()
         };
-        
+
+        if (formData.password.trim()) {
+          updateData.password = formData.password.trim();
+        }
+
+        // Update existing user
         // Remove the profilePicture file object and keep only the URL
         delete updateData.profilePicture;
 
@@ -629,7 +730,7 @@ const SuperAdminDashboard = () => {
             + Create New Account
           </button>
           <button className="btn-create" onClick={openRecoveryVault}>
-            Recovery Vault
+            Recycle Bin
           </button>
           <button className="btn-logout" onClick={handleLogout}>
             Logout
@@ -835,16 +936,16 @@ const SuperAdminDashboard = () => {
                   <label>Current Password (for verification) *</label>
                   <input
                     type="password"
-                    value={oldPassword}
+                    value={currentPasswordInput}
                     onChange={handleCurrentPasswordChange}
-                    placeholder="Enter current password to verify"
+                    placeholder="Re-enter the new password to confirm"
                     className={fieldErrors.currentPassword ? 'input-error current-password-input' : 'current-password-input'}
                   />
                   {fieldErrors.currentPassword ? (
                     <span className="field-error">{fieldErrors.currentPassword}</span>
                   ) : (
                     <span className="field-hint">
-                      Required when changing the password to verify you're making an intentional change
+                      Required when changing the password to confirm the new password
                     </span>
                   )}
                 </div>
@@ -1094,7 +1195,7 @@ const SuperAdminDashboard = () => {
         <div className="modal-overlay" onClick={() => setShowRecoveryModal(false)}>
           <div className="modal view-modal" onClick={(e) => e.stopPropagation()}>
             <header className="modal-header">
-              <h2>Recovery Vault</h2>
+              <h2>Recycle Bin</h2>
               <button className="modal-close" onClick={() => setShowRecoveryModal(false)}>&times;</button>
             </header>
 
@@ -1104,27 +1205,48 @@ const SuperAdminDashboard = () => {
               ) : deletedRecords.length === 0 ? (
                 <div className="no-logs">No archived records available for recovery.</div>
               ) : (
-                <div className="recovery-vault-list">
-                  {deletedRecords.map((record) => (
-                    <div key={record.id} className="recovery-vault-item">
-                      <div className="recovery-vault-copy">
-                        <strong>{formatRecoveryLabel(record)}</strong>
-                        <span>{record.sourceCollection?.replace('_', ' ')}</span>
-                        <small>{formatRecoveryMeta(record)}</small>
-                        <small>
-                          Deleted: {record.archivedAt ? new Date(record.archivedAt).toLocaleString() : 'Unknown'}
-                        </small>
-                      </div>
-                      <button
-                        type="button"
-                        className="btn-action btn-edit"
-                        onClick={() => restoreArchivedRecord(record)}
-                        disabled={recoveringRecordId === record.id}
-                      >
-                        {recoveringRecordId === record.id ? 'Restoring...' : 'Restore'}
-                      </button>
-                    </div>
-                  ))}
+                <div className="recovery-vault-sections">
+                  {RECOVERY_SECTION_META.map((section) => {
+                    const sectionRecords = groupedRecoveryRecords[section.key] || [];
+
+                    if (sectionRecords.length === 0) {
+                      return null;
+                    }
+
+                    return (
+                      <section key={section.key} className="recovery-vault-section">
+                        <div className="recovery-vault-section-header">
+                          <div>
+                            <h3>{section.title}</h3>
+                            <p>{section.description}</p>
+                          </div>
+                          <span>{sectionRecords.length} item{sectionRecords.length === 1 ? '' : 's'}</span>
+                        </div>
+                        <div className="recovery-vault-list">
+                          {sectionRecords.map((record) => (
+                            <div key={record.id} className="recovery-vault-item">
+                              <div className="recovery-vault-copy">
+                                <strong>{formatRecoveryLabel(record)}</strong>
+                                <span>{record.sourceCollection?.replace('_', ' ')}</span>
+                                <small>{formatRecoveryMeta(record)}</small>
+                                <small>
+                                  Deleted: {record.archivedAt ? new Date(record.archivedAt).toLocaleString() : 'Unknown'}
+                                </small>
+                              </div>
+                              <button
+                                type="button"
+                                className="btn-action btn-edit"
+                                onClick={() => restoreArchivedRecord(record)}
+                                disabled={recoveringRecordId === record.id}
+                              >
+                                {recoveringRecordId === record.id ? 'Restoring...' : 'Restore'}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+                    );
+                  })}
                 </div>
               )}
             </div>

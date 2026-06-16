@@ -11,6 +11,20 @@ const lowerPermanentLeft  = [48, 47, 46, 45, 44, 43, 42, 41];
 const lowerPermanentRight = [31, 32, 33, 34, 35, 36, 37, 38]; 
 const maxLenL = 8, maxLenR = 8; 
 
+const archiveDeletedDentalRecord = async ({ patientId, sourceCollection, originalId, subcollection, data }) => {
+    const archiveId = `${sourceCollection}_${patientId}_${originalId}`.replace(/[^a-zA-Z0-9_-]/g, '_');
+    await setDoc(doc(db, 'deleted_records', archiveId), {
+        sourceCollection,
+        originalId,
+        parentId: patientId,
+        parentCollection: 'patients',
+        subcollection,
+        data,
+        deletedAt: new Date().toISOString(),
+        archivedAt: new Date().toISOString(),
+    });
+};
+
 const STATE_CLASSES = {
     'missing': 'tooth-missing',
     'issue': 'tooth-issue',
@@ -211,6 +225,19 @@ export default function Odontogram({
             const conditionRef = doc(db, `patients/${patientId}/conditions`, `tooth-${toothId}`);
             
             if (condition === 'healthy' || condition === 'treated') {
+                const currentConditionData = {
+                    toothNumber: toothId,
+                    condition,
+                };
+
+                await archiveDeletedDentalRecord({
+                    patientId,
+                    sourceCollection: 'patients_conditions',
+                    originalId: `tooth-${toothId}`,
+                    subcollection: 'conditions',
+                    data: currentConditionData,
+                });
+
                 await deleteDoc(conditionRef);
                 
                 // Log activity for deletion
@@ -279,6 +306,17 @@ export default function Odontogram({
             
             if (!treatment || treatment === 'none') {
                 console.log(`Deleting treatment for tooth ${toothId}`);
+                await archiveDeletedDentalRecord({
+                    patientId,
+                    sourceCollection: 'patients_treatments',
+                    originalId: `tooth-${toothId}`,
+                    subcollection: 'treatments',
+                    data: {
+                        toothNumber: toothId,
+                        treatment,
+                    },
+                });
+
                 await deleteDoc(treatmentRef);
                 
                 // Log activity for treatment removal

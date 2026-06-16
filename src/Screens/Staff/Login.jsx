@@ -14,36 +14,6 @@ const withTimeout = (promise, timeoutMs, timeoutMessage) => {
     ]);
 };
 
-const INACTIVE_AFTER_DAYS = 3;
-const DAY_IN_MS = 24 * 60 * 60 * 1000;
-
-const getUserActivityDate = (user) => {
-    if (user.lastActivityAt?.toDate) {
-        return user.lastActivityAt.toDate();
-    }
-
-    if (user.lastLoginAt?.toDate) {
-        return user.lastLoginAt.toDate();
-    }
-
-    if (user.updatedAt) {
-        const updatedAtDate = new Date(user.updatedAt);
-        if (!Number.isNaN(updatedAtDate.getTime())) {
-            return updatedAtDate;
-        }
-    }
-
-    if (user.createdAt) {
-        const createdAtDate = new Date(user.createdAt);
-        if (!Number.isNaN(createdAtDate.getTime())) {
-            return createdAtDate;
-        }
-    }
-
-    return null;
-};
-
-
 const Login = () => {
     const navigate = useNavigate();
     const [username, setUsername] = useState("");
@@ -78,25 +48,6 @@ const Login = () => {
 
             const user = querySnapshot.docs[0].data();
             const userId = querySnapshot.docs[0].id;
-
-            const activityDate = getUserActivityDate(user);
-            const inactivityDays = activityDate ? (Date.now() - activityDate.getTime()) / DAY_IN_MS : null;
-            const shouldAutoInactivate = inactivityDays !== null && inactivityDays >= INACTIVE_AFTER_DAYS;
-
-            if (shouldAutoInactivate && user.status !== 'inactive') {
-                updateDoc(doc(db, "users", userId), {
-                    status: 'inactive',
-                    inactiveAt: Timestamp.fromDate(new Date()),
-                    inactiveReason: 'Automatic inactivity policy',
-                    updatedAt: new Date().toISOString()
-                }).catch((error) => {
-                    console.warn("Unable to auto-inactivate stale account:", error);
-                });
-
-                setErrorMessage("Your account has been set to inactive because it has not been opened for 3 days. Please contact an administrator.");
-                setLoading(false);
-                return;
-            }
 
             // Check if user is active
             if (user.status !== 'active') {

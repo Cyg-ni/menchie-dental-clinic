@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useCallback, useMemo } from "react"
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 // 👇️ FIREBASE IMPORTS
 import { db } from '../../firebase';
-import { doc, getDoc, updateDoc, collection, query, where, getDocs, orderBy } from 'firebase/firestore'; 
+import { doc, getDoc, updateDoc, setDoc, collection, query, where, getDocs, orderBy } from 'firebase/firestore'; 
 import { useCurrentUser } from "../../hooks/useCurrentUser";
 import { logActivity, getCurrentUserId } from "../../utils/activityLogger";
 
@@ -55,6 +55,32 @@ const formatAppointmentTime = (timeStr) => {
     const [h, m] = timeStr.split(':').map(Number);
     const date = new Date(2000, 0, 1, h, m); 
     return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+};
+
+const buildPatientTreatmentArchiveId = (patientId, treatment, index) => {
+  const baseKey = `${treatment?.date || 'unknown-date'}-${treatment?.procedure || 'unknown-procedure'}-${index}`
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-');
+  return `patient_treatment_${patientId}_${baseKey}`;
+};
+
+const archiveDeletedPatientTreatment = async ({ patientId, patientName, treatment, index }) => {
+  const archiveId = buildPatientTreatmentArchiveId(patientId, treatment, index);
+  await setDoc(doc(db, 'deleted_records', archiveId), {
+    sourceCollection: 'patient_treatments',
+    originalId: archiveId,
+    parentId: patientId,
+    parentCollection: 'patients',
+    subcollection: 'treatments',
+    data: {
+      treatment,
+      patientId,
+      patientName,
+      originalIndex: index,
+    },
+    deletedAt: new Date().toISOString(),
+    archivedAt: new Date().toISOString(),
+  });
 };
 
 // --- Render Appointment History Component ---
@@ -413,6 +439,13 @@ export default function PatientProfile() {
       try {
           const updatedTreatments = [...patient.treatments];
           updatedTreatments.splice(index, 1); 
+
+          await archiveDeletedPatientTreatment({
+            patientId: id,
+            patientName: patient?.name || 'Unknown Patient',
+            treatment,
+            index,
+          });
 
           const patientDocRef = doc(db, "patients", id);
           await updateDoc(patientDocRef, {

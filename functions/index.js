@@ -62,6 +62,19 @@ const archiveDeletedRecord = async (sourceCollection, originalId, data) => {
   });
 };
 
+const archiveDeletedPatientSubrecord = async (patientId, collectionName, recordId, data) => {
+  await db.collection(DELETED_RECORDS_COLLECTION).doc(`patients_${collectionName}_${patientId}_${recordId}`).set({
+    sourceCollection: `patients_${collectionName}`,
+    originalId: recordId,
+    parentCollection: 'patients',
+    parentId: patientId,
+    subcollection: collectionName,
+    data,
+    deletedAt: admin.firestore.Timestamp.now(),
+    archivedAt: new Date().toISOString(),
+  });
+};
+
 exports.archiveDeletedUser = onDocumentDeleted('users/{userId}', async (event) => {
   const userId = event.params.userId;
   const userData = event.data?.data();
@@ -117,6 +130,30 @@ exports.archiveDeletedPatient = onDocumentDeleted('patients/{patientId}', async 
     conditionCount: conditionsSnapshot.size,
     treatmentCount: treatmentsSnapshot.size,
   });
+});
+
+exports.archiveDeletedPatientCondition = onDocumentDeleted('patients/{patientId}/conditions/{conditionId}', async (event) => {
+  const { patientId, conditionId } = event.params;
+  const conditionData = event.data?.data();
+
+  if (!conditionData) {
+    return;
+  }
+
+  await archiveDeletedPatientSubrecord(patientId, 'conditions', conditionId, conditionData);
+  logger.info('Archived deleted patient condition', { patientId, conditionId });
+});
+
+exports.archiveDeletedPatientTreatment = onDocumentDeleted('patients/{patientId}/treatments/{treatmentId}', async (event) => {
+  const { patientId, treatmentId } = event.params;
+  const treatmentData = event.data?.data();
+
+  if (!treatmentData) {
+    return;
+  }
+
+  await archiveDeletedPatientSubrecord(patientId, 'treatments', treatmentId, treatmentData);
+  logger.info('Archived deleted patient treatment', { patientId, treatmentId });
 });
 
 exports.enforceUserInactivity = onSchedule(

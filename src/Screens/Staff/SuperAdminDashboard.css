@@ -855,6 +855,50 @@
   gap: 14px;
 }
 
+.recovery-vault-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.recovery-vault-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.recovery-vault-section-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 0 2px;
+}
+
+.recovery-vault-section-header h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #0f172a;
+  font-weight: 800;
+}
+
+.recovery-vault-section-header p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.recovery-vault-section-header span {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .recovery-vault-item {
   display: flex;
   align-items: center;
