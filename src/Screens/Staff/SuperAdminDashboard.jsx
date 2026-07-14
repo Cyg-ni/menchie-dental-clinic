@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { db } from "../../firebase";
-import { collection, getDocs, deleteDoc, doc, setDoc, updateDoc, query, where } from 'firebase/firestore';
+import { collection, getDocs, getDoc, deleteDoc, doc, setDoc, updateDoc, query, where } from 'firebase/firestore';
+import Odontogram from './Odontogram';
 import "./SuperAdminDashboard.css";
 
 const usersCollectionRef = collection(db, "users");
@@ -82,6 +83,106 @@ const formatRecoveryMeta = (record) => {
   return 'Archived record';
 };
 
+const normalizeToothState = (value) => {
+  const normalized = String(value || '').toLowerCase().replace(/\s/g, '');
+
+  if (!normalized) return 'healthy';
+  if (normalized.includes('missing')) return 'missing';
+  if (normalized.includes('cavity')) return 'cavity';
+  if (normalized.includes('decay')) return 'decay';
+  if (normalized.includes('crooked')) return 'crooked';
+  if (normalized.includes('stain')) return 'stained';
+  if (normalized.includes('whiten')) return 'whitening';
+  if (normalized.includes('treated')) return 'treated';
+
+  return 'healthy';
+};
+
+const getRecordToothNumbers = (record) => {
+  const selectedTreatment = record?.data?.treatment;
+
+  if (Array.isArray(selectedTreatment?.teeth)) {
+    return selectedTreatment.teeth.map((tooth) => Number(tooth)).filter((tooth) => Number.isFinite(tooth));
+  }
+
+  if (Array.isArray(record?.data?.teeth)) {
+    return record.data.teeth.map((tooth) => Number(tooth)).filter((tooth) => Number.isFinite(tooth));
+  }
+
+  if (Array.isArray(record?.data?.toothNumbers)) {
+    return record.data.toothNumbers.map((tooth) => Number(tooth)).filter((tooth) => Number.isFinite(tooth));
+  }
+
+  if (record?.data?.toothNumber !== undefined) {
+    const toothNumber = Number(record.data.toothNumber);
+    return Number.isFinite(toothNumber) ? [toothNumber] : [];
+  }
+
+  if (record?.sourceCollection === 'patients') {
+    const teeth = [];
+
+    (record.data?.conditions || []).forEach((entry) => {
+      const toothNumber = Number(entry?.toothNumber);
+      if (Number.isFinite(toothNumber)) teeth.push(toothNumber);
+    });
+
+    (record.data?.treatments || []).forEach((entry) => {
+      const toothNumber = Number(entry?.toothNumber);
+      if (Number.isFinite(toothNumber)) teeth.push(toothNumber);
+    });
+
+    return [...new Set(teeth)];
+  }
+
+  return [];
+};
+
+const buildRecoveryPreviewOdontogram = (record) => {
+  const toothStates = {};
+  const selectedTeeth = [];
+
+  if (!record) {
+    return { toothStates, selectedTeeth };
+  }
+
+  if (record.sourceCollection === 'patients') {
+    (record.data?.conditions || []).forEach((entry) => {
+      const toothNumber = Number(entry?.toothNumber);
+      if (!Number.isFinite(toothNumber)) return;
+
+      toothStates[toothNumber] = normalizeToothState(entry?.condition);
+      selectedTeeth.push(toothNumber);
+    });
+
+    (record.data?.treatments || []).forEach((entry) => {
+      const toothNumber = Number(entry?.toothNumber);
+      if (!Number.isFinite(toothNumber)) return;
+
+      toothStates[toothNumber] = normalizeToothState(entry?.treatment || entry?.procedure || 'treated');
+      selectedTeeth.push(toothNumber);
+    });
+
+    return {
+      toothStates,
+      selectedTeeth: [...new Set(selectedTeeth)],
+    };
+  }
+
+  const toothNumbers = getRecordToothNumbers(record);
+  const state = normalizeToothState(
+    record?.data?.condition || record?.data?.treatment?.condition || record?.data?.treatment || record?.data?.procedure || 'treated'
+  );
+
+  toothNumbers.forEach((toothNumber) => {
+    toothStates[toothNumber] = state;
+  });
+
+  return {
+    toothStates,
+    selectedTeeth: toothNumbers,
+  };
+};
+
 const getRecoverySectionKey = (record) => {
   if (
     record.sourceCollection === 'patients' ||
@@ -139,8 +240,11 @@ const SuperAdminDashboard = () => {
   const [userLogs, setUserLogs] = useState([]);
   const [deletedRecords, setDeletedRecords] = useState([]);
   const [showRecoveryModal, setShowRecoveryModal] = useState(false);
+  const [previewedRecoveryRecord, setPreviewedRecoveryRecord] = useState(null);
   const [recoveryLoading, setRecoveryLoading] = useState(false);
   const [recoveringRecordId, setRecoveringRecordId] = useState('');
+  const [deletingRecordId, setDeletingRecordId] = useState('');
+  const [clearingRecoveryBin, setClearingRecoveryBin] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('all');
   const [successMessage, setSuccessMessage] = useState('');
@@ -217,6 +321,19 @@ const SuperAdminDashboard = () => {
     await fetchDeletedRecords();
   };
 
+  const closeRecoveryVault = () => {
+    setShowRecoveryModal(false);
+    setPreviewedRecoveryRecord(null);
+  };
+
+  const openRecoveryPreview = (record) => {
+    setPreviewedRecoveryRecord(record);
+  };
+
+  const closeRecoveryPreview = () => {
+    setPreviewedRecoveryRecord(null);
+  };
+
   const restoreArchivedRecord = async (record) => {
     if (!window.confirm(`Restore ${formatRecoveryLabel(record)}?`)) {
       return;
@@ -285,6 +402,53 @@ const SuperAdminDashboard = () => {
       setErrorMessage('Failed to restore archived record');
     } finally {
       setRecoveringRecordId('');
+    }
+  };
+
+  const deleteArchivedRecord = async (record) => {
+    if (!window.confirm(`Permanently delete ${formatRecoveryLabel(record)} from the Recycle Bin? This cannot be restored.`)) {
+      return;
+    }
+
+    try {
+      setDeletingRecordId(record.id);
+      await deleteDoc(doc(db, 'deleted_records', record.id));
+      await fetchDeletedRecords();
+
+      if (previewedRecoveryRecord?.id === record.id) {
+        setPreviewedRecoveryRecord(null);
+      }
+
+      setSuccessMessage('Archived record deleted permanently');
+    } catch (error) {
+      console.error('Error deleting archived record:', error);
+      setErrorMessage('Failed to permanently delete archived record');
+    } finally {
+      setDeletingRecordId('');
+    }
+  };
+
+  const clearRecoveryBin = async () => {
+    if (deletedRecords.length === 0) {
+      return;
+    }
+
+    if (!window.confirm(`Permanently delete all ${deletedRecords.length} archived record${deletedRecords.length === 1 ? '' : 's'} from the Recycle Bin? This cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      setClearingRecoveryBin(true);
+      const snapshot = await getDocs(deletedRecordsCollectionRef);
+      await Promise.all(snapshot.docs.map((recordDoc) => deleteDoc(recordDoc.ref)));
+      await fetchDeletedRecords();
+      setPreviewedRecoveryRecord(null);
+      setSuccessMessage('Recycle Bin cleared');
+    } catch (error) {
+      console.error('Error clearing recovery bin:', error);
+      setErrorMessage('Failed to clear Recycle Bin');
+    } finally {
+      setClearingRecoveryBin(false);
     }
   };
 
@@ -717,6 +881,10 @@ const SuperAdminDashboard = () => {
       default: return '#6b7280';
     }
   };
+
+  const recoveryPreviewOdontogram = previewedRecoveryRecord
+    ? buildRecoveryPreviewOdontogram(previewedRecoveryRecord)
+    : { toothStates: {}, selectedTeeth: [] };
 
   return (
     <div className="super-admin-dashboard">
@@ -1192,14 +1360,31 @@ const SuperAdminDashboard = () => {
       )}
 
       {showRecoveryModal && (
-        <div className="modal-overlay" onClick={() => setShowRecoveryModal(false)}>
+        <div className="modal-overlay" onClick={closeRecoveryVault}>
           <div className="modal view-modal" onClick={(e) => e.stopPropagation()}>
             <header className="modal-header">
               <h2>Recycle Bin</h2>
-              <button className="modal-close" onClick={() => setShowRecoveryModal(false)}>&times;</button>
+              <button className="modal-close" onClick={closeRecoveryVault}>&times;</button>
             </header>
 
             <div className="view-body">
+              {deletedRecords.length > 0 && (
+                <div className="recovery-vault-toolbar">
+                  <div>
+                    <strong>{deletedRecords.length} item{deletedRecords.length === 1 ? '' : 's'}</strong>
+                    <span>Archived records currently waiting in the bin.</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-action btn-delete recovery-vault-clear-btn"
+                    onClick={clearRecoveryBin}
+                    disabled={clearingRecoveryBin || recoveryLoading}
+                  >
+                    {clearingRecoveryBin ? 'Clearing...' : 'Clear Recycle Bin'}
+                  </button>
+                </div>
+              )}
+
               {recoveryLoading ? (
                 <div className="loading">Loading archived records...</div>
               ) : deletedRecords.length === 0 ? (
@@ -1233,14 +1418,31 @@ const SuperAdminDashboard = () => {
                                   Deleted: {record.archivedAt ? new Date(record.archivedAt).toLocaleString() : 'Unknown'}
                                 </small>
                               </div>
-                              <button
-                                type="button"
-                                className="btn-action btn-edit"
-                                onClick={() => restoreArchivedRecord(record)}
-                                disabled={recoveringRecordId === record.id}
-                              >
-                                {recoveringRecordId === record.id ? 'Restoring...' : 'Restore'}
-                              </button>
+                              <div className="recovery-vault-actions">
+                                <button
+                                  type="button"
+                                  className="btn-action btn-view"
+                                  onClick={() => openRecoveryPreview(record)}
+                                >
+                                  Preview
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-action btn-edit"
+                                  onClick={() => restoreArchivedRecord(record)}
+                                  disabled={recoveringRecordId === record.id}
+                                >
+                                  {recoveringRecordId === record.id ? 'Restoring...' : 'Restore'}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-action btn-delete"
+                                  onClick={() => deleteArchivedRecord(record)}
+                                  disabled={deletingRecordId === record.id}
+                                >
+                                  {deletingRecordId === record.id ? 'Deleting...' : 'Delete'}
+                                </button>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -1249,6 +1451,42 @@ const SuperAdminDashboard = () => {
                   })}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {previewedRecoveryRecord && (
+        <div className="modal-overlay" onClick={closeRecoveryPreview}>
+          <div className="modal view-modal recovery-preview-modal" onClick={(e) => e.stopPropagation()}>
+            <header className="modal-header">
+              <h2>Record Preview</h2>
+              <button className="modal-close" onClick={closeRecoveryPreview}>&times;</button>
+            </header>
+
+            <div className="view-body recovery-preview-body recovery-preview-odontogram-wrap">
+              <div className="recovery-preview-summary recovery-preview-summary-compact">
+                <div>
+                  <span className="recovery-preview-label">Name</span>
+                  <strong>{formatRecoveryLabel(previewedRecoveryRecord)}</strong>
+                </div>
+                <div>
+                  <span className="recovery-preview-label">Archived</span>
+                  <strong>{previewedRecoveryRecord.archivedAt ? new Date(previewedRecoveryRecord.archivedAt).toLocaleString() : 'Unknown'}</strong>
+                </div>
+              </div>
+
+              <Odontogram
+                selectedTeeth={recoveryPreviewOdontogram.selectedTeeth}
+                selectable={false}
+                toothStates={recoveryPreviewOdontogram.toothStates}
+                currentTool="none"
+                onSelectionChange={() => {}}
+                onStateChange={() => {}}
+                patientId={previewedRecoveryRecord.parentId || previewedRecoveryRecord.originalId || 'default-patient'}
+                treatmentType={previewedRecoveryRecord.data?.treatment?.procedure || previewedRecoveryRecord.data?.procedure || previewedRecoveryRecord.data?.treatment || 'Archived record'}
+                defaultCondition={previewedRecoveryRecord.data?.condition || previewedRecoveryRecord.data?.treatment?.condition || 'Archived record'}
+              />
             </div>
           </div>
         </div>
