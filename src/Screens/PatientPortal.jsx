@@ -467,7 +467,7 @@ const PatientPortal = () => {
         
         {/* Header Actions */}
         <div className="flex justify-between items-center print:hidden no-print">
-          <Link to="/" className="flex items-center gap-2 text-sm font-bold text-gray-400 hover:text-indigo-600 transition-colors group hover:scale-105">
+          <Link to="/" className="flex items-center gap-2 text-sm font-bold text-black-400 hover:text-indigo-600 transition-colors group hover:scale-105">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4 group-hover:-translate-x-1 transition-transform">
               <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
             </svg>
@@ -488,16 +488,16 @@ const PatientPortal = () => {
           {/* PERSERVED DESIGN: Medical Profile Section */}
           <div className="lg:col-span-1 space-y-6 animate-slide-in-left">
             <div className="bg-white p-6 rounded-4xl shadow-sm border border-gray-100">
-              <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Personal Details</h2>
+              <h2 className="text-xs font-bold text-black-500 uppercase tracking-widest mb-4">Personal Details</h2>
               <div className="space-y-3 text-sm border-b border-gray-50 pb-6">
-                <p className="flex justify-between"><span className="text-gray-400 font-medium">Full Name:</span> <span className="font-bold text-gray-700">{profile?.fullName || profile?.name || profile?.displayName || authUser?.displayName || `${profile?.firstName ?? ''} ${profile?.lastName ?? ''}`.trim() || 'Unknown Patient'}</span></p>
-                <p className="flex justify-between"><span className="text-gray-400 font-medium">Age/Gender:</span> <span className="font-bold text-gray-700">{profile?.age || 'Unknown age'} • {profile?.gender || 'Unknown gender'}</span></p>
+                <p className="flex justify-between"><span className="text-black-500 font-medium">Full Name:</span> <span className="font-bold text-gray-700">{profile?.fullName || profile?.name || profile?.displayName || authUser?.displayName || `${profile?.firstName ?? ''} ${profile?.lastName ?? ''}`.trim() || 'Unknown Patient'}</span></p>
+                <p className="flex justify-between"><span className="text-black-500 font-medium">Age/Gender:</span> <span className="font-bold text-gray-700">{profile?.age || 'Unknown age'} • {profile?.gender || 'Unknown gender'}</span></p>
               </div>
 
-              <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-6 mb-4">Medical History</h2>
+              <h2 className="text-xs font-bold text-black-500 uppercase tracking-widest mt-6 mb-4">Medical History</h2>
               <div className="space-y-4 text-sm">
                 <div>
-                  <span className="text-gray-400 font-medium block mb-1">Allergies:</span>
+                  <span className="text-black-500 font-medium block mb-1">Allergies:</span>
                   <span className={`inline-block px-3 py-1 rounded-lg font-bold text-xs ${profile?.medicalHistory?.Allergies?.conditionNotes ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
                     {profile?.medicalHistory?.Allergies?.conditionNotes || 'None Reported'}
                   </span>
