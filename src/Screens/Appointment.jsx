@@ -365,8 +365,8 @@ const Appointment = () => {
       // 3. ATTEMPT EMAIL
       try {
         await emailjs.send(
-          'service_yei2sk7',
-          'template_tqviuem',
+          'service_1f5gu18',
+          'template_cbui21p',
           {
             to_name: formData.firstName,
             to_email: formData.email,
@@ -376,7 +376,7 @@ const Appointment = () => {
             appointment_id: generatedId,
             base_url: window.location.origin, 
           },
-          'Bw_dLBXg4UIfg4mUh'
+          'TiVurg8fWvnl_Xu54'
         );
       } catch (emailErr) {
         console.error("EmailJS Error:", emailErr);
