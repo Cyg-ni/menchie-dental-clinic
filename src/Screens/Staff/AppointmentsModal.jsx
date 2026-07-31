@@ -20,6 +20,19 @@ import {
 import { db } from '../../firebase';
 
 const appointmentsCollectionRef = collection(db, "appointments");
+const EMAILJS_SERVICE_ID = 'service_1f5gu18';
+const EMAILJS_TEMPLATE_ID = 'template_mhkiqrv';
+const EMAILJS_PUBLIC_KEY = 'TiVurg8fWvnl_Xu54';
+
+emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
+
+const resolveEmailValue = (...candidates) => {
+    const email = candidates
+        .map((candidate) => (typeof candidate === 'string' ? candidate.trim() : ''))
+        .find((candidate) => candidate && candidate !== 'N/A');
+
+    return email || '';
+};
 
 const formatDateLocal = (date) => {
     const year = date.getFullYear();
@@ -69,13 +82,8 @@ const AppointmentsModal = ({ onClose, onUpdate }) => {
     const [declineReason, setDeclineReason] = useState("");
     const [isSubmittingDecline, setIsSubmittingDecline] = useState(false);
 
-    // --- ENHANCED EMAILJS LOGIC ---
-    const sendStatusEmail = async (apptData, action, reason = "") => {
-        const SERVICE_ID = 'service_yei2sk7'; 
-        const TEMPLATE_ID = 'template_w1rp87d';
-        const PUBLIC_KEY = 'Bw_dLBXg4UIfg4mUh';
-
-        // 🔍 DEBUG: See exactly what address we are sending to
+    // --- EMAILJS REJECTION NOTIFICATION ---
+    const sendRejectionEmail = async (apptData, reason = "") => {
         console.log("FINAL CHECK - Recipient Email:", apptData.patientEmail);
 
         if (!apptData.patientEmail || apptData.patientEmail.trim() === "") {
@@ -85,25 +93,34 @@ const AppointmentsModal = ({ onClose, onUpdate }) => {
 
         const templateParams = {
             patient_name: apptData.patientFullName || "Valued Patient",
-            status: action,                         
+            status: "Declined",
             appointment_date: apptData.scheduledDate || "TBD",
             appointment_time: apptData.scheduledTime || "TBD",
             service_type: apptData.serviceType || "Dental Consultation",
             tracking_id: apptData.id,               
             to_email: apptData.patientEmail,        
-            message: action === "Approved" 
-                ? "Good news! Your appointment request has been confirmed." 
-                : `We are sorry, but we cannot accommodate your requested time slot.${reason ? ` Reason: ${reason}` : ""}`,
+            email: apptData.patientEmail,
+            recipient_email: apptData.patientEmail,
+            reply_to: apptData.patientEmail,
+            message: `We are sorry, but we cannot accommodate your requested time slot.${reason ? ` Reason: ${reason}` : ""}`,
             rejection_reason: reason,
             decline_reason: reason,
             reason: reason,
         };
 
         try {
-            const result = await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams, PUBLIC_KEY);
+            const result = await emailjs.send(
+                EMAILJS_SERVICE_ID,
+                EMAILJS_TEMPLATE_ID,
+                templateParams,
+                { publicKey: EMAILJS_PUBLIC_KEY }
+            );
             console.log("EMAILJS SUCCESS:", result.text);
+            return { ok: true };
         } catch (error) {
-            console.error("EMAILJS ERROR:", error); 
+            const errorMessage = error?.text || error?.message || (typeof error === "string" ? error : "EmailJS request failed");
+            console.error("EMAILJS ERROR:", error);
+            return { ok: false, error: errorMessage };
         }
     };
     
@@ -117,7 +134,7 @@ const AppointmentsModal = ({ onClose, onUpdate }) => {
                 const data = patientSnap.data();
                 return {
                     name: data.fullName || (data.firstName + " " + data.lastName) || "Patient",
-                    email: data.patientEmail || data.email || "" // Checks both common field names
+                    email: resolveEmailValue(data.patientEmail, data.email, data.contactInfo)
                 };
             }
         } catch (e) {
@@ -147,6 +164,8 @@ const AppointmentsModal = ({ onClose, onUpdate }) => {
                     finalName = finalName || patientInfo.name;
                     finalEmail = finalEmail || patientInfo.email;
                 }
+
+                finalEmail = resolveEmailValue(finalEmail, apptData.contactInfo, apptData.email);
 
                 return {
                     id: docSnap.id, 
@@ -197,7 +216,20 @@ const AppointmentsModal = ({ onClose, onUpdate }) => {
         const apptToUpdate = appointments.find(a => a.id === id);
         if (!apptToUpdate) return;
 
+        let recipientEmail = apptToUpdate.patientEmail || "";
+        if (!recipientEmail && apptToUpdate.patientId) {
+            const patientInfo = await getPatientFullData(apptToUpdate.patientId);
+            recipientEmail = patientInfo.email || "";
+        }
+
+        recipientEmail = resolveEmailValue(recipientEmail, apptToUpdate.contactInfo, apptToUpdate.email);
+
+        if (!recipientEmail) {
+            throw new Error("Unable to resolve the patient's email address for this appointment.");
+        }
+
         const apptDoc = doc(db, "appointments", id);
+        let emailNotificationError = "";
         
         try {
             // 1. Update Firestore
@@ -224,8 +256,13 @@ const AppointmentsModal = ({ onClose, onUpdate }) => {
                 scheduledTime: apptToUpdate.scheduledTime
             });
             
-            // 3. Trigger Email with the data we found during fetch
-            await sendStatusEmail(apptToUpdate, action, reason);
+            // 3. Trigger the rejection email only for declined appointments
+            if (action === "Declined") {
+                const emailResult = await sendRejectionEmail({ ...apptToUpdate, patientEmail: recipientEmail }, reason);
+                if (!emailResult.ok) {
+                    emailNotificationError = emailResult.error;
+                }
+            }
             
             // 4. UI Refresh
             await fetchPendingAppointments();
@@ -234,11 +271,20 @@ const AppointmentsModal = ({ onClose, onUpdate }) => {
             }
             if (onUpdate) onUpdate(); 
 
-            alert(`Success: Appointment ${action}. Notification sent.`);
+            if (action === "Declined") {
+                alert(
+                    emailNotificationError
+                        ? `Success: Appointment Declined, but the notification failed: ${emailNotificationError}`
+                        : "Success: Appointment Declined. Notification sent."
+                );
+            } else {
+                alert("Success: Appointment Approved.");
+            }
 
         } catch (error) {
+            const errorMessage = error?.message || error?.text || (typeof error === "string" ? error : "Unknown error");
             console.error("Process failed:", error);
-            alert(`Process failed: ${error.message}`);
+            alert(`Process failed: ${errorMessage}`);
         }
     }
     
