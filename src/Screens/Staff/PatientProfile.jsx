@@ -793,11 +793,14 @@ export default function PatientProfile() {
               if (selectedTreatment) {
                   sectionTitle = "Odontogram (Treatment Detail)";
                   const cond = selectedTreatmentCondition;
+                  const permanentState = patient.currentToothState || {};
                   
                   // When viewing a timeline record, show the condition stored in that record
                   // for the selected teeth so historical values are not overridden by current state.
                   selectedTreatment.teeth.forEach(t => {
-                    shadedStatus[t] = cond || 'healthy';
+                    const permanentToothState = (permanentState[t] || '').toString().toLowerCase().trim();
+                    // Preserve permanent missing state so missing teeth stay hidden in 3D.
+                    shadedStatus[t] = permanentToothState === 'missing' ? 'missing' : (cond || 'healthy');
                   });
               } else {
                   // Default: Show the current permanent state (Global record)
@@ -814,7 +817,7 @@ export default function PatientProfile() {
                   return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 15, background: "#fff", borderRadius: 10, boxShadow: "0 2px 24px #eee", padding: 22, maxWidth: '100%', overflowX: 'auto' }}>
                   <div style={{ fontWeight: 700, color: '#223245', fontSize: 18 }}> {sectionTitle} </div>
-                  <Odontogram selectedTeeth={timelineSelectedTeeth} selectable={false} toothStates={shadedStatus} currentTool={'none'} onSelectionChange={()=>{}} treatmentType={selectedTreatmentProcedure || form.procedure} defaultCondition={selectedTreatmentCondition || form.condition} />
+                  <Odontogram selectedTeeth={timelineSelectedTeeth} selectable={false} toothStates={shadedStatus} currentTool={'none'} onSelectionChange={()=>{}} treatmentType={selectedTreatmentProcedure || form.procedure} defaultCondition={selectedTreatmentCondition || form.condition} allowMissingPreview={Boolean(selectedTreatment)} />
                   
                   {form.isModelOpen && (
                       <div className="odontogram-modal-backdrop" onClick={() => setForm(f => ({ ...f, isModelOpen: false }))} role="presentation">
@@ -832,7 +835,7 @@ export default function PatientProfile() {
                               <div className="odontogram-modal-body">
                                   {/* Container required for rendering canvas */}
                                   <div style={{ width: '100%', height: '500px' }}>
-                                    <TeethModelViewer selectedTeeth={timelineSelectedTeeth} toothStates={shadedStatus} defaultTreatment={selectedTreatmentProcedure || form.procedure} defaultCondition={selectedTreatmentCondition || form.condition} />
+                                    <TeethModelViewer selectedTeeth={timelineSelectedTeeth} toothStates={shadedStatus} defaultTreatment={selectedTreatmentProcedure || form.procedure} defaultCondition={selectedTreatmentCondition || form.condition} allowMissingPreview={Boolean(selectedTreatment)} />
                                   </div>
                               </div>
                               <div className="odontogram-modal-footer"> <button type="button" className="modal-close-secondary" onClick={() => setForm(f => ({ ...f, isModelOpen: false }))}> Close </button> </div>

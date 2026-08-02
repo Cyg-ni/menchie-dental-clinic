@@ -32,7 +32,8 @@ export default function TeethModelViewer({
     toothTreatments = {},
     defaultTreatment = null,
     defaultCondition = null,
-    timelineSelectedTooth = null
+    timelineSelectedTooth = null,
+    allowMissingPreview = false
 }) {
   const mountRef = React.useRef(null);
   const [status, setStatus] = React.useState("loading");
@@ -977,6 +978,24 @@ export default function TeethModelViewer({
         state.fillingMeshes = [];
         state.completedAnimations.clear();
         state.animationStartTimes.clear();
+
+        // Reset per-tooth animation completion flags so timeline record previews replay reliably.
+        Object.values(map).flat().forEach(mesh => {
+            mesh.userData.whiteningCompleted = false;
+            mesh.userData.whiteningStartTime = undefined;
+            mesh.userData.cleaningCompleted = false;
+            mesh.userData.cleaningStartTime = undefined;
+            mesh.userData.removalCompleted = false;
+            mesh.userData.removalStartTime = undefined;
+            mesh.userData.bracesCompleted = false;
+            mesh.userData.bracesStartTime = undefined;
+            mesh.userData.retainerCompleted = false;
+            mesh.userData.retainerStartTime = undefined;
+            mesh.userData.fillingCompleted = false;
+            mesh.userData.fillingStartTime = undefined;
+            mesh.userData.activeOrthodonticType = null;
+            clearBraceParts(mesh);
+        });
     }
 
     // Allow treatment animations (like cleaning/whitening) to replay when treatment type changes.
@@ -1103,14 +1122,29 @@ export default function TeethModelViewer({
     };
     
     const setupRemoval = (mesh) => {
-        if (!state.removalMeshes.includes(mesh) && !mesh.userData.removalCompleted) {
+        // If removal was already completed in a previous preview, allow replay.
+        if (mesh.userData.removalCompleted) {
+            mesh.userData.removalCompleted = false;
+            mesh.userData.removalStartTime = undefined;
+            state.removalMeshes = state.removalMeshes.filter(m => m !== mesh);
+        }
+
+        if (!state.removalMeshes.includes(mesh)) {
             console.log("🦷 SETTING UP REMOVAL ANIMATION");
+
+            // Ensure removal starts from a clean, visible baseline.
+            mesh.visible = true;
+            mesh.position.copy(mesh.userData.originalPosition || new THREE.Vector3(0, 0, 0));
+            mesh.scale.copy(mesh.userData.originalScale || new THREE.Vector3(1, 1, 1));
+            mesh.material.opacity = 1;
+            mesh.material.transparent = true;
+            mesh.material.color.set(COLOR_DEFAULT);
+            mesh.material.emissive.setHex(0x000000);
+            mesh.material.emissiveIntensity = 0;
+
             mesh.userData.removalStartTime = undefined;
             mesh.userData.removalCompleted = false;
-            
-            if (!state.removalMeshes.includes(mesh)) {
-                state.removalMeshes.push(mesh);
-            }
+            state.removalMeshes.push(mesh);
         }
     };
     
@@ -1141,14 +1175,25 @@ export default function TeethModelViewer({
         }
     };
     
-    const setupCleaning = (mesh) => {
+    const getCleaningStartColor = (conditionText = '') => {
+        const normalized = (conditionText || '').toLowerCase().trim();
+        if (normalized.includes('stained')) return COLOR_STAINED_BASE.clone();
+        if (normalized.includes('decay')) return COLOR_DECAY.clone();
+        if (normalized.includes('cavity')) return COLOR_CAVITY.clone();
+        if (normalized.includes('corroded')) return new THREE.Color(0x666666);
+        return COLOR_DIM.clone();
+    };
+
+    const setupCleaning = (mesh, conditionText = '') => {
         if (!state.cleaningMeshes.includes(mesh) && !mesh.userData.cleaningCompleted) {
             console.log("🧼 Setting up cleaning animation - will fade to white");
+            const startColor = getCleaningStartColor(conditionText);
             
             // Reset animation state
             mesh.userData.cleaningStartTime = undefined;
-            mesh.userData.cleaningStartColor = mesh.material.color.clone();
+            mesh.userData.cleaningStartColor = startColor.clone();
             mesh.userData.cleaningCompleted = false;
+            mesh.material.color.copy(startColor);
             
             // Add to animation list
             if (!state.cleaningMeshes.includes(mesh)) {
@@ -1558,6 +1603,22 @@ export default function TeethModelViewer({
         return treatment;
     };
 
+    const isRemovalTreatmentText = (text) => {
+        const normalized = (text || "").toLowerCase().replace(/\s+/g, ' ').trim();
+        return normalized.includes('remov') || normalized.includes('extract');
+    };
+
+    const shouldPreviewMissingTooth = (toothNum) => {
+        if (!allowMissingPreview) return false;
+        const toothKey = String(toothNum);
+        const inActiveSelection = activeSelectionSet.has(toothKey);
+        if (!inActiveSelection) return false;
+
+        const assignedTreatment = getTreatmentForSelectedTooth(toothNum);
+        const selectedRecordTreatment = selectedRecord?.treatment || selectedRecord?.procedure || '';
+        return isRemovalTreatmentText(assignedTreatment) || isRemovalTreatmentText(selectedRecordTreatment) || isRemovalTreatmentText(defaultTreatment);
+    };
+
     const hasOrthodonticSelectionTreatment = Array.from(selectedNonMissingSet).some(id => {
         const toothNum = parseInt(id, 10);
         return isOrthodonticTreatmentText(getTreatmentForSelectedTooth(toothNum));
@@ -1782,11 +1843,26 @@ export default function TeethModelViewer({
     // Always restart braces animation when entering treatment mode
     if (previousViewMode !== 'treatment' && viewMode === 'treatment') {
         state.bracesMeshes = []; // Reset list so they can be re-added
+        state.whiteningMeshes = [];
+        state.removalMeshes = [];
+        state.cleaningMeshes = [];
+        state.retainerMeshes = [];
+        state.fillingMeshes = [];
         Object.values(toothMeshMapRef.current).forEach(meshes => {
             if (Array.isArray(meshes)) {
                 meshes.forEach(mesh => {
                     mesh.userData.bracesCompleted = false;
                     mesh.userData.bracesStartTime = undefined;
+                    mesh.userData.whiteningCompleted = false;
+                    mesh.userData.whiteningStartTime = undefined;
+                    mesh.userData.cleaningCompleted = false;
+                    mesh.userData.cleaningStartTime = undefined;
+                    mesh.userData.removalCompleted = false;
+                    mesh.userData.removalStartTime = undefined;
+                    mesh.userData.retainerCompleted = false;
+                    mesh.userData.retainerStartTime = undefined;
+                    mesh.userData.fillingCompleted = false;
+                    mesh.userData.fillingStartTime = undefined;
                 });
             }
         });
@@ -1810,7 +1886,9 @@ export default function TeethModelViewer({
         // Check if tooth is missing from any source
         const isMissing = isToothMissing(toothNum);
         
-        if (isMissing && viewMode !== 'status') {
+        const previewMissing = isMissing && shouldPreviewMissingTooth(toothNum);
+
+        if (isMissing && !previewMissing) {
             console.log(`🚫 Tooth ${toothNum} is marked as MISSING - hiding in ${viewMode} view and cleaning braces`);
             meshes.forEach(mesh => {
                 mesh.userData.isMissing = true;
@@ -1833,11 +1911,11 @@ export default function TeethModelViewer({
         const isInSelectedRecord = selectedRecordToothSet.has(String(toothNum));
         const assignedTreatment = getTreatmentForSelectedTooth(toothNum);
         const hasAssignedTreatment = Boolean(assignedTreatment);
+        const isEffectivelyMissing = isMissing && !previewMissing;
 
         meshes.forEach(mesh => {
-            mesh.userData.isMissing = isMissing;
+            mesh.userData.isMissing = isEffectivelyMissing;
             if (viewMode === 'status') {
-                // Status view should keep missing teeth visible like the odontogram.
                 mesh.visible = true;
 
                 // When a record is selected, only that record should drive highlights.
@@ -1955,10 +2033,22 @@ export default function TeethModelViewer({
                 
             } else if (viewMode === 'treatment') {
                 console.log(`=== TREATMENT VIEW - Tooth ${toothNum} ===`);
+
+                const directRemovalPreview =
+                    activeSelectionSet.has(String(toothNum)) &&
+                    isRemovalTreatmentText(getTreatmentForSelectedTooth(toothNum) || defaultTreatment || selectedRecord?.treatment || selectedRecord?.procedure || '');
+
+                if (directRemovalPreview && !isEffectivelyMissing) {
+                    // Hard precedence: selected removal/extraction records must animate removal,
+                    // never fall through to condition shading (black/corroded visuals).
+                    clearBraceParts(mesh);
+                    setupRemoval(mesh);
+                    return;
+                }
                 
                 // Check if tooth is selected (highlighted in odontogram) or already has a stored treatment.
-                const isToothSelected = activeSelectionSet.has(String(toothNum)) && !isMissing;
-                const isToothActiveForTreatment = (isToothSelected || hasAssignedTreatment) && !isMissing;
+                const isToothSelected = activeSelectionSet.has(String(toothNum)) && !isEffectivelyMissing;
+                const isToothActiveForTreatment = (isToothSelected || hasAssignedTreatment) && !isEffectivelyMissing;
                 console.log(`Tooth ${toothNum} is active for treatment: ${isToothActiveForTreatment}`);
 
                 // --- SPECIAL BRACES LOGIC: Apply to entire row if any tooth in that row is selected for braces ---
@@ -2139,7 +2229,7 @@ export default function TeethModelViewer({
                         }
                         else if (normalizedTreatment.includes('cleaning') || normalizedTreatment.includes('clean') || normalizedTreatment.includes('cavity cleaning')) {
                             console.log(`Selected treatment is cleaning → CLEANING ANIMATION`);
-                            setupCleaning(mesh);
+                            setupCleaning(mesh, normalizedCondition);
                         }
                         // If the staff explicitly selected a removal/extraction as the current procedure,
                         // prioritize the removal animation regardless of the recorded condition (unless missing).
@@ -2176,17 +2266,17 @@ export default function TeethModelViewer({
                         else if ((normalizedCondition.includes('tooth cavity') || normalizedCondition.includes('cavity')) &&
                                 (normalizedTreatment.includes('cleaning') || normalizedTreatment.includes('clean') || normalizedTreatment.includes('cavity cleaning'))) {
                             console.log(`Condition: tooth cavity, Treatment: cleaning → CLEANING ANIMATION`);
-                            setupCleaning(mesh);
+                            setupCleaning(mesh, normalizedCondition);
                         }
                         else if ((normalizedCondition.includes('stained teeth') || normalizedCondition.includes('stained')) &&
                                 (normalizedTreatment.includes('cleaning') || normalizedTreatment.includes('clean'))) {
                             console.log(`Condition: stained teeth, Treatment: cleaning → CLEANING ANIMATION`);
-                            setupCleaning(mesh);
+                            setupCleaning(mesh, normalizedCondition);
                         }
                         else if ((normalizedCondition.includes('tooth decay') || normalizedCondition.includes('decay')) &&
                                 (normalizedTreatment.includes('cleaning') || normalizedTreatment.includes('clean'))) {
                             console.log(`Condition: tooth decay, Treatment: cleaning → CLEANING ANIMATION`);
-                            setupCleaning(mesh);
+                            setupCleaning(mesh, normalizedCondition);
                         }
                         // Apply Dental Braces animation
                         else if (isBracesTreatmentText(normalizedTreatment)) {
@@ -2223,7 +2313,7 @@ export default function TeethModelViewer({
                         else if (isToothActiveForTreatment) {
                             // Default to cleaning animation for any treatment-active tooth.
                             console.log(`Default animation for treatment-active tooth: "${treatment}" → CLEANING ANIMATION`);
-                            setupCleaning(mesh);
+                            setupCleaning(mesh, normalizedCondition);
                         } else {
                             // SYNC: If tooth is part of a row treatment BUT not selected, 
                             // it should remain visible with its original color/texture, not DIMmed (black).

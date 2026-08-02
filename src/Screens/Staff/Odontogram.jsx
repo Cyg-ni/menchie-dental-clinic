@@ -143,7 +143,8 @@ export default function Odontogram({
     selectable = false,
     patientId = "default-patient",
     treatmentType = 'tooth removal',
-    defaultCondition = ''
+    defaultCondition = '',
+    allowMissingPreview = false
 }) {
     const [isModelOpen, setIsModelOpen] = React.useState(false);
     const [modalViewMode, setModalViewMode] = React.useState('status');
@@ -532,6 +533,7 @@ export default function Odontogram({
                         toothTreatments={toothTreatments}
                         defaultTreatment={treatmentType}
                         defaultCondition={defaultCondition}
+                        allowMissingPreview={allowMissingPreview}
                     />
                   </div>
                   
