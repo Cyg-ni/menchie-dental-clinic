@@ -47,8 +47,7 @@ const serviceOptions = [
   "Emergency Dental Services",
   "Root Canal Therapy",
   "Children's Dentistry",
-  "Orthodontics & Aligners",
-  "Gum Disease Treatment"
+  "Orthodontics & Aligners"
 ];
 
 const TIME_SLOTS = ["08:30", "09:45", "11:00", "13:00", "14:30", "15:45", "17:00"];

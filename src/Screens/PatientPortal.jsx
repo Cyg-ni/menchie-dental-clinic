@@ -235,6 +235,22 @@ const PatientPortal = () => {
 
       const rawTreatments = normalizeTreatments(treatmentSourceData.treatments);
       const statesObj = {};
+      const currentToothState = profileData.currentToothState && typeof profileData.currentToothState === 'object'
+        ? profileData.currentToothState
+        : null;
+
+      const mergeMissingState = (stateMap) => {
+        if (!currentToothState) return stateMap;
+
+        const mergedStateMap = { ...stateMap };
+        Object.entries(currentToothState).forEach(([toothNum, condition]) => {
+          if (String(condition || '').toLowerCase().includes('missing')) {
+            mergedStateMap[String(toothNum)] = 'missing tooth';
+          }
+        });
+
+        return mergedStateMap;
+      };
 
       const toToothArray = (value) => {
         if (value === undefined || value === null) return [];
@@ -304,8 +320,12 @@ const PatientPortal = () => {
         };
       });
 
-      setToothStates(statesObj);
-      setToothConditions(formattedRecords.sort((a, b) => b.rawDate - a.rawDate));
+      setToothStates(mergeMissingState(statesObj));
+      setToothConditions(
+        formattedRecords
+          .filter((record) => record.toothNumbers.length > 0 && !record.missingToothNumbers.length)
+          .sort((a, b) => b.rawDate - a.rawDate)
+      );
       
       const contactEmail = profileData.contactInfo || profileData.email || user?.email || auth.currentUser?.email;
       const normalizedEmail = contactEmail?.trim().toLowerCase();
@@ -404,8 +424,12 @@ const PatientPortal = () => {
             });
           });
 
-          setToothStates(fallbackStates);
-          setToothConditions(appointmentTreatmentRecords.sort((a, b) => b.rawDate - a.rawDate));
+          setToothStates(mergeMissingState(fallbackStates));
+          setToothConditions(
+            appointmentTreatmentRecords
+              .filter((record) => record.toothNumbers.length > 0 && !record.missingToothNumbers.length)
+              .sort((a, b) => b.rawDate - a.rawDate)
+          );
         } else if (profileData.currentToothState && typeof profileData.currentToothState === 'object') {
           const mapEntries = Object.entries(profileData.currentToothState);
           const stateMap = {};
@@ -424,8 +448,8 @@ const PatientPortal = () => {
             };
           });
 
-          setToothStates(stateMap);
-          setToothConditions(currentStateRecords);
+          setToothStates(mergeMissingState(stateMap));
+          setToothConditions(currentStateRecords.filter((record) => !record.missingToothNumbers.length));
         }
       }
 
