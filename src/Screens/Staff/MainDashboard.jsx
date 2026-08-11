@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { db } from "../../firebase"; 
-import { collection, getDocs, query, where, doc, getDoc, orderBy, limit } from 'firebase/firestore'; 
+import { collection, getDocs, query, where, doc, getDoc, orderBy, limit, onSnapshot } from 'firebase/firestore'; 
 import { useCurrentUser } from "../../hooks/useCurrentUser";
 
 import "./Layout.css";
@@ -350,23 +350,6 @@ const MainDashboard = () => {
     }
   }, []); 
 
-  const getPendingAppointments = useCallback(async () => {
-    try {
-        const q = query(
-            appointmentsCollectionRef, 
-            where("status.isPending", "==", "Approval Pending") 
-        );
-        const data = await getDocs(q);
-        const pendingData = data.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        
-        setPendingAppointments(pendingData);
-        return pendingData.length;
-    } catch (error) {
-        console.error("Error fetching pending appointments:", error);
-        return 0;
-    }
-  }, []); 
-
   const getUpcomingAppointments = useCallback(async () => {
     const now = Date.now(); 
     
@@ -428,7 +411,6 @@ const MainDashboard = () => {
       setLoading(true);
       
       await Promise.all([
-          getPendingAppointments(),
           getUpcomingAppointments(),
           getTopServices(),
           getPatientCounts(),
@@ -439,7 +421,7 @@ const MainDashboard = () => {
       
       setLoading(false);
       
-  }, [getPendingAppointments, getUpcomingAppointments, getTopServices, getPatientCounts, getTodaysAppointments, getRecentPatients, getPredictiveData]);
+    }, [getUpcomingAppointments, getTopServices, getPatientCounts, getTodaysAppointments, getRecentPatients, getPredictiveData]);
 
   const handleRecentPatientClick = useCallback(async (recentPatient) => {
     const displayName = recentPatient?.name || 'patient';
@@ -476,6 +458,22 @@ const MainDashboard = () => {
 
 
   useEffect(() => {
+    const pendingQuery = query(
+      appointmentsCollectionRef,
+      where("status.isPending", "==", "Approval Pending")
+    );
+
+    const unsubscribePending = onSnapshot(
+      pendingQuery,
+      (snapshot) => {
+        const pendingData = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+        setPendingAppointments(pendingData);
+      },
+      (error) => {
+        console.error("Error listening to pending appointments:", error);
+      }
+    );
+
     fetchDashboardData(); 
 
     const onDocClick = (e) => {
@@ -483,7 +481,10 @@ const MainDashboard = () => {
       if (!menuRef.current.contains(e.target)) setMenuOpen(true);
     };
     document.addEventListener("click", onDocClick);
-    return () => document.removeEventListener("click", onDocClick);
+    return () => {
+      unsubscribePending();
+      document.removeEventListener("click", onDocClick);
+    };
   }, [fetchDashboardData]); 
 
 

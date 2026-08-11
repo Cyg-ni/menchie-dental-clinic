@@ -106,6 +106,8 @@ const NEW_PATIENT_TEMPLATE = {
     image: null
 };
 
+const PATIENTS_PER_PAGE = 10;
+
 
 // -----------------------------------------------------------
 // 2. PROFILE MODAL (UPDATED to use onNavigate)
@@ -184,6 +186,7 @@ export default function PatientList() {
     const [patients, setPatients] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
+    const [currentPage, setCurrentPage] = useState(1);
     // showModal controls the ADDING/EDITING Patient Modal
     const [showModal, setShowModal] = useState(false); 
     const [editPatient, setEditPatient] = useState(null);
@@ -231,6 +234,20 @@ export default function PatientList() {
     const filtered = patients.filter(p =>
         (p.name || "").toLowerCase().includes(search.toLowerCase())
     );
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PATIENTS_PER_PAGE));
+    const startIndex = (currentPage - 1) * PATIENTS_PER_PAGE;
+    const paginatedPatients = filtered.slice(startIndex, startIndex + PATIENTS_PER_PAGE);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [search]);
+
+    useEffect(() => {
+        if (currentPage > totalPages) {
+            setCurrentPage(totalPages);
+        }
+    }, [currentPage, totalPages]);
 
 
     // --- MODAL HANDLERS ---
@@ -432,7 +449,7 @@ export default function PatientList() {
                                     <tr><td colSpan={5} className="empty-row">Loading patient data from Firebase...</td></tr>
                                 ) : filtered.length === 0 ? (
                                     <tr><td colSpan={5} className="empty-row">No patients found.</td></tr>
-                                ) : filtered.map((p) => (
+                                ) : paginatedPatients.map((p) => (
                                     <tr key={p.id}>
                                         <td>
                                             <button
@@ -460,6 +477,25 @@ export default function PatientList() {
                             </tbody>
                         </table>
                     </div>
+                    {!loading && filtered.length > 0 && (
+                        <div className="patient-pagination" aria-label="Patient list pagination">
+                            <button
+                                className="btn-secondary"
+                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                disabled={currentPage === 1}
+                            >
+                                Back
+                            </button>
+                            <span className="pagination-status">Page {currentPage} of {totalPages}</span>
+                            <button
+                                className="btn-secondary"
+                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                disabled={currentPage === totalPages}
+                            >
+                                Next
+                            </button>
+                        </div>
+                    )}
                     
                     
                     {showModal && (

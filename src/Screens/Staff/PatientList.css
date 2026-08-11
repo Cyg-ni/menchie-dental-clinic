@@ -71,6 +71,10 @@
 .btn-secondary:hover {
   background: #e0e5ee;
 }
+.btn-secondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 
 .patient-table-scroll {
   overflow-x: auto;
@@ -114,6 +118,20 @@
 }
 .patient-table .icon-btn:hover {
   background: #ececf8;
+}
+
+.patient-pagination {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.pagination-status {
+  color: #4a5563;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .empty-row {
